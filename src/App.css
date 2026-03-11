@@ -1,0 +1,23 @@
+.vendor-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr) !important; /* Mobile: 2 columns */
+  gap: 14px;
+}
+
+@media (min-width: 640px) {
+  .vendor-grid {
+    grid-template-columns: repeat(4, 1fr) !important; /* Tablet: 4 columns */
+  }
+}
+
+@media (min-width: 1024px) {
+  .vendor-grid {
+    grid-template-columns: repeat(6, 1fr) !important; /* Desktop: 6 columns */
+  }
+}
+
+@media (min-width: 1280px) {
+  .vendor-grid {
+    grid-template-columns: repeat(6, 1fr) !important; /* Large: 6 columns */
+  }
+}
