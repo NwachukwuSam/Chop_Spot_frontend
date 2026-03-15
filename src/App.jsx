@@ -5,6 +5,8 @@ import VendorRegister from './auth/VendoRegister';
 import VendorDashboard from './dashboards/VendorDashboard';
 import RiderRegister from './auth/RiderRegister';
 import RiderDashboard from './dashboards/RiderDashboard';
+import SuperAdminDashboard from './dashboards/SuperAdminDashboard';
+import AdminDashboard from './dashboards/AdminDashboard';
 
 function App() {
   
@@ -17,6 +19,8 @@ function App() {
           <Route path="/vendor-dashboard" element={<VendorDashboard/>} />
           <Route path="/rider-registration" element={<RiderRegister/>} />
           <Route path="/rider-dashboard" element={<RiderDashboard/>} />
+          <Route path="/super-admin-dashboard" element={<SuperAdminDashboard/>} />
+           <Route path="/admin-dashboard" element={<AdminDashboard/>} />
         </Routes>
     </BrowserRouter>
   )
