@@ -7,6 +7,7 @@ import RiderRegister from './auth/RiderRegister';
 import RiderDashboard from './dashboards/RiderDashboard';
 import SuperAdminDashboard from './dashboards/SuperAdminDashboard';
 import AdminDashboard from './dashboards/AdminDashboard';
+import AccountingDashboard from './dashboards/AccountingDashboard';
 
 function App() {
   
@@ -20,7 +21,8 @@ function App() {
           <Route path="/rider-registration" element={<RiderRegister/>} />
           <Route path="/rider-dashboard" element={<RiderDashboard/>} />
           <Route path="/super-admin-dashboard" element={<SuperAdminDashboard/>} />
-           <Route path="/admin-dashboard" element={<AdminDashboard/>} />
+          <Route path="/admin-dashboard" element={<AdminDashboard/>} />
+          <Route path="/accounting-dashboard" element={<AccountingDashboard/>} />
         </Routes>
     </BrowserRouter>
   )
