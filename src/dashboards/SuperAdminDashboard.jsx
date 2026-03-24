@@ -1,4 +1,7 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
+import * as API from "../utils/Api.js";
+import VendorRegister from "../auth/VendoRegister.jsx";
+import RiderRegister from "../auth/RiderRegister.jsx";
 
 // ─── Seed data ────────────────────────────────────────────────────────────────
 const seedAdmins = [
@@ -91,6 +94,124 @@ const Avatar = ({ initials, size = 34, gradient = "linear-gradient(135deg,#2d8a2
     {initials}
   </div>
 );
+
+
+
+// ─── Full-Screen Register Overlay ─────────────────────────────────────────────
+function RegisterOverlay({ title, color, onClose, children }) {
+  useEffect(() => {
+    document.body.style.overflow = "hidden";
+    const esc = (e) => { if (e.key === "Escape") onClose(); };
+    window.addEventListener("keydown", esc);
+    return () => {
+      document.body.style.overflow = "";
+      window.removeEventListener("keydown", esc);
+    };
+  }, [onClose]);
+
+  return (
+    <div style={{
+      position: "fixed", inset: 0, zIndex: 8000,
+      background: "rgba(10,15,10,0.65)",
+      backdropFilter: "blur(8px)",
+      display: "flex", alignItems: "stretch", justifyContent: "flex-end",
+    }}>
+      <div style={{ flex: 1 }} onClick={onClose} />
+      <div style={{
+        width: "100%", maxWidth: 640,
+        background: "#f4f8f4",
+        overflowY: "auto",
+        display: "flex", flexDirection: "column",
+        animation: "saIn 0.32s cubic-bezier(.22,1,.36,1) both",
+      }}>
+        <div style={{
+          position: "sticky", top: 0, zIndex: 10,
+          background: color,
+          padding: "14px 20px",
+          display: "flex", alignItems: "center", justifyContent: "space-between",
+          boxShadow: "0 2px 12px rgba(0,0,0,0.15)",
+        }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <div style={{ width: 34, height: 34, borderRadius: 10, background: "rgba(255,255,255,0.15)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18 }}>
+              {title.includes("Vendor") ? "🏪" : "🏍️"}
+            </div>
+            <div>
+              <p style={{ fontFamily:"'DM Sans',sans-serif", fontSize: 10, fontWeight: 700, color:"rgba(255,255,255,0.6)", letterSpacing: 1.5, textTransform:"uppercase", margin: 0 }}>Super Admin</p>
+              <h3 style={{ fontFamily:"'Sora',sans-serif", fontWeight: 800, fontSize: 16, color:"white", margin: 0 }}>{title}</h3>
+            </div>
+          </div>
+          <button
+            onClick={onClose}
+            style={{
+              background: "rgba(255,255,255,0.15)", border: "1px solid rgba(255,255,255,0.2)",
+              borderRadius: 10, padding: "8px 16px", color: "white",
+              fontFamily:"'DM Sans',sans-serif", fontWeight: 700, fontSize: 13,
+              cursor: "pointer", display:"flex", alignItems:"center", gap:6,
+            }}
+          >
+            <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12"/>
+            </svg>
+            Close
+          </button>
+        </div>
+        <div style={{ flex: 1 }}>
+          {children}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Shared loading / error helpers ───────────────────────────────────────────
+const Spinner = () => (
+  <div style={{ display:"flex", alignItems:"center", justifyContent:"center", padding:40 }}>
+    <svg width="36" height="36" viewBox="0 0 24 24" fill="none">
+      <circle cx="12" cy="12" r="10" stroke="#e5e7eb" strokeWidth="3"/>
+      <path d="M12 2a10 10 0 0110 10" stroke="#2d8a2d" strokeWidth="3" strokeLinecap="round"
+        style={{ animation:"spin 0.9s linear infinite", transformOrigin:"center" }}/>
+    </svg>
+    <style>{`@keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}`}</style>
+  </div>
+);
+
+const ErrorBanner = ({ message, onRetry }) => (
+  <div style={{ background:"#fef2f2", border:"1.5px solid #fca5a5", borderRadius:12, padding:"14px 18px", marginBottom:18, display:"flex", alignItems:"center", justifyContent:"space-between", gap:12 }}>
+    <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+      <span style={{ fontSize:18 }}>⚠️</span>
+      <p style={{ fontFamily:"'DM Sans',sans-serif", fontSize:13, color:"#991b1b", margin:0 }}>{message}</p>
+    </div>
+    {onRetry && (
+      <button onClick={onRetry} style={{ background:"#dc2626", border:"none", borderRadius:8, padding:"7px 14px", color:"white", fontFamily:"'DM Sans',sans-serif", fontWeight:700, fontSize:12, cursor:"pointer" }}>Retry</button>
+    )}
+  </div>
+);
+
+function ActionBtn({ label, color, bg, hoverBg, onClick, confirm }) {
+  const [busy, setBusy] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
+  const run = async () => {
+    setBusy(true);
+    try { await onClick(); } finally { setBusy(false); setShowConfirm(false); }
+  };
+  if (confirm && showConfirm) {
+    return (
+      <div style={{ display:"flex", gap:4 }}>
+        <button onClick={run} disabled={busy} style={{ background:"#dc2626", border:"none", borderRadius:7, padding:"5px 10px", color:"white", fontFamily:"'DM Sans',sans-serif", fontWeight:700, fontSize:11, cursor:busy?"not-allowed":"pointer" }}>{busy?"…":"Confirm"}</button>
+        <button onClick={() => setShowConfirm(false)} style={{ background:"#f3f4f6", border:"none", borderRadius:7, padding:"5px 10px", color:"#374151", fontFamily:"'DM Sans',sans-serif", fontWeight:700, fontSize:11, cursor:"pointer" }}>Cancel</button>
+      </div>
+    );
+  }
+  return (
+    <button onClick={confirm ? () => setShowConfirm(true) : run} disabled={busy}
+      style={{ background:busy?"#e5e7eb":bg, border:"none", borderRadius:8, padding:"6px 12px", color:busy?"#9ca3af":color, fontFamily:"'DM Sans',sans-serif", fontWeight:700, fontSize:12, cursor:busy?"not-allowed":"pointer", transition:"all 0.15s", whiteSpace:"nowrap" }}
+      onMouseEnter={e => { if(!busy && hoverBg) e.currentTarget.style.background=hoverBg; }}
+      onMouseLeave={e => { if(!busy) e.currentTarget.style.background=busy?"#e5e7eb":bg; }}
+    >
+      {busy ? "…" : label}
+    </button>
+  );
+}
 
 // ─── Confirm Delete Modal ────────────────────────────────────────────────────
 function ConfirmModal({ target, entityType, onConfirm, onCancel }) {
@@ -549,32 +670,41 @@ function OverviewTab({ admins, customers, orders, vendors, riders }) {
 }
 
 // ─── ADMINS TAB ───────────────────────────────────────────────────────────────
-function AdminsTab({ admins, setAdmins }) {
-  const [search, setSearch] = useState("");
+function AdminsTab({ admins, setAdmins, loading, error, reload }) {
+  const [search, setSearch]       = useState("");
   const [showCreate, setShowCreate] = useState(false);
-  const [confirm, setConfirm] = useState(null);
-  const [selected, setSelected] = useState(null);
+  const [selected, setSelected]   = useState(null);
 
-  const filtered = admins.filter(a => a.name.toLowerCase().includes(search.toLowerCase()) || a.email.toLowerCase().includes(search.toLowerCase()) || a.role.toLowerCase().includes(search.toLowerCase()));
+  const aid = a => a._id || a.id;
+  const aname = a => a.name || a.fullName || "Unknown";
+  const aemail = a => a.email || "—";
+  const arole = a => a.role || a.adminRole || "Admin";
 
-  const handleCreate = (form) => {
-    const newAdmin = {
-      id: `ADM${String(admins.length + 1).padStart(3,"0")}`,
-      name: form.name, email: form.email, role: form.role,
-      status: "Active", joined: new Date().toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"}),
-      avatar: form.name.trim().split(" ").map(w=>w[0]).slice(0,2).join("").toUpperCase(),
-    };
-    setAdmins(p => [newAdmin, ...p]);
-    setShowCreate(false);
+  const filtered = admins.filter(a => {
+    const q = search.toLowerCase();
+    return aname(a).toLowerCase().includes(q) || aemail(a).toLowerCase().includes(q) || arole(a).toLowerCase().includes(q);
+  });
+
+  const handleCreate = async (form) => {
+    try {
+      const res = await API.createAdmin(form);
+      const newAdmin = API.extractObject(res) || { ...form, id: Date.now(), status:"Active", joined: new Date().toLocaleDateString("en-US",{month:"short",year:"numeric"}) };
+      setAdmins(p => [newAdmin, ...p]);
+      setShowCreate(false);
+    } catch(err) { alert("Failed to create admin: " + err.message); }
   };
 
-  const handleDelete = () => {
-    setAdmins(p => p.filter(a => a.id !== confirm.id));
-    setConfirm(null);
+  const handleSuspend = async (a) => {
+    try { await API.suspendAdmin(aid(a)); setAdmins(p => p.map(x => aid(x)===aid(a) ? {...x, status:"Inactive"} : x)); }
+    catch(err) { alert("Failed: " + err.message); }
   };
-
-  const toggleStatus = (id) => {
-    setAdmins(p => p.map(a => a.id === id ? { ...a, status: a.status === "Active" ? "Inactive" : "Active" } : a));
+  const handleActivate = async (a) => {
+    try { await API.activateAdmin(aid(a)); setAdmins(p => p.map(x => aid(x)===aid(a) ? {...x, status:"Active"} : x)); }
+    catch(err) { alert("Failed: " + err.message); }
+  };
+  const handleDelete = async (a) => {
+    try { await API.deleteAdmin(aid(a)); setAdmins(p => p.filter(x => aid(x) !== aid(a))); }
+    catch(err) { alert("Failed: " + err.message); }
   };
 
   return (
@@ -582,12 +712,17 @@ function AdminsTab({ admins, setAdmins }) {
       <SectionHeader
         title="Admins" sub="Manage platform administrators and their roles" count={filtered.length}
         action={
-          <button onClick={() => setShowCreate(true)} style={{ background: "linear-gradient(135deg,#2d8a2d,#4caf50)", color: "white", border: "none", borderRadius: 12, padding: "11px 20px", fontFamily: "'Sora',sans-serif", fontWeight: 700, fontSize: 13, cursor: "pointer", display: "flex", alignItems: "center", gap: 6, boxShadow: "0 4px 14px rgba(45,138,45,0.35)" }}>
-            <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4"/></svg>
-            Create Admin
-          </button>
+          <div style={{ display:"flex", gap:8 }}>
+            <button onClick={reload} style={{ background:"#f0fdf4", border:"1px solid #bbf7d0", borderRadius:8, padding:"7px 14px", color:"#166534", fontFamily:"'DM Sans',sans-serif", fontWeight:700, fontSize:12, cursor:"pointer" }}>🔄 Refresh</button>
+            <button onClick={() => setShowCreate(true)} style={{ background:"linear-gradient(135deg,#2d8a2d,#4caf50)", color:"white", border:"none", borderRadius:12, padding:"11px 20px", fontFamily:"'Sora',sans-serif", fontWeight:700, fontSize:13, cursor:"pointer", display:"flex", alignItems:"center", gap:6, boxShadow:"0 4px 14px rgba(45,138,45,0.35)" }}>
+              <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4"/></svg>
+              Create Admin
+            </button>
+          </div>
         }
       />
+      {error && <ErrorBanner message={error} onRetry={reload} />}
+      {loading && <Spinner />}
       <div style={{ marginBottom: 16 }}>
         <SearchBar value={search} onChange={setSearch} placeholder="Search by name, email or role…" />
       </div>
@@ -597,24 +732,28 @@ function AdminsTab({ admins, setAdmins }) {
         </thead>
         <tbody>
           {filtered.map(a => (
-            <TR key={a.id}>
+            <TR key={aid(a)}>
               <TD>
                 <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                  <Avatar initials={a.avatar} size={34} />
+                  <Avatar initials={aname(a).trim().split(" ").map(w=>w[0]).slice(0,2).join("").toUpperCase()} size={34} />
                   <div>
-                    <button onClick={() => setSelected(a)} style={{ background:"none", border:"none", cursor:"pointer", padding:0, fontWeight:700, fontSize:13, color:"#1f2937", fontFamily:"'DM Sans',sans-serif", textAlign:"left" }}>{a.name}</button>
-                    <p style={{ margin: 0, fontSize: 11, color: "#9ca3af" }}>{a.email}</p>
+                    <button onClick={() => setSelected(a)} style={{ background:"none", border:"none", cursor:"pointer", padding:0, fontWeight:700, fontSize:13, color:"#1f2937", fontFamily:"'DM Sans',sans-serif", textAlign:"left" }}>{aname(a)}</button>
+                    <p style={{ margin: 0, fontSize: 11, color: "#9ca3af" }}>{aemail(a)}</p>
                   </div>
                 </div>
               </TD>
-              <TD><RolePill role={a.role} /></TD>
-              <TD><StatusPill status={a.status} /></TD>
-              <TD><span style={{ color: "#9ca3af", fontSize: 12 }}>{a.joined}</span></TD>
+              <TD><RolePill role={arole(a)} /></TD>
+              <TD><StatusPill status={a.status || "Active"} /></TD>
+              <TD><span style={{ color: "#9ca3af", fontSize: 12 }}>{a.joined || a.createdAt?.slice(0,7) || "—"}</span></TD>
               <TD>
                 <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
                   <button onClick={() => setSelected(a)} style={{ background:"#f0fdf4", border:"none", borderRadius:8, padding:"6px 12px", color:"#166534", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"'DM Sans',sans-serif" }}>View</button>
-                  <ToggleBtn status={a.status} onClick={() => toggleStatus(a.id)} />
-                  <DeleteBtn onClick={() => setConfirm({ id: a.id, name: a.name })} />
+                  {(a.status === "Active" || a.status === "active") ? (
+                    <ActionBtn label="Suspend"  color="#92400e" bg="#fef3c7" hoverBg="#fde68a" onClick={() => handleSuspend(a)} confirm />
+                  ) : (
+                    <ActionBtn label="Activate" color="#065f46" bg="#d1fae5" hoverBg="#a7f3d0" onClick={() => handleActivate(a)} />
+                  )}
+                  <ActionBtn label="🗑️" color="#dc2626" bg="#fee2e2" hoverBg="#fecaca" onClick={() => handleDelete(a)} confirm />
                 </div>
               </TD>
             </TR>
@@ -623,22 +762,36 @@ function AdminsTab({ admins, setAdmins }) {
       </Table>
 
       {showCreate && <CreateAdminModal onSave={handleCreate} onCancel={() => setShowCreate(false)} />}
-      {confirm && <ConfirmModal target={confirm.name} entityType="Admin" onConfirm={handleDelete} onCancel={() => setConfirm(null)} />}
       {selected && <AdminDetailModal admin={selected} onClose={() => setSelected(null)} />}
     </div>
   );
 }
 
 // ─── CUSTOMERS TAB ───────────────────────────────────────────────────────────
-function CustomersTab({ customers, setCustomers }) {
+function CustomersTab({ customers, setCustomers, loading, error, reload }) {
   const [search, setSearch] = useState("");
   const [selected, setSelected] = useState(null);
-  const filtered = customers.filter(c => c.name.toLowerCase().includes(search.toLowerCase()) || c.email.toLowerCase().includes(search.toLowerCase()));
-  const toggleStatus = (id) => setCustomers(p => p.map(c => c.id === id ? { ...c, status: c.status === "Active" ? "Suspended" : "Active" } : c));
+  const cid = c => c._id || c.id;
+  const cname = c => c.name || c.fullName || c.customerName || "Unknown";
+  const filtered = customers.filter(c => {
+    const q = search.toLowerCase();
+    return cname(c).toLowerCase().includes(q) || (c.email||"").toLowerCase().includes(q);
+  });
+  const toggleStatus = async (c) => {
+    const isSuspended = (c.status||"").toLowerCase() === "suspended";
+    try {
+      if (isSuspended) { await API.activateCustomer(cid(c)); setCustomers(p => p.map(x => cid(x)===cid(c) ? {...x, status:"Active"} : x)); }
+      else              { await API.suspendCustomer(cid(c)); setCustomers(p => p.map(x => cid(x)===cid(c) ? {...x, status:"Suspended"} : x)); }
+    } catch(err) { alert("Failed: " + err.message); }
+  };
 
   return (
     <div>
-      <SectionHeader title="Customers" sub="All registered customers — click any row to view profile" count={filtered.length} />
+      <SectionHeader title="Customers" sub="All registered customers — click any row to view profile" count={filtered.length}
+        action={<button onClick={reload} style={{ background:"#f0fdf4", border:"1px solid #bbf7d0", borderRadius:8, padding:"7px 14px", color:"#166534", fontFamily:"'DM Sans',sans-serif", fontWeight:700, fontSize:12, cursor:"pointer" }}>🔄 Refresh</button>}
+      />
+      {error && <ErrorBanner message={error} onRetry={reload} />}
+      {loading && <Spinner />}
       <div style={{ marginBottom: 16 }}>
         <SearchBar value={search} onChange={setSearch} placeholder="Search by name or email…" />
       </div>
@@ -666,7 +819,14 @@ function CustomersTab({ customers, setCustomers }) {
               <TD>
                 <div style={{ display:"flex", gap:6 }}>
                   <button onClick={() => setSelected(c)} style={{ background:"#eff6ff", border:"none", borderRadius:8, padding:"6px 12px", color:"#1d4ed8", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"'DM Sans',sans-serif" }}>View</button>
-                  <ToggleBtn status={c.status} onClick={() => toggleStatus(c.id)} />
+                  <ActionBtn
+                    label={(c.status||"").toLowerCase()==="suspended"?"Activate":"Suspend"}
+                    color={(c.status||"").toLowerCase()==="suspended"?"#166534":"#991b1b"}
+                    bg={(c.status||"").toLowerCase()==="suspended"?"#dcfce7":"#fee2e2"}
+                    hoverBg={(c.status||"").toLowerCase()==="suspended"?"#bbf7d0":"#fecaca"}
+                    onClick={() => toggleStatus(c)}
+                    confirm
+                  />
                 </div>
               </TD>
             </TR>
@@ -679,21 +839,57 @@ function CustomersTab({ customers, setCustomers }) {
 }
 
 // ─── ORDERS TAB ───────────────────────────────────────────────────────────────
-function OrdersTab({ orders }) {
+function OrdersTab({ orders, setOrders, riders, loading, error, reload }) {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
   const [selected, setSelected] = useState(null);
+  const [assignTarget, setAssignTarget] = useState(null);
   const statuses = ["All", "Pending", "Preparing", "En Route", "Delivered", "Cancelled"];
+  const oid = o => o._id || o.id;
 
-  const filtered = orders.filter(o => {
-    const matchSearch = o.id.toLowerCase().includes(search.toLowerCase()) || o.customer.toLowerCase().includes(search.toLowerCase()) || o.vendor.toLowerCase().includes(search.toLowerCase());
-    const matchStatus = statusFilter === "All" || o.status === statusFilter;
+  const handleStatusChange = async (o, newStatus) => {
+    try {
+      await API.updateOrderStatus(oid(o), newStatus);
+      setOrders(p => p.map(x => oid(x)===oid(o) ? {...x, status:newStatus} : x));
+    } catch(err) { alert("Failed: " + err.message); }
+  };
+
+  const handleAssignRider = async (orderId, riderId) => {
+    try {
+      await API.assignOrderRider(orderId, riderId);
+      const riderObj = (riders||[]).find(r => (r._id||r.id) === riderId);
+      setOrders(p => p.map(x => oid(x)===orderId ? {...x, rider:riderObj?.name||riderId} : x));
+      setAssignTarget(null);
+    } catch(err) { alert("Failed: " + err.message); }
+  };
+
+  const normalizeOrder = (o) => ({
+    ...o,
+    id:       o._id      || o.id,
+    customer: o.customer?.name || o.customer || o.customerName || "—",
+    vendor:   o.vendor?.name   || o.vendor   || o.vendorName   || "—",
+    rider:    o.rider?.name    || o.rider    || o.riderName    || "—",
+    items:    o.items || o.itemCount || "—",
+    total:    o.total || o.amount    || 0,
+    status:   o.status || "Pending",
+    date:     o.createdAt ? new Date(o.createdAt).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"}) : (o.date || "—"),
+  });
+
+  const normalized = orders.map(normalizeOrder);
+  const filtered = normalized.filter(o => {
+    const q = search.toLowerCase();
+    const matchSearch = (o.id||"").toString().toLowerCase().includes(q) || (o.customer||"").toLowerCase().includes(q) || (o.vendor||"").toLowerCase().includes(q);
+    const matchStatus = statusFilter === "All" || (o.status||"").toLowerCase() === statusFilter.toLowerCase();
     return matchSearch && matchStatus;
   });
 
   return (
     <div>
-      <SectionHeader title="All Orders" sub="Complete order history across the platform" count={filtered.length} />
+      <SectionHeader title="All Orders" sub="Update status or assign riders live" count={filtered.length}
+        action={<button onClick={reload} style={{ background:"#f0fdf4", border:"1px solid #bbf7d0", borderRadius:8, padding:"7px 14px", color:"#166534", fontFamily:"'DM Sans',sans-serif", fontWeight:700, fontSize:12, cursor:"pointer" }}>🔄 Refresh</button>}
+      />
+      {error && <ErrorBanner message={error} onRetry={reload} />}
+      {loading && <Spinner />}
       <div style={{ display: "flex", gap: 12, marginBottom: 16, flexWrap: "wrap", alignItems: "center" }}>
         <SearchBar value={search} onChange={setSearch} placeholder="Search by order ID, customer or vendor…" />
         <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
@@ -730,18 +926,40 @@ function OrdersTab({ orders }) {
 }
 
 // ─── VENDORS TAB ─────────────────────────────────────────────────────────────
-function VendorsTab({ vendors, setVendors }) {
+function VendorsTab({ vendors, setVendors, loading, error, reload, onRegisterVendor }) {
   const [search, setSearch] = useState("");
   const [confirm, setConfirm] = useState(null);
   const [selected, setSelected] = useState(null);
   const filtered = vendors.filter(v => v.name.toLowerCase().includes(search.toLowerCase()) || v.owner.toLowerCase().includes(search.toLowerCase()) || v.category.toLowerCase().includes(search.toLowerCase()));
 
-  const handleDelete = () => { setVendors(p => p.filter(v => v.id !== confirm.id)); setConfirm(null); };
-  const toggleStatus = (id) => setVendors(p => p.map(v => v.id === id ? { ...v, status: v.status === "Active" ? "Suspended" : "Active" } : v));
+  const vid = v => v._id || v.id;
+  const handleDelete = async (v) => {
+    try { await API.deleteVendor(vid(v)); setVendors(p => p.filter(x => vid(x)!==vid(v))); setConfirm(null); }
+    catch(err) { alert("Failed: " + err.message); }
+  };
+  const handleSuspend = async (v) => {
+    try { await API.suspendVendor(vid(v)); setVendors(p => p.map(x => vid(x)===vid(v) ? {...x,status:"Suspended"} : x)); }
+    catch(err) { alert("Failed: " + err.message); }
+  };
+  const handleApprove = async (v) => {
+    try { await API.approveVendor(vid(v)); setVendors(p => p.map(x => vid(x)===vid(v) ? {...x,status:"Active"} : x)); }
+    catch(err) { alert("Failed: " + err.message); }
+  };
 
   return (
     <div>
-      <SectionHeader title="Vendors" sub="All food vendors registered on ChopSpot" count={filtered.length} />
+      <SectionHeader
+        title="Vendors" sub="Approve, suspend or manage all food vendors" count={filtered.length}
+        action={
+          <div style={{ display:"flex", gap:8 }}>
+            <button onClick={reload} style={{ background:"#f0fdf4", border:"1px solid #bbf7d0", borderRadius:8, padding:"7px 14px", color:"#166534", fontFamily:"'DM Sans',sans-serif", fontWeight:700, fontSize:12, cursor:"pointer" }}>🔄 Refresh</button>
+            <button onClick={onRegisterVendor} style={{ background:"linear-gradient(135deg,#2d8a2d,#4caf50)", color:"white", border:"none", borderRadius:12, padding:"11px 20px", fontFamily:"'Sora',sans-serif", fontWeight:700, fontSize:13, cursor:"pointer", display:"flex", alignItems:"center", gap:6, boxShadow:"0 4px 14px rgba(45,138,45,0.32)" }}>
+              <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4"/></svg>
+              Register Vendor
+            </button>
+          </div>
+        }
+      />
       <div style={{ marginBottom: 16 }}>
         <SearchBar value={search} onChange={setSearch} placeholder="Search vendors…" />
       </div>
@@ -774,33 +992,65 @@ function VendorsTab({ vendors, setVendors }) {
               <TD>
                 <div style={{ display: "flex", gap: 6, alignItems:"center" }}>
                   <button onClick={() => setSelected(v)} style={{ background:"#f5f3ff", border:"none", borderRadius:8, padding:"6px 12px", color:"#7c3aed", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"'DM Sans',sans-serif" }}>View</button>
-                  <ToggleBtn status={v.status} onClick={() => toggleStatus(v.id)} />
-                  <DeleteBtn onClick={() => setConfirm({ id: v.id, name: v.name })} />
+                  {(v.status==="Pending"||v.status==="pending") && (
+                    <>
+                      <ActionBtn label="Approve" color="#065f46" bg="#d1fae5" hoverBg="#a7f3d0" onClick={() => handleApprove(v)} />
+                      <ActionBtn label="Reject" color="#991b1b" bg="#fee2e2" hoverBg="#fecaca" onClick={() => API.rejectVendor(vid(v)).then(()=>setVendors(p=>p.map(x=>vid(x)===vid(v)?{...x,status:"Rejected"}:x))).catch(e=>alert(e.message))} confirm />
+                    </>
+                  )}
+                  {(v.status==="Active"||v.status==="active") && (
+                    <ActionBtn label="Suspend" color="#92400e" bg="#fef3c7" hoverBg="#fde68a" onClick={() => handleSuspend(v)} confirm />
+                  )}
+                  {(v.status==="Suspended"||v.status==="suspended") && (
+                    <ActionBtn label="Approve" color="#065f46" bg="#d1fae5" hoverBg="#a7f3d0" onClick={() => handleApprove(v)} />
+                  )}
+                  <ActionBtn label="🗑️" color="#dc2626" bg="#fee2e2" hoverBg="#fecaca" onClick={() => handleDelete(v)} confirm />
                 </div>
               </TD>
             </TR>
           ))}
         </tbody>
       </Table>
-      {confirm && <ConfirmModal target={confirm.name} entityType="Vendor" onConfirm={handleDelete} onCancel={() => setConfirm(null)} />}
       {selected && <VendorDetailModal vendor={selected} onClose={() => setSelected(null)} />}
     </div>
   );
 }
 
 // ─── RIDERS TAB ──────────────────────────────────────────────────────────────
-function RidersTab({ riders, setRiders }) {
+function RidersTab({ riders, setRiders, loading, error, reload, onRegisterRider }) {
   const [search, setSearch] = useState("");
   const [confirm, setConfirm] = useState(null);
   const [selected, setSelected] = useState(null);
   const filtered = riders.filter(r => r.name.toLowerCase().includes(search.toLowerCase()) || r.zone.toLowerCase().includes(search.toLowerCase()) || r.vehicle.toLowerCase().includes(search.toLowerCase()));
 
-  const handleDelete = () => { setRiders(p => p.filter(r => r.id !== confirm.id)); setConfirm(null); };
-  const toggleStatus = (id) => setRiders(p => p.map(r => r.id === id ? { ...r, status: r.status === "Online" ? "Offline" : "Online" } : r));
+  const rid = r => r._id || r.id;
+  const handleDelete = async (r) => {
+    try { await API.deleteRider(rid(r)); setRiders(p => p.filter(x => rid(x)!==rid(r))); setConfirm(null); }
+    catch(err) { alert("Failed: " + err.message); }
+  };
+  const handleSuspend = async (r) => {
+    try { await API.suspendRider(rid(r)); setRiders(p => p.map(x => rid(x)===rid(r) ? {...x,status:"Suspended"} : x)); }
+    catch(err) { alert("Failed: " + err.message); }
+  };
+  const handleApprove = async (r) => {
+    try { await API.approveRider(rid(r)); setRiders(p => p.map(x => rid(x)===rid(r) ? {...x,status:"Online"} : x)); }
+    catch(err) { alert("Failed: " + err.message); }
+  };
 
   return (
     <div>
-      <SectionHeader title="Riders" sub="All delivery riders on the ChopSpot platform" count={filtered.length} />
+      <SectionHeader
+        title="Riders" sub="Approve, suspend or manage all delivery riders" count={filtered.length}
+        action={
+          <div style={{ display:"flex", gap:8 }}>
+            <button onClick={reload} style={{ background:"#f0fdf4", border:"1px solid #bbf7d0", borderRadius:8, padding:"7px 14px", color:"#166534", fontFamily:"'DM Sans',sans-serif", fontWeight:700, fontSize:12, cursor:"pointer" }}>🔄 Refresh</button>
+            <button onClick={onRegisterRider} style={{ background:"linear-gradient(135deg,#7c3aed,#a855f7)", color:"white", border:"none", borderRadius:12, padding:"11px 20px", fontFamily:"'Sora',sans-serif", fontWeight:700, fontSize:13, cursor:"pointer", display:"flex", alignItems:"center", gap:6, boxShadow:"0 4px 14px rgba(124,58,237,0.32)" }}>
+              <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4"/></svg>
+              Onboard Rider
+            </button>
+          </div>
+        }
+      />
       <div style={{ marginBottom: 16 }}>
         <SearchBar value={search} onChange={setSearch} placeholder="Search riders…" />
       </div>
@@ -829,15 +1079,25 @@ function RidersTab({ riders, setRiders }) {
               <TD>
                 <div style={{ display: "flex", gap: 6, alignItems:"center" }}>
                   <button onClick={() => setSelected(r)} style={{ background:"#fff7ed", border:"none", borderRadius:8, padding:"6px 12px", color:"#c2410c", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"'DM Sans',sans-serif" }}>View</button>
-                  <ToggleBtn status={r.status} onClick={() => toggleStatus(r.id)} />
-                  <DeleteBtn onClick={() => setConfirm({ id: r.id, name: r.name })} />
+                  {(r.status==="Pending"||r.status==="pending") && (
+                    <>
+                      <ActionBtn label="Approve" color="#065f46" bg="#d1fae5" hoverBg="#a7f3d0" onClick={() => handleApprove(r)} />
+                      <ActionBtn label="Reject" color="#991b1b" bg="#fee2e2" hoverBg="#fecaca" onClick={() => API.rejectRider(rid(r)).then(()=>setRiders(p=>p.map(x=>rid(x)===rid(r)?{...x,status:"Rejected"}:x))).catch(e=>alert(e.message))} confirm />
+                    </>
+                  )}
+                  {(r.status==="Online"||r.status==="Offline"||r.status==="Available") && (
+                    <ActionBtn label="Suspend" color="#92400e" bg="#fef3c7" hoverBg="#fde68a" onClick={() => handleSuspend(r)} confirm />
+                  )}
+                  {(r.status==="Suspended"||r.status==="suspended") && (
+                    <ActionBtn label="Approve" color="#065f46" bg="#d1fae5" hoverBg="#a7f3d0" onClick={() => handleApprove(r)} />
+                  )}
+                  <ActionBtn label="🗑️" color="#dc2626" bg="#fee2e2" hoverBg="#fecaca" onClick={() => handleDelete(r)} confirm />
                 </div>
               </TD>
             </TR>
           ))}
         </tbody>
       </Table>
-      {confirm && <ConfirmModal target={confirm.name} entityType="Rider" onConfirm={handleDelete} onCancel={() => setConfirm(null)} />}
       {selected && <RiderDetailModal rider={selected} onClose={() => setSelected(null)} />}
     </div>
   );
@@ -960,15 +1220,66 @@ const NAV_ITEMS = [
 
 // ─── MAIN DASHBOARD ───────────────────────────────────────────────────────────
 export default function SuperAdminDashboard({ onExit }) {
-  const [tab, setTab]           = useState("overview");
-  const [admins, setAdmins]     = useState(seedAdmins);
-  const [customers, setCustomers] = useState(seedCustomers);
-  const [orders]                = useState(seedOrders);
-  const [vendors, setVendors]   = useState(seedVendors);
-  const [riders, setRiders]     = useState(seedRiders);
+  const [tab, setTab]             = useState("overview");
+  const [admins, setAdmins]       = useState([]);
+  const [customers, setCustomers] = useState([]);
+  const [orders, setOrders]       = useState([]);
+  const [vendors, setVendors]     = useState([]);
+  const [riders, setRiders]       = useState([]);
+  const [loading, setLoading]     = useState({});
+  const [errors, setErrors]       = useState({});
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [quickOverlay, setQuickOverlay] = useState(null);
+  // Read admin profile from localStorage (stored by LoginPage on successful login)
+  const [liveAdminName, setLiveAdminName] = useState(() => {
+    try {
+      const stored = localStorage.getItem('chopspot_user');
+      if (stored) {
+        const u = JSON.parse(stored);
+        const name = `${u.firstName || ''} ${u.lastName || ''}`.trim() || u.username || u.name || '';
+        return name || 'Super Admin';
+      }
+    } catch (_) {}
+    return 'Super Admin';
+  });
 
   const counts = { admins: admins.length, customers: customers.length, orders: orders.length, vendors: vendors.length, riders: riders.length };
+
+  // ── Generic loader ───────────────────────────────────────────────────────────
+  const load = useCallback(async (key, apiFn, setter, fallback = []) => {
+    setLoading(p => ({ ...p, [key]: true }));
+    setErrors(p => ({ ...p, [key]: null }));
+    try {
+      const res = await apiFn();
+      setter(API.extractList(res) || fallback);
+    } catch (err) {
+      setErrors(p => ({ ...p, [key]: err.message }));
+      setter(fallback);
+    } finally {
+      setLoading(p => ({ ...p, [key]: false }));
+    }
+  }, []);
+
+  // ── Boot: load all data ──────────────────────────────────────────────────────
+  useEffect(() => {
+    load("admins",    API.getAdmins,    setAdmins,    seedAdmins);
+    load("customers", API.getCustomers, setCustomers, seedCustomers);
+    load("vendors",   API.getVendors,   setVendors,   seedVendors);
+    load("riders",    API.getRiders,    setRiders,    seedRiders);
+    load("orders",    API.getOrders,    setOrders,    seedOrders);
+  }, [load]);
+
+  // ── Re-load on tab switch ────────────────────────────────────────────────────
+  useEffect(() => {
+    const map = {
+      admins:    () => load("admins",    API.getAdmins,    setAdmins,    seedAdmins),
+      customers: () => load("customers", API.getCustomers, setCustomers, seedCustomers),
+      vendors:   () => load("vendors",   API.getVendors,   setVendors,   seedVendors),
+      riders:    () => load("riders",    API.getRiders,    setRiders,    seedRiders),
+      orders:    () => load("orders",    API.getOrders,    setOrders,    seedOrders),
+    };
+    map[tab]?.();
+  }, [tab, load]);
 
   return (
     <>
@@ -1081,9 +1392,9 @@ export default function SuperAdminDashboard({ onExit }) {
               </span>
               {/* Super Admin profile avatar */}
               <ProfileDropdown
-                name="Super Admin"
+                name={liveAdminName}
                 role="Super Administrator"
-                email="sa@chopspot.ng"
+                email={`${liveAdminName.toLowerCase().replace(/\s+/g,".")}@chopspot.ng`}
                 initials="SA"
                 avatarGradient="linear-gradient(135deg,#2d8a2d,#4caf50)"
                 accentColor="#2d8a2d"
@@ -1101,14 +1412,41 @@ export default function SuperAdminDashboard({ onExit }) {
           {/* Page content */}
           <main style={{ flex: 1, padding: "28px 24px 48px", overflowY: "auto", animation: "saIn 0.3s ease both" }} key={tab}>
             {tab === "overview"  && <OverviewTab admins={admins} customers={customers} orders={orders} vendors={vendors} riders={riders} />}
-            {tab === "admins"    && <AdminsTab admins={admins} setAdmins={setAdmins} />}
-            {tab === "customers" && <CustomersTab customers={customers} setCustomers={setCustomers} />}
-            {tab === "orders"    && <OrdersTab orders={orders} />}
-            {tab === "vendors"   && <VendorsTab vendors={vendors} setVendors={setVendors} />}
-            {tab === "riders"    && <RidersTab riders={riders} setRiders={setRiders} />}
+            {tab === "admins"    && <AdminsTab   admins={admins}     setAdmins={setAdmins}       loading={loading.admins}    error={errors.admins}    reload={() => load("admins",    API.getAdmins,    setAdmins,    seedAdmins)}    />}
+            {tab === "customers" && <CustomersTab customers={customers} setCustomers={setCustomers} loading={loading.customers} error={errors.customers} reload={() => load("customers", API.getCustomers, setCustomers, seedCustomers)} />}
+            {tab === "orders"    && <OrdersTab   orders={orders}     setOrders={setOrders}       riders={riders}            loading={loading.orders}  error={errors.orders}   reload={() => load("orders",    API.getOrders,    setOrders,    seedOrders)}    />}
+            {tab === "vendors"   && <VendorsTab  vendors={vendors}   setVendors={setVendors}     loading={loading.vendors}  error={errors.vendors}   reload={() => load("vendors",   API.getVendors,   setVendors,   seedVendors)}   onRegisterVendor={() => setQuickOverlay("vendor")} />}
+            {tab === "riders"    && <RidersTab   riders={riders}     setRiders={setRiders}       loading={loading.riders}   error={errors.riders}    reload={() => load("riders",    API.getRiders,    setRiders,    seedRiders)}    onRegisterRider={() => setQuickOverlay("rider")} />}
           </main>
         </div>
       </div>
+      {/* ── Global quick-action overlays ──────────────────────────────────── */}
+      {quickOverlay === "vendor" && (
+        <RegisterOverlay
+          title="Register New Vendor"
+          color="linear-gradient(135deg,#1a3a1a,#2d6a2d)"
+          onClose={() => setQuickOverlay(null)}
+        >
+          <VendorRegister onSuccess={(vendor) => {
+            setVendors(p => [vendor, ...p]);
+            setQuickOverlay(null);
+            setTab("vendors");
+          }} />
+        </RegisterOverlay>
+      )}
+      {quickOverlay === "rider" && (
+        <RegisterOverlay
+          title="Onboard New Rider"
+          color="linear-gradient(135deg,#7c3aed,#a855f7)"
+          onClose={() => setQuickOverlay(null)}
+        >
+          <RiderRegister onSuccess={(rider) => {
+            setRiders(p => [rider, ...p]);
+            setQuickOverlay(null);
+            setTab("riders");
+          }} />
+        </RegisterOverlay>
+      )}
     </>
   );
 }

@@ -1,4 +1,9 @@
-import { useState, useEffect, useRef } from "react";
+
+
+import { useState, useEffect, useRef, useCallback } from "react";
+import * as API from "../utils/Api.js";
+import VendorRegister from "../auth/VendoRegister.jsx";
+import RiderRegister from "../auth/RiderRegister.jsx";
 
 // ─── Seed data ─────────────────────────────────────────────────────────────────
 const seedCustomers = [
@@ -632,6 +637,155 @@ function OrderModal({ order, onClose }) {
 }
 
 // ─── TAB: OVERVIEW ────────────────────────────────────────────────────────────
+
+
+// ─── Full-Screen Register Overlay ─────────────────────────────────────────────
+// Wraps VendorRegister / RiderRegister in a slide-in overlay so the admin
+// never leaves the dashboard. On success or close it returns to the table.
+function RegisterOverlay({ title, color, onClose, children }) {
+  useEffect(() => {
+    document.body.style.overflow = "hidden";
+    const esc = (e) => { if (e.key === "Escape") onClose(); };
+    window.addEventListener("keydown", esc);
+    return () => {
+      document.body.style.overflow = "";
+      window.removeEventListener("keydown", esc);
+    };
+  }, [onClose]);
+
+  return (
+    <div style={{
+      position: "fixed", inset: 0, zIndex: 8000,
+      background: "rgba(10,15,10,0.65)",
+      backdropFilter: "blur(8px)",
+      display: "flex", alignItems: "stretch", justifyContent: "flex-end",
+      animation: "overlayFadeIn 0.25s ease both",
+    }}>
+      <style>{`
+        @keyframes overlayFadeIn  { from { opacity:0 } to { opacity:1 } }
+        @keyframes overlaySlideIn { from { transform:translateX(100%) } to { transform:translateX(0) } }
+      `}</style>
+
+      {/* Click backdrop to close */}
+      <div style={{ flex: 1 }} onClick={onClose} />
+
+      {/* Panel */}
+      <div style={{
+        width: "100%", maxWidth: 640,
+        background: "#f4f8f4",
+        overflowY: "auto",
+        display: "flex", flexDirection: "column",
+        animation: "overlaySlideIn 0.32s cubic-bezier(.22,1,.36,1) both",
+        position: "relative",
+      }}>
+        {/* Top bar */}
+        <div style={{
+          position: "sticky", top: 0, zIndex: 10,
+          background: color,
+          padding: "14px 20px",
+          display: "flex", alignItems: "center", justifyContent: "space-between",
+          boxShadow: "0 2px 12px rgba(0,0,0,0.15)",
+        }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <div style={{ width: 34, height: 34, borderRadius: 10, background: "rgba(255,255,255,0.15)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18 }}>
+              {title.includes("Vendor") ? "🏪" : "🏍️"}
+            </div>
+            <div>
+              <p style={{ fontFamily:"'DM Sans',sans-serif", fontSize: 10, fontWeight: 700, color:"rgba(255,255,255,0.6)", letterSpacing: 1.5, textTransform:"uppercase", margin: 0 }}>Admin Dashboard</p>
+              <h3 style={{ fontFamily:"'Sora',sans-serif", fontWeight: 800, fontSize: 16, color:"white", margin: 0 }}>{title}</h3>
+            </div>
+          </div>
+          <button
+            onClick={onClose}
+            style={{
+              background: "rgba(255,255,255,0.15)", border: "1px solid rgba(255,255,255,0.2)",
+              borderRadius: 10, padding: "8px 16px", color: "white",
+              fontFamily:"'DM Sans',sans-serif", fontWeight: 700, fontSize: 13,
+              cursor: "pointer", display:"flex", alignItems:"center", gap:6,
+              transition:"all 0.15s",
+            }}
+            onMouseEnter={e => e.currentTarget.style.background = "rgba(255,255,255,0.25)"}
+            onMouseLeave={e => e.currentTarget.style.background = "rgba(255,255,255,0.15)"}
+          >
+            <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12"/>
+            </svg>
+            Close
+          </button>
+        </div>
+
+        {/* Registration form fills the rest */}
+        <div style={{ flex: 1 }}>
+          {children}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Shared loading / error helpers ───────────────────────────────────────────
+const Spinner = () => (
+  <div style={{ display:"flex", alignItems:"center", justifyContent:"center", padding:40 }}>
+    <svg width="36" height="36" viewBox="0 0 24 24" fill="none"
+      style={{ animation:"adIn 1s linear infinite" }}>
+      <circle cx="12" cy="12" r="10" stroke="#e5e7eb" strokeWidth="3"/>
+      <path d="M12 2a10 10 0 0110 10" stroke="#2d8a2d" strokeWidth="3" strokeLinecap="round"
+        style={{ animation:"spin 0.9s linear infinite", transformOrigin:"center" }}/>
+    </svg>
+    <style>{`@keyframes spin { from{transform:rotate(0deg)} to{transform:rotate(360deg)} }`}</style>
+  </div>
+);
+
+const ErrorBanner = ({ message, onRetry }) => (
+  <div style={{ background:"#fef2f2", border:"1.5px solid #fca5a5", borderRadius:12, padding:"14px 18px", marginBottom:18, display:"flex", alignItems:"center", justifyContent:"space-between", gap:12 }}>
+    <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+      <span style={{ fontSize:18 }}>⚠️</span>
+      <p style={{ fontFamily:"'DM Sans',sans-serif", fontSize:13, color:"#991b1b", margin:0 }}>{message}</p>
+    </div>
+    {onRetry && (
+      <button onClick={onRetry} style={{ background:"#dc2626", border:"none", borderRadius:8, padding:"7px 14px", color:"white", fontFamily:"'DM Sans',sans-serif", fontWeight:700, fontSize:12, cursor:"pointer" }}>
+        Retry
+      </button>
+    )}
+  </div>
+);
+
+// Action button with built-in loading spinner
+function ActionBtn({ label, color, bg, hoverBg, onClick, confirm }) {
+  const [busy, setBusy] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
+
+  const run = async () => {
+    setBusy(true);
+    try { await onClick(); } finally { setBusy(false); setShowConfirm(false); }
+  };
+
+  if (confirm && showConfirm) {
+    return (
+      <div style={{ display:"flex", gap:4 }}>
+        <button onClick={run} disabled={busy} style={{ background:"#dc2626", border:"none", borderRadius:7, padding:"5px 10px", color:"white", fontFamily:"'DM Sans',sans-serif", fontWeight:700, fontSize:11, cursor:busy?"not-allowed":"pointer" }}>
+          {busy ? "…" : "Confirm"}
+        </button>
+        <button onClick={() => setShowConfirm(false)} style={{ background:"#f3f4f6", border:"none", borderRadius:7, padding:"5px 10px", color:"#374151", fontFamily:"'DM Sans',sans-serif", fontWeight:700, fontSize:11, cursor:"pointer" }}>
+          Cancel
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <button
+      onClick={confirm ? () => setShowConfirm(true) : run}
+      disabled={busy}
+      style={{ background:busy?"#e5e7eb":bg, border:"none", borderRadius:8, padding:"6px 12px", color:busy?"#9ca3af":color, fontFamily:"'DM Sans',sans-serif", fontWeight:700, fontSize:12, cursor:busy?"not-allowed":"pointer", transition:"all 0.15s", whiteSpace:"nowrap" }}
+      onMouseEnter={e => { if(!busy && hoverBg) e.currentTarget.style.background=hoverBg; }}
+      onMouseLeave={e => { if(!busy) e.currentTarget.style.background=busy?"#e5e7eb":bg; }}
+    >
+      {busy ? "…" : label}
+    </button>
+  );
+}
+
 function OverviewTab({ customers, orders, vendors, riders, adminRole }) {
   const revenue = vendors.reduce((a, v) => a + v.revenue, 0);
   const delivered = orders.filter(o => o.status === "Delivered").length;
@@ -696,15 +850,34 @@ function OverviewTab({ customers, orders, vendors, riders, adminRole }) {
 }
 
 // ─── TAB: CUSTOMERS ───────────────────────────────────────────────────────────
-function CustomersTab({ customers, setCustomers }) {
+function CustomersTab({ customers, setCustomers, loading, error, reload }) {
   const [search, setSearch] = useState("");
   const [selected, setSelected] = useState(null);
-  const filtered = customers.filter(c => c.name.toLowerCase().includes(search.toLowerCase()) || c.email.toLowerCase().includes(search.toLowerCase()));
-  const toggleStatus = id => setCustomers(p => p.map(c => c.id === id ? { ...c, status: c.status === "Active" ? "Suspended" : "Active" } : c));
+  const filtered = customers.filter(c => {
+    const q = search.toLowerCase();
+    return (c.name||"").toLowerCase().includes(q) || (c.email||"").toLowerCase().includes(q);
+  });
+
+  const toggleStatus = async (customer) => {
+    const isSuspended = customer.status === "Suspended" || customer.status === "suspended";
+    try {
+      if (isSuspended) {
+        await API.activateCustomer(customer._id || customer.id);
+        setCustomers(p => p.map(c => (c._id||c.id) === (customer._id||customer.id) ? { ...c, status: "Active" } : c));
+      } else {
+        await API.suspendCustomer(customer._id || customer.id);
+        setCustomers(p => p.map(c => (c._id||c.id) === (customer._id||customer.id) ? { ...c, status: "Suspended" } : c));
+      }
+    } catch(err) { alert("Action failed: " + err.message); }
+  };
 
   return (
     <div>
-      <SectionHeader title="Customers" sub="All registered customers — click any row to view details" count={filtered.length} />
+      <SectionHeader title="Customers" sub="All registered customers — click any row to view details" count={filtered.length} action={
+        <button onClick={reload} style={{ background:"#f0fdf4", border:"1px solid #bbf7d0", borderRadius:8, padding:"7px 14px", color:"#166534", fontFamily:"'DM Sans',sans-serif", fontWeight:700, fontSize:12, cursor:"pointer", display:"flex", alignItems:"center", gap:5 }}>🔄 Refresh</button>
+      } />
+      {error && <ErrorBanner message={error} onRetry={reload} />}
+      {loading && <Spinner />}
       <div style={{ marginBottom: 16 }}><SearchBar value={search} onChange={setSearch} placeholder="Search by name or email…" /></div>
       <Table>
         <thead><tr><TH>Customer</TH><TH>Phone</TH><TH>Orders</TH><TH>Total Spent</TH><TH>Status</TH><TH>Joined</TH><TH>Actions</TH></tr></thead>
@@ -727,7 +900,14 @@ function CustomersTab({ customers, setCustomers }) {
               <TD><span style={{ color:"#9ca3af", fontSize:12 }}>{c.joined}</span></TD>
               <TD>
                 <div style={{ display:"flex", gap:6 }}>
-                  <ToggleBtn status={c.status} onClick={() => toggleStatus(c.id)} />
+                  <ActionBtn
+                    label={c.status === "Suspended" || c.status === "suspended" ? "Activate" : "Suspend"}
+                    color={c.status === "Suspended" || c.status === "suspended" ? "#166534" : "#991b1b"}
+                    bg={c.status === "Suspended" || c.status === "suspended" ? "#dcfce7" : "#fee2e2"}
+                    hoverBg={c.status === "Suspended" || c.status === "suspended" ? "#bbf7d0" : "#fecaca"}
+                    onClick={() => toggleStatus(c)}
+                    confirm
+                  />
                   <button onClick={() => setSelected(c)} style={{ background:"#eff6ff", border:"none", borderRadius:8, padding:"6px 12px", color:"#1d4ed8", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"'DM Sans',sans-serif" }}>View</button>
                 </div>
               </TD>
@@ -741,20 +921,64 @@ function CustomersTab({ customers, setCustomers }) {
 }
 
 // ─── TAB: ORDERS ─────────────────────────────────────────────────────────────
-function OrdersTab({ orders }) {
-  const [search, setSearch] = useState("");
+function OrdersTab({ orders, setOrders, riders, loading, error, reload }) {
+  const [search, setSearch]           = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
   const [selectedOrder, setSelectedOrder] = useState(null);
+  const [assignTarget, setAssignTarget]   = useState(null); // order awaiting rider assignment
   const statuses = ["All","Pending","Preparing","En Route","Delivered","Cancelled"];
 
+  const oid = (o) => o._id || o.id;
+
   const filtered = orders.filter(o => {
-    const m = o.id.toLowerCase().includes(search.toLowerCase()) || o.customer.toLowerCase().includes(search.toLowerCase()) || o.vendor.toLowerCase().includes(search.toLowerCase());
-    return m && (statusFilter === "All" || o.status === statusFilter);
+    const q = search.toLowerCase();
+    const idStr   = (o._id || o.id || "").toString().toLowerCase();
+    const custStr = (o.customer?.name || o.customer || o.customerName || "").toLowerCase();
+    const vendStr = (o.vendor?.name   || o.vendor   || o.vendorName   || "").toLowerCase();
+    const m = idStr.includes(q) || custStr.includes(q) || vendStr.includes(q);
+    return m && (statusFilter === "All" || (o.status||"").toLowerCase() === statusFilter.toLowerCase());
   });
+
+  // Normalise order fields coming from API
+  const normalize = (o) => ({
+    ...o,
+    id:       o._id      || o.id,
+    customer: o.customer?.name || o.customer || o.customerName || "—",
+    vendor:   o.vendor?.name   || o.vendor   || o.vendorName   || "—",
+    rider:    o.rider?.name    || o.rider    || o.riderName    || "—",
+    items:    o.items    || o.itemCount  || o.totalItems || "—",
+    total:    o.total    || o.amount     || o.totalAmount || 0,
+    status:   o.status   || "Pending",
+    date:     o.createdAt ? new Date(o.createdAt).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"}) : (o.date || "—"),
+    payment:  o.paymentMethod || o.payment || "—",
+  });
+
+  const handleStatusChange = async (o, newStatus) => {
+    try {
+      await API.updateOrderStatus(oid(o), newStatus);
+      setOrders(p => p.map(x => oid(x)===oid(o) ? {...x, status:newStatus} : x));
+    } catch(err) { alert("Failed: " + err.message); }
+  };
+
+  const handleAssignRider = async (orderId, riderId) => {
+    try {
+      await API.assignOrderRider(orderId, riderId);
+      const riderObj = riders.find(r => (r._id||r.id) === riderId);
+      setOrders(p => p.map(x => oid(x)===orderId ? {...x, rider: riderObj?.name || riderId} : x));
+      setAssignTarget(null);
+    } catch(err) { alert("Failed: " + err.message); }
+  };
+
+  const displayOrders = filtered.map(normalize);
 
   return (
     <div>
-      <SectionHeader title="All Orders" sub="Full order history on the platform" count={filtered.length} />
+      <SectionHeader title="All Orders" sub="Full order history — update status or assign riders live"
+        count={filtered.length}
+        action={<button onClick={reload} style={{ background:"#f0fdf4", border:"1px solid #bbf7d0", borderRadius:8, padding:"7px 14px", color:"#166534", fontFamily:"'DM Sans',sans-serif", fontWeight:700, fontSize:12, cursor:"pointer", display:"flex", alignItems:"center", gap:5 }}>🔄 Refresh</button>}
+      />
+      {error && <ErrorBanner message={error} onRetry={reload} />}
+      {loading && <Spinner />}
       <div style={{ display: "flex", gap: 12, marginBottom: 16, flexWrap: "wrap", alignItems: "center" }}>
         <SearchBar value={search} onChange={setSearch} placeholder="Search by ID, customer or vendor…" />
         <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
@@ -766,17 +990,42 @@ function OrdersTab({ orders }) {
         </div>
       </div>
       <Table>
-        <thead><tr><TH>Order ID</TH><TH>Customer</TH><TH>Vendor</TH><TH>Items</TH><TH>Total</TH><TH>Rider</TH><TH>Status</TH><TH>Date</TH><TH>Action</TH></tr></thead>
+        <thead><tr><TH>Order ID</TH><TH>Customer</TH><TH>Vendor</TH><TH>Items</TH><TH>Total</TH><TH>Rider</TH><TH>Status</TH><TH>Date</TH><TH>Actions</TH></tr></thead>
         <tbody>
-          {filtered.map(o => (
+          {displayOrders.map(o => (
             <TR key={o.id}>
               <TD><span style={{ fontFamily:"'Sora',sans-serif", fontWeight:700, fontSize:12, color:"#2d8a2d" }}>{o.id}</span></TD>
               <TD><span style={{ fontWeight:600 }}>{o.customer}</span></TD>
               <TD><span style={{ color:"#6b7280" }}>{o.vendor}</span></TD>
               <TD><span style={{ background:"#f3f4f6", borderRadius:50, padding:"2px 8px", fontSize:12, fontWeight:700 }}>{o.items}</span></TD>
-              <TD><strong>₦{o.total.toLocaleString()}</strong></TD>
-              <TD><span style={{ color:o.rider==="—"?"#d1d5db":"#374151", fontSize:12 }}>{o.rider}</span></TD>
-              <TD><StatusPill status={o.status} /></TD>
+              <TD><strong>₦{Number(o.total).toLocaleString()}</strong></TD>
+              <TD>
+                <div style={{ display:"flex", alignItems:"center", gap:4 }}>
+                  <span style={{ color:o.rider==="—"?"#d1d5db":"#374151", fontSize:12 }}>{o.rider}</span>
+                  {o.status !== "Delivered" && o.status !== "Cancelled" && (
+                    <button onClick={() => setAssignTarget(o)} style={{ background:"#f0fdf4", border:"none", borderRadius:6, padding:"2px 7px", color:"#166534", fontSize:10, fontWeight:700, cursor:"pointer" }}>
+                      {o.rider==="—"?"Assign":"Change"}
+                    </button>
+                  )}
+                </div>
+              </TD>
+              <TD>
+                <div style={{ display:"flex", alignItems:"center", gap:6 }}>
+                  <StatusPill status={o.status} />
+                  {o.status !== "Delivered" && o.status !== "Cancelled" && (
+                    <select
+                      defaultValue=""
+                      onChange={e => { if(e.target.value) handleStatusChange(o, e.target.value); e.target.value=""; }}
+                      style={{ fontSize:10, padding:"2px 4px", borderRadius:6, border:"1px solid #e5e7eb", background:"#f9fafb", cursor:"pointer", fontFamily:"'DM Sans',sans-serif", color:"#374151" }}
+                    >
+                      <option value="" disabled>Update</option>
+                      {["Pending","Preparing","En Route","Delivered","Cancelled"].filter(s=>s!==o.status).map(s=>(
+                        <option key={s} value={s}>{s}</option>
+                      ))}
+                    </select>
+                  )}
+                </div>
+              </TD>
               <TD><span style={{ color:"#9ca3af", fontSize:12 }}>{o.date}</span></TD>
               <TD><button onClick={() => setSelectedOrder(o)} style={{ background:"#eff6ff", border:"none", borderRadius:8, padding:"6px 12px", color:"#1d4ed8", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"'DM Sans',sans-serif" }}>View</button></TD>
             </TR>
@@ -784,120 +1033,271 @@ function OrdersTab({ orders }) {
         </tbody>
       </Table>
       {selectedOrder && <OrderModal order={selectedOrder} onClose={() => setSelectedOrder(null)} />}
+      {assignTarget && (
+        <AssignRiderModal
+          order={assignTarget}
+          riders={riders}
+          onAssign={handleAssignRider}
+          onClose={() => setAssignTarget(null)}
+        />
+      )}
+    </div>
+  );
+}
+
+// ─── Assign Rider Modal ────────────────────────────────────────────────────────
+function AssignRiderModal({ order, riders, onAssign, onClose }) {
+  const [busy, setBusy] = useState(false);
+  useEffect(() => {
+    document.body.style.overflow = "hidden";
+    const esc = e => { if (e.key==="Escape") onClose(); };
+    window.addEventListener("keydown", esc);
+    return () => { document.body.style.overflow=""; window.removeEventListener("keydown", esc); };
+  }, [onClose]);
+  const available = riders.filter(r => r.status==="Online" || r.status==="online" || r.status==="Available");
+  return (
+    <div style={{ position:"fixed", inset:0, zIndex:9999, background:"rgba(0,0,0,0.55)", backdropFilter:"blur(6px)", display:"flex", alignItems:"center", justifyContent:"center", padding:20 }} onClick={onClose}>
+      <div style={{ background:"white", borderRadius:20, width:"100%", maxWidth:400, padding:"24px 24px 20px", boxShadow:"0 24px 64px rgba(0,0,0,0.22)", animation:"adIn 0.25s cubic-bezier(.34,1.56,.64,1) both" }} onClick={e=>e.stopPropagation()}>
+        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:16 }}>
+          <h3 style={{ fontFamily:"'Sora',sans-serif", fontWeight:800, fontSize:17, color:"#1f2937", margin:0 }}>Assign Rider</h3>
+          <button onClick={onClose} style={{ background:"#f3f4f6", border:"none", borderRadius:"50%", width:32, height:32, cursor:"pointer", fontSize:17, color:"#6b7280" }}>×</button>
+        </div>
+        <p style={{ fontFamily:"'DM Sans',sans-serif", fontSize:12, color:"#9ca3af", margin:"0 0 14px" }}>
+          Order <strong style={{ color:"#2d8a2d" }}>{order.id}</strong> · {order.vendor}
+        </p>
+        {available.length === 0 ? (
+          <div style={{ background:"#fef9c3", borderRadius:10, padding:"12px 14px", textAlign:"center" }}>
+            <p style={{ fontFamily:"'DM Sans',sans-serif", fontSize:13, color:"#854d0e", margin:0 }}>No riders online right now</p>
+          </div>
+        ) : (
+          <div style={{ display:"flex", flexDirection:"column", gap:8, maxHeight:280, overflowY:"auto" }}>
+            {available.map(r => (
+              <button key={r._id||r.id} disabled={busy}
+                onClick={async () => { setBusy(true); await onAssign(order.id, r._id||r.id); setBusy(false); }}
+                style={{ display:"flex", alignItems:"center", gap:12, padding:"11px 14px", borderRadius:12, border:"1.5px solid #e5e7eb", background:"white", cursor:busy?"not-allowed":"pointer", textAlign:"left", transition:"all 0.15s" }}
+                onMouseEnter={e=>e.currentTarget.style.borderColor="#2d8a2d"}
+                onMouseLeave={e=>e.currentTarget.style.borderColor="#e5e7eb"}
+              >
+                <Avatar initials={(r.name||"?").split(" ").map(w=>w[0]).slice(0,2).join("")} size={32} gradient="linear-gradient(135deg,#f97316,#fb923c)" />
+                <div style={{ flex:1 }}>
+                  <p style={{ margin:0, fontWeight:700, fontSize:13, color:"#1f2937" }}>{r.name}</p>
+                  <p style={{ margin:0, fontSize:11, color:"#9ca3af" }}>{r.vehicle} · {r.zone}</p>
+                </div>
+                <StatusPill status={r.status} />
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
 
 // ─── TAB: VENDORS ─────────────────────────────────────────────────────────────
-function VendorsTab({ vendors, setVendors }) {
-  const [search, setSearch] = useState("");
-  const [confirm, setConfirm] = useState(null);
-  const [showCreate, setShowCreate] = useState(false);
+function VendorsTab({ vendors, setVendors, loading, error, reload }) {
+  const [search, setSearch]             = useState("");
+  const [showCreate, setShowCreate]     = useState(false);
   const [selectedVendor, setSelectedVendor] = useState(null);
 
-  const filtered = vendors.filter(v => v.name.toLowerCase().includes(search.toLowerCase()) || v.owner.toLowerCase().includes(search.toLowerCase()) || v.category.toLowerCase().includes(search.toLowerCase()));
-  const handleDelete = () => { setVendors(p => p.filter(v => v.id !== confirm.id)); setConfirm(null); };
-  const toggleStatus = id => setVendors(p => p.map(v => v.id === id ? { ...v, status: v.status==="Active"?"Suspended":"Active" } : v));
+  const vid = v => v._id || v.id;
+  const vname = v => v.name || v.businessName || v.storeName || "Unnamed";
+  const vowner = v => v.owner || v.ownerName || v.contactName || "—";
+  const vcat   = v => v.category || v.cuisine || v.type || "—";
+  const vrev   = v => v.revenue || v.totalRevenue || 0;
+
+  const filtered = vendors.filter(v => {
+    const q = search.toLowerCase();
+    return vname(v).toLowerCase().includes(q) || vowner(v).toLowerCase().includes(q) || vcat(v).toLowerCase().includes(q);
+  });
+
+  const handleApprove = async (v) => {
+    try { await API.approveVendor(vid(v)); setVendors(p => p.map(x => vid(x)===vid(v) ? {...x, status:"Active"} : x)); }
+    catch(err) { alert("Failed: " + err.message); }
+  };
+  const handleReject = async (v) => {
+    try { await API.rejectVendor(vid(v)); setVendors(p => p.map(x => vid(x)===vid(v) ? {...x, status:"Rejected"} : x)); }
+    catch(err) { alert("Failed: " + err.message); }
+  };
+  const handleSuspend = async (v) => {
+    try { await API.suspendVendor(vid(v)); setVendors(p => p.map(x => vid(x)===vid(v) ? {...x, status:"Suspended"} : x)); }
+    catch(err) { alert("Failed: " + err.message); }
+  };
+  const handleDelete = async (v) => {
+    try { await API.deleteVendor(vid(v)); setVendors(p => p.filter(x => vid(x) !== vid(v))); }
+    catch(err) { alert("Failed: " + err.message); }
+  };
   const handleCreate = (data) => { setVendors(p => [data, ...p]); setShowCreate(false); };
 
   return (
     <div>
       <SectionHeader
-        title="Vendors" sub="All food vendors registered on ChopSpot" count={filtered.length}
-        action={<CreateBtn label="Create Vendor" onClick={() => setShowCreate(true)} />}
+        title="Vendors" sub="Approve, suspend or manage all food vendors" count={filtered.length}
+        action={
+          <div style={{ display:"flex", gap:8 }}>
+            <button onClick={reload} style={{ background:"#f0fdf4", border:"1px solid #bbf7d0", borderRadius:8, padding:"7px 14px", color:"#166534", fontFamily:"'DM Sans',sans-serif", fontWeight:700, fontSize:12, cursor:"pointer" }}>🔄 Refresh</button>
+            <CreateBtn label="Create Vendor" onClick={() => setShowCreate(true)} />
+          </div>
+        }
       />
+      {error && <ErrorBanner message={error} onRetry={reload} />}
+      {loading && <Spinner />}
       <div style={{ marginBottom: 16 }}><SearchBar value={search} onChange={setSearch} placeholder="Search vendors…" /></div>
       <Table>
         <thead><tr><TH>Vendor</TH><TH>Owner</TH><TH>Category</TH><TH>Orders</TH><TH>Revenue</TH><TH>Rating</TH><TH>Status</TH><TH>Actions</TH></tr></thead>
         <tbody>
           {filtered.map(v => (
-            <TR key={v.id}>
+            <TR key={vid(v)}>
               <TD>
                 <div style={{ display:"flex", alignItems:"center", gap:10 }}>
-                  <Avatar initials={v.name.slice(0,2).toUpperCase()} size={34} gradient="linear-gradient(135deg,#8b5cf6,#a78bfa)" />
+                  <Avatar initials={vname(v).slice(0,2).toUpperCase()} size={34} gradient="linear-gradient(135deg,#8b5cf6,#a78bfa)" />
                   <div>
-                    <button onClick={() => setSelectedVendor(v)} style={{ background:"none", border:"none", cursor:"pointer", padding:0, fontWeight:700, fontSize:13, color:"#1f2937", fontFamily:"'DM Sans',sans-serif", textAlign:"left" }}>{v.name}</button>
-                    <p style={{ margin:0, fontSize:11, color:"#9ca3af" }}>Since {v.joined}</p>
+                    <button onClick={() => setSelectedVendor(v)} style={{ background:"none", border:"none", cursor:"pointer", padding:0, fontWeight:700, fontSize:13, color:"#1f2937", fontFamily:"'DM Sans',sans-serif", textAlign:"left" }}>{vname(v)}</button>
+                    <p style={{ margin:0, fontSize:11, color:"#9ca3af" }}>Since {v.joined || v.createdAt?.slice(0,7) || "—"}</p>
                   </div>
                 </div>
               </TD>
-              <TD>{v.owner}</TD>
-              <TD><span style={{ background:"#f3f4f6", borderRadius:50, padding:"3px 10px", fontSize:11, fontWeight:700, color:"#6b7280" }}>{v.category}</span></TD>
-              <TD><strong>{v.orders}</strong></TD>
-              <TD><strong style={{ color:"#2d8a2d" }}>₦{(v.revenue/1000).toFixed(0)}k</strong></TD>
-              <TD><span style={{ fontSize:12, fontWeight:700, color:"#f59e0b" }}>⭐ {v.rating}</span></TD>
-              <TD><StatusPill status={v.status} /></TD>
+              <TD>{vowner(v)}</TD>
+              <TD><span style={{ background:"#f3f4f6", borderRadius:50, padding:"3px 10px", fontSize:11, fontWeight:700, color:"#6b7280" }}>{vcat(v)}</span></TD>
+              <TD><strong>{v.orders ?? v.totalOrders ?? "—"}</strong></TD>
+              <TD><strong style={{ color:"#2d8a2d" }}>₦{((vrev(v))/1000).toFixed(0)}k</strong></TD>
+              <TD><span style={{ fontSize:12, fontWeight:700, color:"#f59e0b" }}>⭐ {v.rating ?? "—"}</span></TD>
+              <TD><StatusPill status={v.status || "Pending"} /></TD>
               <TD>
-                <div style={{ display:"flex", gap:6, alignItems:"center" }}>
-                  <button onClick={() => setSelectedVendor(v)} style={{ background:"#f5f3ff", border:"none", borderRadius:8, padding:"6px 12px", color:"#7c3aed", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"'DM Sans',sans-serif" }}>View</button>
-                  <ToggleBtn status={v.status} onClick={() => toggleStatus(v.id)} />
-                  <DeleteBtn onClick={() => setConfirm({ id:v.id, name:v.name })} />
+                <div style={{ display:"flex", gap:5, alignItems:"center", flexWrap:"nowrap" }}>
+                  <button onClick={() => setSelectedVendor(v)} style={{ background:"#f5f3ff", border:"none", borderRadius:8, padding:"6px 10px", color:"#7c3aed", fontSize:12, fontWeight:700, cursor:"pointer" }}>View</button>
+                  {(v.status==="Pending" || v.status==="pending") && (
+                    <>
+                      <ActionBtn label="Approve" color="#065f46" bg="#d1fae5" hoverBg="#a7f3d0" onClick={() => handleApprove(v)} />
+                      <ActionBtn label="Reject"  color="#991b1b" bg="#fee2e2" hoverBg="#fecaca" onClick={() => handleReject(v)} confirm />
+                    </>
+                  )}
+                  {(v.status==="Active" || v.status==="active") && (
+                    <ActionBtn label="Suspend" color="#92400e" bg="#fef3c7" hoverBg="#fde68a" onClick={() => handleSuspend(v)} confirm />
+                  )}
+                  {(v.status==="Suspended" || v.status==="suspended") && (
+                    <ActionBtn label="Approve" color="#065f46" bg="#d1fae5" hoverBg="#a7f3d0" onClick={() => handleApprove(v)} />
+                  )}
+                  <ActionBtn label="🗑️" color="#dc2626" bg="#fee2e2" hoverBg="#fecaca" onClick={() => handleDelete(v)} confirm />
                 </div>
               </TD>
             </TR>
           ))}
         </tbody>
       </Table>
-      {showCreate && <CreateVendorModal onSave={handleCreate} onCancel={() => setShowCreate(false)} />}
-      {confirm && <ConfirmModal target={confirm.name} entityType="Vendor" onConfirm={handleDelete} onCancel={() => setConfirm(null)} />}
+      {showCreate && (
+        <RegisterOverlay
+          title="Register New Vendor"
+          color="linear-gradient(135deg,#1a3a1a,#2d6a2d)"
+          onClose={() => setShowCreate(false)}
+        >
+          <VendorRegister onSuccess={(vendor) => { handleCreate(vendor); }} />
+        </RegisterOverlay>
+      )}
       {selectedVendor && <VendorModal vendor={selectedVendor} onClose={() => setSelectedVendor(null)} />}
     </div>
   );
 }
 
 // ─── TAB: RIDERS ──────────────────────────────────────────────────────────────
-function RidersTab({ riders, setRiders }) {
-  const [search, setSearch] = useState("");
-  const [confirm, setConfirm] = useState(null);
-  const [showCreate, setShowCreate] = useState(false);
+function RidersTab({ riders, setRiders, loading, error, reload }) {
+  const [search, setSearch]           = useState("");
+  const [showCreate, setShowCreate]   = useState(false);
   const [selectedRider, setSelectedRider] = useState(null);
 
-  const filtered = riders.filter(r => r.name.toLowerCase().includes(search.toLowerCase()) || r.zone.toLowerCase().includes(search.toLowerCase()) || r.vehicle.toLowerCase().includes(search.toLowerCase()));
-  const handleDelete = () => { setRiders(p => p.filter(r => r.id !== confirm.id)); setConfirm(null); };
-  const toggleStatus = id => setRiders(p => p.map(r => r.id === id ? { ...r, status: r.status==="Online"?"Offline":"Online" } : r));
+  const rid = r => r._id || r.id;
+  const rname = r => r.name || r.fullName || r.riderName || "Unknown";
+
+  const filtered = riders.filter(r => {
+    const q = search.toLowerCase();
+    return rname(r).toLowerCase().includes(q) ||
+           (r.zone||"").toLowerCase().includes(q) ||
+           (r.vehicle||r.vehicleType||"").toLowerCase().includes(q);
+  });
+
+  const handleApprove = async (r) => {
+    try { await API.approveRider(rid(r)); setRiders(p => p.map(x => rid(x)===rid(r) ? {...x, status:"Online"} : x)); }
+    catch(err) { alert("Failed: " + err.message); }
+  };
+  const handleReject = async (r) => {
+    try { await API.rejectRider(rid(r)); setRiders(p => p.map(x => rid(x)===rid(r) ? {...x, status:"Rejected"} : x)); }
+    catch(err) { alert("Failed: " + err.message); }
+  };
+  const handleSuspend = async (r) => {
+    try { await API.suspendRider(rid(r)); setRiders(p => p.map(x => rid(x)===rid(r) ? {...x, status:"Suspended"} : x)); }
+    catch(err) { alert("Failed: " + err.message); }
+  };
+  const handleDelete = async (r) => {
+    try { await API.deleteRider(rid(r)); setRiders(p => p.filter(x => rid(x) !== rid(r))); }
+    catch(err) { alert("Failed: " + err.message); }
+  };
   const handleCreate = (data) => { setRiders(p => [data, ...p]); setShowCreate(false); };
 
   return (
     <div>
       <SectionHeader
-        title="Riders" sub="All delivery riders on ChopSpot" count={filtered.length}
-        action={<CreateBtn label="Onboard Rider" onClick={() => setShowCreate(true)} />}
+        title="Riders" sub="Approve, suspend or manage all delivery riders" count={filtered.length}
+        action={
+          <div style={{ display:"flex", gap:8 }}>
+            <button onClick={reload} style={{ background:"#f0fdf4", border:"1px solid #bbf7d0", borderRadius:8, padding:"7px 14px", color:"#166534", fontFamily:"'DM Sans',sans-serif", fontWeight:700, fontSize:12, cursor:"pointer" }}>🔄 Refresh</button>
+            <CreateBtn label="Onboard Rider" onClick={() => setShowCreate(true)} />
+          </div>
+        }
       />
+      {error && <ErrorBanner message={error} onRetry={reload} />}
+      {loading && <Spinner />}
       <div style={{ marginBottom: 16 }}><SearchBar value={search} onChange={setSearch} placeholder="Search riders…" /></div>
       <Table>
         <thead><tr><TH>Rider</TH><TH>Phone</TH><TH>Vehicle</TH><TH>Zone</TH><TH>Deliveries</TH><TH>Earnings</TH><TH>Rating</TH><TH>Status</TH><TH>Actions</TH></tr></thead>
         <tbody>
           {filtered.map(r => (
-            <TR key={r.id}>
+            <TR key={rid(r)}>
               <TD>
                 <div style={{ display:"flex", alignItems:"center", gap:10 }}>
-                  <Avatar initials={r.name.split(" ").map(w=>w[0]).slice(0,2).join("")} size={34} gradient="linear-gradient(135deg,#f97316,#fb923c)" />
+                  <Avatar initials={rname(r).split(" ").map(w=>w[0]).slice(0,2).join("")} size={34} gradient="linear-gradient(135deg,#f97316,#fb923c)" />
                   <div>
-                    <button onClick={() => setSelectedRider(r)} style={{ background:"none", border:"none", cursor:"pointer", padding:0, fontWeight:700, fontSize:13, color:"#1f2937", fontFamily:"'DM Sans',sans-serif", textAlign:"left" }}>{r.name}</button>
-                    <p style={{ margin:0, fontSize:11, color:"#9ca3af" }}>Since {r.joined}</p>
+                    <button onClick={() => setSelectedRider(r)} style={{ background:"none", border:"none", cursor:"pointer", padding:0, fontWeight:700, fontSize:13, color:"#1f2937", fontFamily:"'DM Sans',sans-serif", textAlign:"left" }}>{rname(r)}</button>
+                    <p style={{ margin:0, fontSize:11, color:"#9ca3af" }}>Since {r.joined || r.createdAt?.slice(0,7) || "—"}</p>
                   </div>
                 </div>
               </TD>
-              <TD><span style={{ fontSize:12 }}>{r.phone}</span></TD>
-              <TD><span style={{ background:"#fff7ed", borderRadius:50, padding:"3px 10px", fontSize:11, fontWeight:700, color:"#c2410c" }}>{r.vehicle}</span></TD>
-              <TD><span style={{ color:"#6b7280", fontSize:12 }}>{r.zone}</span></TD>
-              <TD><strong>{r.deliveries}</strong></TD>
-              <TD><strong style={{ color:"#2d8a2d" }}>₦{(r.earnings/1000).toFixed(0)}k</strong></TD>
-              <TD><span style={{ fontSize:12, fontWeight:700, color:"#f59e0b" }}>⭐ {r.rating}</span></TD>
-              <TD><StatusPill status={r.status} /></TD>
+              <TD><span style={{ fontSize:12 }}>{r.phone || r.phoneNumber || "—"}</span></TD>
+              <TD><span style={{ background:"#fff7ed", borderRadius:50, padding:"3px 10px", fontSize:11, fontWeight:700, color:"#c2410c" }}>{r.vehicle || r.vehicleType || "—"}</span></TD>
+              <TD><span style={{ color:"#6b7280", fontSize:12 }}>{r.zone || r.deliveryZone || "—"}</span></TD>
+              <TD><strong>{r.deliveries ?? r.totalDeliveries ?? "—"}</strong></TD>
+              <TD><strong style={{ color:"#2d8a2d" }}>₦{((r.earnings||r.totalEarnings||0)/1000).toFixed(0)}k</strong></TD>
+              <TD><span style={{ fontSize:12, fontWeight:700, color:"#f59e0b" }}>⭐ {r.rating ?? "—"}</span></TD>
+              <TD><StatusPill status={r.status || "Offline"} /></TD>
               <TD>
-                <div style={{ display:"flex", gap:6, alignItems:"center" }}>
-                  <button onClick={() => setSelectedRider(r)} style={{ background:"#fff7ed", border:"none", borderRadius:8, padding:"6px 12px", color:"#c2410c", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"'DM Sans',sans-serif" }}>View</button>
-                  <ToggleBtn status={r.status} onClick={() => toggleStatus(r.id)} />
-                  <DeleteBtn onClick={() => setConfirm({ id:r.id, name:r.name })} />
+                <div style={{ display:"flex", gap:5, alignItems:"center", flexWrap:"nowrap" }}>
+                  <button onClick={() => setSelectedRider(r)} style={{ background:"#fff7ed", border:"none", borderRadius:8, padding:"6px 10px", color:"#c2410c", fontSize:12, fontWeight:700, cursor:"pointer" }}>View</button>
+                  {(r.status==="Pending" || r.status==="pending") && (
+                    <>
+                      <ActionBtn label="Approve" color="#065f46" bg="#d1fae5" hoverBg="#a7f3d0" onClick={() => handleApprove(r)} />
+                      <ActionBtn label="Reject"  color="#991b1b" bg="#fee2e2" hoverBg="#fecaca" onClick={() => handleReject(r)} confirm />
+                    </>
+                  )}
+                  {(r.status==="Online" || r.status==="Offline" || r.status==="Available") && (
+                    <ActionBtn label="Suspend" color="#92400e" bg="#fef3c7" hoverBg="#fde68a" onClick={() => handleSuspend(r)} confirm />
+                  )}
+                  {(r.status==="Suspended" || r.status==="suspended") && (
+                    <ActionBtn label="Approve" color="#065f46" bg="#d1fae5" hoverBg="#a7f3d0" onClick={() => handleApprove(r)} />
+                  )}
+                  <ActionBtn label="🗑️" color="#dc2626" bg="#fee2e2" hoverBg="#fecaca" onClick={() => handleDelete(r)} confirm />
                 </div>
               </TD>
             </TR>
           ))}
         </tbody>
       </Table>
-      {showCreate && <CreateRiderModal onSave={handleCreate} onCancel={() => setShowCreate(false)} />}
-      {confirm && <ConfirmModal target={confirm.name} entityType="Rider" onConfirm={handleDelete} onCancel={() => setConfirm(null)} />}
+      {showCreate && (
+        <RegisterOverlay
+          title="Onboard New Rider"
+          color="linear-gradient(135deg,#7c3aed,#a855f7)"
+          onClose={() => setShowCreate(false)}
+        >
+          <RiderRegister onSuccess={(rider) => { handleCreate(rider); }} />
+        </RegisterOverlay>
+      )}
       {selectedRider && <RiderModal rider={selectedRider} onClose={() => setSelectedRider(null)} />}
     </div>
   );
@@ -1024,16 +1424,83 @@ const NAV_ITEMS = [
 // ─── MAIN EXPORT ───────────────────────────────────────────────────────────────
 export default function AdminDashboard({ adminRole = "Operations Manager", adminName = "Amaka Okafor", onExit }) {
   const [tab, setTab]             = useState("overview");
-  const [customers, setCustomers] = useState(seedCustomers);
-  const [vendors, setVendors]     = useState(seedVendors);
-  const [riders, setRiders]       = useState(seedRiders);
-  const [orders]                  = useState(seedOrders);
+  const [customers, setCustomers] = useState([]);
+  const [vendors, setVendors]     = useState([]);
+  const [riders, setRiders]       = useState([]);
+  const [orders, setOrders]       = useState([]);
+  const [overview, setOverview]   = useState(null);
+  const [loading, setLoading]     = useState({});
+  const [errors, setErrors]       = useState({});
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [quickOverlay, setQuickOverlay] = useState(null);
+  // Live values loaded from /api/auth/me — fall back to props if unavailable
+  // Read admin profile from localStorage (stored by LoginPage on successful login)
+  const [liveAdminName, setLiveAdminName] = useState(() => {
+    try {
+      const stored = localStorage.getItem('chopspot_user');
+      if (stored) {
+        const u = JSON.parse(stored);
+        const name = `${u.firstName || ''} ${u.lastName || ''}`.trim() || u.username || u.name || '';
+        return name || adminName;
+      }
+    } catch (_) {}
+    return adminName;
+  });
+  const [liveAdminRole, setLiveAdminRole] = useState(() => {
+    try {
+      const stored = localStorage.getItem('chopspot_user');
+      if (stored) {
+        const u = JSON.parse(stored);
+        return u.role || u.userType || adminRole;
+      }
+    } catch (_) {}
+    return adminRole;
+  });
 
   const isMobile = typeof window !== "undefined" && window.innerWidth < 768;
-  const roleMeta = ROLE_META[adminRole] || { color: "#2d8a2d", bg: "#f0fdf4", label: "Admin" };
-  const initials = adminName.trim().split(" ").map(w=>w[0]).slice(0,2).join("").toUpperCase();
+  const roleMeta = ROLE_META[liveAdminRole] || ROLE_META[adminRole] || { color: "#2d8a2d", bg: "#f0fdf4", label: "Admin" };
+  const initials = liveAdminName.trim().split(" ").map(w=>w[0]).slice(0,2).join("").toUpperCase();
   const counts = { customers: customers.length, orders: orders.length, vendors: vendors.length, riders: riders.length };
+
+  // ── Generic loader helper ─────────────────────────────────────────────────
+  const load = useCallback(async (key, apiFn, setter, fallback = []) => {
+    setLoading(p => ({ ...p, [key]: true }));
+    setErrors(p => ({ ...p, [key]: null }));
+    try {
+      const res = await apiFn();
+      setter(API.extractList(res) || fallback);
+    } catch (err) {
+      setErrors(p => ({ ...p, [key]: err.message }));
+      setter(fallback);
+    } finally {
+      setLoading(p => ({ ...p, [key]: false }));
+    }
+  }, []);
+
+  // ── Load overview once on mount ───────────────────────────────────────────
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await API.getOverview();
+        setOverview(API.extractObject(res));
+      } catch { /* overview is optional, dashboard still works */ }
+    })();
+    load("customers", API.getCustomers, setCustomers, seedCustomers);
+    load("vendors",   API.getVendors,   setVendors,   seedVendors);
+    load("riders",    API.getRiders,    setRiders,    seedRiders);
+    load("orders",    API.getOrders,    setOrders,    seedOrders);
+  }, [load]);
+
+  // ── Re-load the active tab's data when switching tabs ───────────────────
+  useEffect(() => {
+    const map = {
+      customers: () => load("customers", API.getCustomers, setCustomers, seedCustomers),
+      vendors:   () => load("vendors",   API.getVendors,   setVendors,   seedVendors),
+      riders:    () => load("riders",    API.getRiders,    setRiders,    seedRiders),
+      orders:    () => load("orders",    API.getOrders,    setOrders,    seedOrders),
+    };
+    map[tab]?.();
+  }, [tab, load]);
 
   return (
     <>
@@ -1107,10 +1574,20 @@ export default function AdminDashboard({ adminRole = "Operations Manager", admin
             {/* Quick actions section */}
             <div style={{ marginTop: 20, padding: "0 4px" }}>
               <p style={{ fontSize: 10, fontWeight: 800, letterSpacing: 1.5, color: "#4b5563", textTransform: "uppercase", padding: "0 8px", margin: "0 0 8px" }}>Quick Actions</p>
-              <button onClick={() => { setTab("vendors"); }} style={{ width: "100%", display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", borderRadius: 12, border: "1px solid rgba(45,138,45,0.25)", background: "rgba(45,138,45,0.08)", color: "#4ade80", cursor: "pointer", fontFamily: "'DM Sans',sans-serif", fontWeight: 600, fontSize: 13, marginBottom: 8, transition: "all 0.18s" }}>
+              <button
+                onClick={() => { setSidebarOpen(false); setQuickOverlay("vendor"); }}
+                style={{ width: "100%", display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", borderRadius: 12, border: "1px solid rgba(45,138,45,0.25)", background: "rgba(45,138,45,0.08)", color: "#4ade80", cursor: "pointer", fontFamily: "'DM Sans',sans-serif", fontWeight: 600, fontSize: 13, marginBottom: 8, transition: "all 0.18s" }}
+                onMouseEnter={e => e.currentTarget.style.background = "rgba(45,138,45,0.16)"}
+                onMouseLeave={e => e.currentTarget.style.background = "rgba(45,138,45,0.08)"}
+              >
                 <span>🏪</span> New Vendor
               </button>
-              <button onClick={() => { setTab("riders"); }} style={{ width: "100%", display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", borderRadius: 12, border: "1px solid rgba(168,85,247,0.25)", background: "rgba(168,85,247,0.08)", color: "#c084fc", cursor: "pointer", fontFamily: "'DM Sans',sans-serif", fontWeight: 600, fontSize: 13, transition: "all 0.18s" }}>
+              <button
+                onClick={() => { setSidebarOpen(false); setQuickOverlay("rider"); }}
+                style={{ width: "100%", display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", borderRadius: 12, border: "1px solid rgba(168,85,247,0.25)", background: "rgba(168,85,247,0.08)", color: "#c084fc", cursor: "pointer", fontFamily: "'DM Sans',sans-serif", fontWeight: 600, fontSize: 13, transition: "all 0.18s" }}
+                onMouseEnter={e => e.currentTarget.style.background = "rgba(168,85,247,0.16)"}
+                onMouseLeave={e => e.currentTarget.style.background = "rgba(168,85,247,0.08)"}
+              >
                 <span>🏍️</span> Onboard Rider
               </button>
             </div>
@@ -1121,8 +1598,8 @@ export default function AdminDashboard({ adminRole = "Operations Manager", admin
             <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
               <Avatar initials={initials} size={34} />
               <div>
-                <p style={{ margin: 0, fontWeight: 700, fontSize: 13, color: "white" }}>{adminName}</p>
-                <p style={{ margin: 0, fontSize: 10, color: "#6b7280" }}>{adminRole}</p>
+                <p style={{ margin: 0, fontWeight: 700, fontSize: 13, color: "white" }}>{liveAdminName}</p>
+                <p style={{ margin: 0, fontSize: 10, color: "#6b7280" }}>{liveAdminRole}</p>
               </div>
             </div>
             {onExit && (
@@ -1161,9 +1638,9 @@ export default function AdminDashboard({ adminRole = "Operations Manager", admin
               </span>
               {/* Profile avatar dropdown */}
               <ProfileDropdown
-                name={adminName}
-                role={adminRole}
-                email={`${adminName.toLowerCase().replace(/\s+/g,".")}@chopspot.ng`}
+                name={liveAdminName}
+                role={liveAdminRole}
+                email={`${liveAdminName.toLowerCase().replace(/\s+/g,".")}@chopspot.ng`}
                 initials={initials}
                 avatarGradient="linear-gradient(135deg,#2d8a2d,#4caf50)"
                 roleMeta={roleMeta}
@@ -1177,14 +1654,41 @@ export default function AdminDashboard({ adminRole = "Operations Manager", admin
 
           {/* Page */}
           <main style={{ flex: 1, padding: "28px 24px 48px", overflowY: "auto", animation: "adIn 0.3s ease both" }} key={tab}>
-            {tab === "overview"  && <OverviewTab customers={customers} orders={orders} vendors={vendors} riders={riders} adminRole={adminRole} />}
-            {tab === "customers" && <CustomersTab customers={customers} setCustomers={setCustomers} />}
-            {tab === "orders"    && <OrdersTab orders={orders} />}
-            {tab === "vendors"   && <VendorsTab vendors={vendors} setVendors={setVendors} />}
-            {tab === "riders"    && <RidersTab riders={riders} setRiders={setRiders} />}
+            {tab === "overview"  && <OverviewTab customers={customers} orders={orders} vendors={vendors} riders={riders} adminRole={adminRole} overview={overview} loading={loading.overview} />}
+            {tab === "customers" && <CustomersTab customers={customers} setCustomers={setCustomers} loading={loading.customers} error={errors.customers} reload={() => load("customers", API.getCustomers, setCustomers, seedCustomers)} />}
+            {tab === "orders"    && <OrdersTab orders={orders} setOrders={setOrders} riders={riders} loading={loading.orders} error={errors.orders} reload={() => load("orders", API.getOrders, setOrders, seedOrders)} />}
+            {tab === "vendors"   && <VendorsTab vendors={vendors} setVendors={setVendors} loading={loading.vendors} error={errors.vendors} reload={() => load("vendors", API.getVendors, setVendors, seedVendors)} />}
+            {tab === "riders"    && <RidersTab riders={riders} setRiders={setRiders} loading={loading.riders} error={errors.riders} reload={() => load("riders", API.getRiders, setRiders, seedRiders)} />}
           </main>
         </div>
       </div>
+      {/* ── Global quick-action overlays (triggered from sidebar) ───────── */}
+      {quickOverlay === "vendor" && (
+        <RegisterOverlay
+          title="Register New Vendor"
+          color="linear-gradient(135deg,#1a3a1a,#2d6a2d)"
+          onClose={() => setQuickOverlay(null)}
+        >
+          <VendorRegister onSuccess={(vendor) => {
+            setVendors(p => [vendor, ...p]);
+            setQuickOverlay(null);
+            setTab("vendors");
+          }} />
+        </RegisterOverlay>
+      )}
+      {quickOverlay === "rider" && (
+        <RegisterOverlay
+          title="Onboard New Rider"
+          color="linear-gradient(135deg,#7c3aed,#a855f7)"
+          onClose={() => setQuickOverlay(null)}
+        >
+          <RiderRegister onSuccess={(rider) => {
+            setRiders(p => [rider, ...p]);
+            setQuickOverlay(null);
+            setTab("riders");
+          }} />
+        </RegisterOverlay>
+      )}
     </>
   );
 }

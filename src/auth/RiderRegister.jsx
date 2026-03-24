@@ -1,4 +1,5 @@
 import { useState } from "react";
+import * as API from "../utils/Api";
 
 const BIKE_TYPES = ["Motorcycle", "Bicycle", "Tricycle (Keke)", "Scooter", "On Foot"];
 const AVAILABILITY = ["Morning (6am–12pm)", "Afternoon (12pm–6pm)", "Evening (6pm–11pm)", "All Day", "Weekends Only"];
@@ -9,7 +10,7 @@ const STEPS = [
   { id: 3, label: "Review",    icon: "✅" },
 ];
 
-// ── Shared input/label styles (mirrors vendor theme) ─────────────────────────
+// ── Shared styles ─────────────────────────────────────────────────────────────
 const inp = (extra = {}) => ({
   width: "100%", padding: "13px 16px", borderRadius: 14,
   border: "1.5px solid #d8eed8", background: "#f4f8f4",
@@ -59,18 +60,20 @@ const StepHeader = ({ emoji, title, sub }) => (
   </div>
 );
 
-// ── Steps ─────────────────────────────────────────────────────────────────────
+// ── Step 1: Personal Details ──────────────────────────────────────────────────
 const Step1 = ({ data, set }) => (
   <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
     <StepHeader emoji="👤" title="Your Personal Details" sub="We'll use this to set up your rider profile" />
 
     <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 8 }}>
-      <div onClick={() => document.getElementById("rider-avatar").click()} style={{
-        width: 100, height: 100, borderRadius: "50%", overflow: "hidden",
-        background: data.avatarPreview ? "transparent" : "#e8f5e0",
-        border: "2.5px dashed #7aaa7a", cursor: "pointer",
-        display: "flex", alignItems: "center", justifyContent: "center", transition: "all 0.2s",
-      }}
+      <div
+        onClick={() => document.getElementById("rider-avatar").click()}
+        style={{
+          width: 100, height: 100, borderRadius: "50%", overflow: "hidden",
+          background: data.avatarPreview ? "transparent" : "#e8f5e0",
+          border: "2.5px dashed #7aaa7a", cursor: "pointer",
+          display: "flex", alignItems: "center", justifyContent: "center", transition: "all 0.2s",
+        }}
         onMouseEnter={e => { e.currentTarget.style.borderColor = "#2d8a2d"; e.currentTarget.style.boxShadow = "0 0 0 4px rgba(45,138,45,0.1)"; }}
         onMouseLeave={e => { e.currentTarget.style.borderColor = "#7aaa7a"; e.currentTarget.style.boxShadow = "none"; }}
       >
@@ -89,61 +92,77 @@ const Step1 = ({ data, set }) => (
 
     <div style={{ display: "flex", gap: 12 }}>
       <Field label="First Name *" style={{ flex: 1 }}>
-        <input value={data.firstName || ""} onChange={e => set("firstName", e.target.value)} placeholder="e.g. Emeka" style={inp()} onFocus={foc} onBlur={blr} />
+        <input value={data.firstName || ""} onChange={e => set("firstName", e.target.value)}
+          placeholder="e.g. Emeka" style={inp()} onFocus={foc} onBlur={blr} />
       </Field>
       <Field label="Last Name *" style={{ flex: 1 }}>
-        <input value={data.lastName || ""} onChange={e => set("lastName", e.target.value)} placeholder="e.g. Okafor" style={inp()} onFocus={foc} onBlur={blr} />
+        <input value={data.lastName || ""} onChange={e => set("lastName", e.target.value)}
+          placeholder="e.g. Okafor" style={inp()} onFocus={foc} onBlur={blr} />
       </Field>
     </div>
 
     <Field label="WhatsApp Number *">
-      <input value={data.phone || ""} onChange={e => set("phone", e.target.value)} placeholder="+234 800 000 0000" style={inp()} onFocus={foc} onBlur={blr} />
+      <input value={data.phone || ""} onChange={e => set("phone", e.target.value)}
+        placeholder="+234 800 000 0000" style={inp()} onFocus={foc} onBlur={blr} />
     </Field>
 
     <Field label="Email (optional)">
-      <input value={data.email || ""} onChange={e => set("email", e.target.value)} placeholder="you@example.com" style={inp()} onFocus={foc} onBlur={blr} />
+      <input value={data.email || ""} onChange={e => set("email", e.target.value)}
+        placeholder="you@example.com" style={inp()} onFocus={foc} onBlur={blr} />
     </Field>
 
     <Field label="Home Address / Base Location">
-      <input value={data.address || ""} onChange={e => set("address", e.target.value)} placeholder="e.g. Near Faculty Gate, OAU" style={inp()} onFocus={foc} onBlur={blr} />
+      <input value={data.address || ""} onChange={e => set("address", e.target.value)}
+        placeholder="e.g. Near Faculty Gate, OAU" style={inp()} onFocus={foc} onBlur={blr} />
     </Field>
 
     <Field label="Gender">
       <div style={{ display: "flex", gap: 10 }}>
-        {["Male", "Female", "Other"].map(g => <Chip key={g} label={g} active={data.gender === g} onClick={() => set("gender", g)} />)}
+        {["Male", "Female", "Other"].map(g => (
+          <Chip key={g} label={g} active={data.gender === g} onClick={() => set("gender", g)} />
+        ))}
       </div>
     </Field>
   </div>
 );
 
+// ── Step 2: Vehicle ───────────────────────────────────────────────────────────
 const Step2 = ({ data, set }) => (
   <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
     <StepHeader emoji="🏍️" title="Your Vehicle" sub="Tell us how you'll make deliveries" />
 
     <Field label="Vehicle Type *">
       <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-        {BIKE_TYPES.map(t => <Chip key={t} label={t} active={data.vehicleType === t} onClick={() => set("vehicleType", t)} />)}
+        {BIKE_TYPES.map(t => (
+          <Chip key={t} label={t} active={data.vehicleType === t} onClick={() => set("vehicleType", t)} />
+        ))}
       </div>
     </Field>
 
     {data.vehicleType && data.vehicleType !== "On Foot" && (
       <>
         <Field label="Vehicle Make / Model">
-          <input value={data.vehicleModel || ""} onChange={e => set("vehicleModel", e.target.value)} placeholder="e.g. Honda CB125, Bajaj Boxer" style={inp()} onFocus={foc} onBlur={blr} />
+          <input value={data.vehicleModel || ""} onChange={e => set("vehicleModel", e.target.value)}
+            placeholder="e.g. Honda CB125, Bajaj Boxer" style={inp()} onFocus={foc} onBlur={blr} />
         </Field>
         <Field label="Plate Number (optional)">
-          <input value={data.plateNumber || ""} onChange={e => set("plateNumber", e.target.value.toUpperCase())} placeholder="e.g. OY 234 ABC" style={{ ...inp(), letterSpacing: 2, textTransform: "uppercase" }} onFocus={foc} onBlur={blr} />
+          <input value={data.plateNumber || ""} onChange={e => set("plateNumber", e.target.value.toUpperCase())}
+            placeholder="e.g. OY 234 ABC"
+            style={{ ...inp(), letterSpacing: 2, textTransform: "uppercase" }}
+            onFocus={foc} onBlur={blr} />
         </Field>
       </>
     )}
 
     <Field label="Vehicle Photo (optional)">
-      <div onClick={() => document.getElementById("bike-photo").click()} style={{
-        height: 130, borderRadius: 16, overflow: "hidden",
-        background: data.bikePreview ? "transparent" : "#f0f7f0",
-        border: "1.5px dashed #b8d8b8", cursor: "pointer",
-        display: "flex", alignItems: "center", justifyContent: "center", transition: "border-color 0.2s",
-      }}
+      <div
+        onClick={() => document.getElementById("bike-photo").click()}
+        style={{
+          height: 130, borderRadius: 16, overflow: "hidden",
+          background: data.bikePreview ? "transparent" : "#f0f7f0",
+          border: "1.5px dashed #b8d8b8", cursor: "pointer",
+          display: "flex", alignItems: "center", justifyContent: "center", transition: "border-color 0.2s",
+        }}
         onMouseEnter={e => e.currentTarget.style.borderColor = "#2d8a2d"}
         onMouseLeave={e => e.currentTarget.style.borderColor = "#b8d8b8"}
       >
@@ -160,11 +179,13 @@ const Step2 = ({ data, set }) => (
     </Field>
 
     <Field label="Valid ID (NIN / Driver's License / School ID)">
-      <input value={data.idType || ""} onChange={e => set("idType", e.target.value)} placeholder="e.g. Driver's License — LD 12345678" style={inp()} onFocus={foc} onBlur={blr} />
+      <input value={data.idType || ""} onChange={e => set("idType", e.target.value)}
+        placeholder="e.g. Driver's License — LD 12345678" style={inp()} onFocus={foc} onBlur={blr} />
     </Field>
   </div>
 );
 
+// ── Step 3: Logistics & Payout ────────────────────────────────────────────────
 const Step3 = ({ data, set }) => (
   <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
     <StepHeader emoji="📦" title="Your Preferences" sub="Set your availability so we can match you to orders" />
@@ -184,19 +205,24 @@ const Step3 = ({ data, set }) => (
     </Field>
 
     <Field label="Delivery Zone / Campus Area">
-      <input value={data.zone || ""} onChange={e => set("zone", e.target.value)} placeholder="e.g. OAU Campus, Ile-Ife" style={inp()} onFocus={foc} onBlur={blr} />
+      <input value={data.zone || ""} onChange={e => set("zone", e.target.value)}
+        placeholder="e.g. OAU Campus, Ile-Ife" style={inp()} onFocus={foc} onBlur={blr} />
     </Field>
 
     <Field label="Bank Name">
-      <input value={data.bankName || ""} onChange={e => set("bankName", e.target.value)} placeholder="e.g. First Bank, GTBank, Opay" style={inp()} onFocus={foc} onBlur={blr} />
+      <input value={data.bankName || ""} onChange={e => set("bankName", e.target.value)}
+        placeholder="e.g. First Bank, GTBank, Opay" style={inp()} onFocus={foc} onBlur={blr} />
     </Field>
 
     <Field label="Account Number">
-      <input type="tel" value={data.accountNumber || ""} onChange={e => set("accountNumber", e.target.value.replace(/\D/g, "").slice(0, 10))} placeholder="0123456789" style={{ ...inp(), letterSpacing: 2 }} onFocus={foc} onBlur={blr} />
+      <input type="tel" value={data.accountNumber || ""}
+        onChange={e => set("accountNumber", e.target.value.replace(/\D/g, "").slice(0, 10))}
+        placeholder="0123456789" style={{ ...inp(), letterSpacing: 2 }} onFocus={foc} onBlur={blr} />
     </Field>
 
     <Field label="Account Name">
-      <input value={data.accountName || ""} onChange={e => set("accountName", e.target.value)} placeholder="As on your bank account" style={inp()} onFocus={foc} onBlur={blr} />
+      <input value={data.accountName || ""} onChange={e => set("accountName", e.target.value)}
+        placeholder="As on your bank account" style={inp()} onFocus={foc} onBlur={blr} />
     </Field>
 
     <div style={{ background: "#e8f5e0", border: "1.5px solid #b8d8b8", borderRadius: 14, padding: "14px 16px", display: "flex", gap: 10 }}>
@@ -208,13 +234,44 @@ const Step3 = ({ data, set }) => (
   </div>
 );
 
+// ── Step 4: Review ────────────────────────────────────────────────────────────
 const Step4 = ({ data }) => {
   const fullName = [data.firstName, data.lastName].filter(Boolean).join(" ") || "—";
   const sections = [
-    { title: "Personal", icon: "👤", rows: [["Name", fullName], ["Phone", data.phone || "—"], ["Email", data.email || "—"], ["Gender", data.gender || "—"], ["Address", data.address || "—"]] },
-    { title: "Vehicle", icon: "🏍️", rows: [["Type", data.vehicleType || "—"], ...(data.vehicleModel ? [["Model", data.vehicleModel]] : []), ...(data.plateNumber ? [["Plate", data.plateNumber]] : []), ...(data.idType ? [["ID", data.idType]] : [])] },
-    { title: "Preferences", icon: "📦", rows: [["Availability", (data.availability || []).join(", ") || "—"], ["Zone", data.zone || "—"]] },
-    { title: "Payout", icon: "🏦", rows: [["Bank", data.bankName || "—"], ["Account No.", data.accountNumber || "—"], ["Account Name", data.accountName || "—"]] },
+    {
+      title: "Personal", icon: "👤",
+      rows: [
+        ["Name",    fullName],
+        ["Phone",   data.phone   || "—"],
+        ["Email",   data.email   || "—"],
+        ["Gender",  data.gender  || "—"],
+        ["Address", data.address || "—"],
+      ],
+    },
+    {
+      title: "Vehicle", icon: "🏍️",
+      rows: [
+        ["Type",  data.vehicleType  || "—"],
+        ...(data.vehicleModel  ? [["Model", data.vehicleModel]]  : []),
+        ...(data.plateNumber   ? [["Plate", data.plateNumber]]   : []),
+        ...(data.idType        ? [["ID",    data.idType]]        : []),
+      ],
+    },
+    {
+      title: "Preferences", icon: "📦",
+      rows: [
+        ["Availability", (data.availability || []).join(", ") || "—"],
+        ["Zone",         data.zone || "—"],
+      ],
+    },
+    {
+      title: "Payout", icon: "🏦",
+      rows: [
+        ["Bank",         data.bankName     || "—"],
+        ["Account No.",  data.accountNumber || "—"],
+        ["Account Name", data.accountName  || "—"],
+      ],
+    },
   ];
 
   return (
@@ -251,7 +308,15 @@ const Step4 = ({ data }) => {
   );
 };
 
-// ── Success ───────────────────────────────────────────────────────────────────
+// ── Validation ────────────────────────────────────────────────────────────────
+const canAdvance = (step, data) => {
+  if (step === 0) return !!(data.firstName?.trim() && data.lastName?.trim() && data.phone?.trim());
+  if (step === 1) return !!data.vehicleType;
+  if (step === 2) return !!(data.availability?.length);
+  return true;
+};
+
+// ── Success Screen ─────────────────────────────────────────────────────────────
 const SuccessScreen = ({ name }) => (
   <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "linear-gradient(155deg,#ecf7ec,#cde8cd)", padding: 20 }}>
     <div style={{ background: "white", borderRadius: 28, padding: "52px 44px", maxWidth: 400, width: "100%", textAlign: "center", boxShadow: "0 24px 80px rgba(0,0,0,0.1)", animation: "popIn 0.4s cubic-bezier(.34,1.56,.64,1)" }}>
@@ -266,36 +331,47 @@ const SuccessScreen = ({ name }) => (
   </div>
 );
 
-const canAdvance = (step, data) => {
-  if (step === 0) return !!(data.firstName?.trim() && data.lastName?.trim() && data.phone?.trim());
-  if (step === 1) return !!data.vehicleType;
-  if (step === 2) return !!(data.availability?.length);
-  return true;
-};
-
+// ── Main Component ─────────────────────────────────────────────────────────────
 export default function RiderRegister({ onSuccess }) {
-  const [step, setStep] = useState(0);
-  const [data, setData] = useState({ availability: [] });
+  const [step, setStep]           = useState(0);
+  const [data, setData]           = useState({ availability: [] });
   const [submitting, setSubmitting] = useState(false);
-  const [done, setDone] = useState(false);
+  const [done, setDone]           = useState(false);
+  const [error, setError]         = useState(null);
 
   const set = (k, v) => setData(p => ({ ...p, [k]: v }));
 
-  const submit = () => {
+  const submit = async () => {
     setSubmitting(true);
-    const rider = {
-      ...data,
-      id: `rider-${Date.now()}`,
-      fullName: `${data.firstName} ${data.lastName}`,
-      isOnline: false,
-      totalDeliveries: 0,
-      earnings: 0,
-      rating: 4.8,
-      registeredAt: new Date().toISOString(),
-      completedOrders: [],
-    };
-    try { localStorage.setItem("chopspot_rider", JSON.stringify(rider)); } catch (_) {}
-    setTimeout(() => { setDone(true); setTimeout(() => onSuccess?.(rider), 1800); }, 600);
+    setError(null);
+
+    try {
+      const payload = {
+        firstName:     data.firstName,
+        lastName:      data.lastName,
+        phone:         data.phone,
+        email:         data.email         || null,
+        gender:        data.gender        || null,
+        address:       data.address       || null,
+        vehicleType:   data.vehicleType,
+        vehicleModel:  data.vehicleModel  || null,
+        plateNumber:   data.plateNumber   || null,
+        idType:        data.idType        || null,
+        availability:  data.availability  || [],
+        zone:          data.zone          || null,
+        bankName:      data.bankName      || null,
+        accountNumber: data.accountNumber || null,
+        accountName:   data.accountName   || null,
+      };
+
+      const result = await API.registerRider(payload);
+      setDone(true);
+      setTimeout(() => onSuccess?.(result), 1800);
+    } catch (err) {
+      setError(err.message || "Registration failed. Please try again.");
+      setSubmitting(false);
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
   };
 
   const steps = [
@@ -316,16 +392,16 @@ export default function RiderRegister({ onSuccess }) {
         @keyframes popIn{from{opacity:0;transform:scale(0.88)}to{opacity:1;transform:scale(1)}}
         @keyframes loadBar{from{width:0}to{width:100%}}
         @keyframes slideUp{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
+        @keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
         ::-webkit-scrollbar{width:5px}
         ::-webkit-scrollbar-thumb{background:#b0d5b0;border-radius:10px}
-        input::placeholder,textarea::placeholder{color:#aac5aa}
-        select{cursor:pointer}
+        input::placeholder{color:#aac5aa}
         .step-anim{animation:slideUp 0.3s ease both}
       `}</style>
 
       <div style={{ minHeight: "100vh", background: "linear-gradient(160deg,#ecf7ec 0%,#ddf0dd 45%,#cde8cd 100%)" }}>
 
-        {/* Nav */}
+        {/* Navbar */}
         <nav style={{ background: "rgba(255,255,255,0.88)", backdropFilter: "blur(18px)", height: 60, display: "flex", alignItems: "center", justifyContent: "center", borderBottom: "1px solid rgba(45,138,45,0.1)", position: "sticky", top: 0, zIndex: 200 }}>
           <span style={{ fontFamily: "'Sora',sans-serif", fontWeight: 800, fontSize: 20, color: "#1a6a1a" }}>
             Chop<span style={{ color: "#f97316" }}>Spot</span>
@@ -336,7 +412,16 @@ export default function RiderRegister({ onSuccess }) {
         <div style={{ maxWidth: 560, margin: "0 auto", padding: "32px 16px 72px" }}>
           <div style={{ background: "white", borderRadius: 28, boxShadow: "0 20px 80px rgba(0,0,0,0.09)", overflow: "hidden" }}>
 
-            {/* Green progress header */}
+            {/* Error Banner */}
+            {error && (
+              <div style={{ background: "#fee2e2", borderLeft: "4px solid #dc2626", padding: "14px 20px", display: "flex", alignItems: "center", gap: 10 }}>
+                <span style={{ fontSize: 18 }}>⚠️</span>
+                <span style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 13, color: "#991b1b", flex: 1 }}>{error}</span>
+                <button onClick={() => setError(null)} style={{ background: "none", border: "none", cursor: "pointer", color: "#991b1b", fontSize: 18, lineHeight: 1 }}>×</button>
+              </div>
+            )}
+
+            {/* Progress header */}
             <div style={{ background: "linear-gradient(135deg,#155a15,#2d8a2d 55%,#3daa3d)", padding: "24px 28px 20px" }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
                 {STEPS.map((s, i) => (
@@ -355,7 +440,9 @@ export default function RiderRegister({ onSuccess }) {
                         : s.icon
                       }
                     </div>
-                    <span style={{ fontSize: 9, color: i === step ? "rgba(255,255,255,0.9)" : "rgba(255,255,255,0.4)", fontWeight: 700, letterSpacing: 0.5, textTransform: "uppercase" }}>{s.label}</span>
+                    <span style={{ fontSize: 9, color: i === step ? "rgba(255,255,255,0.9)" : "rgba(255,255,255,0.4)", fontWeight: 700, letterSpacing: 0.5, textTransform: "uppercase" }}>
+                      {s.label}
+                    </span>
                   </div>
                 ))}
               </div>
@@ -367,25 +454,32 @@ export default function RiderRegister({ onSuccess }) {
               </p>
             </div>
 
-            {/* Content */}
+            {/* Step content */}
             <div className="step-anim" key={step} style={{ padding: "30px 28px 22px" }}>
               {steps[step]}
             </div>
 
-            {/* Buttons */}
+            {/* Nav buttons */}
             <div style={{ padding: "0 28px 30px", display: "flex", gap: 12 }}>
               {step > 0 && (
-                <button onClick={() => setStep(s => s - 1)} style={{ flex: 1, padding: "14px", borderRadius: 50, border: "1.5px solid #d0e8d0", background: "white", color: "#2d8a2d", fontWeight: 700, fontSize: 14, cursor: "pointer", fontFamily: "'Sora',sans-serif", transition: "all 0.18s" }}
-                  onMouseEnter={e => e.currentTarget.style.background = "#f0f7f0"}
-                  onMouseLeave={e => e.currentTarget.style.background = "white"}
+                <button onClick={() => setStep(s => s - 1)} disabled={submitting} style={{
+                  flex: 1, padding: "14px", borderRadius: 50, border: "1.5px solid #d0e8d0",
+                  background: "white", color: "#2d8a2d", fontWeight: 700, fontSize: 14,
+                  cursor: submitting ? "not-allowed" : "pointer",
+                  fontFamily: "'Sora',sans-serif", opacity: submitting ? 0.5 : 1,
+                }}
+                  onMouseEnter={e => !submitting && (e.currentTarget.style.background = "#f0f7f0")}
+                  onMouseLeave={e => !submitting && (e.currentTarget.style.background = "white")}
                 >← Back</button>
               )}
+
               {step < STEPS.length - 1 ? (
                 <button onClick={() => canAdvance(step, data) && setStep(s => s + 1)} style={{
                   flex: 2, padding: "15px", borderRadius: 50, border: "none",
                   background: canAdvance(step, data) ? "linear-gradient(135deg,#2d8a2d,#4caf50)" : "#d4e8d4",
                   color: canAdvance(step, data) ? "white" : "#8aaa8a",
-                  fontWeight: 800, fontSize: 15, cursor: canAdvance(step, data) ? "pointer" : "not-allowed",
+                  fontWeight: 800, fontSize: 15,
+                  cursor: canAdvance(step, data) ? "pointer" : "not-allowed",
                   fontFamily: "'Sora',sans-serif",
                   boxShadow: canAdvance(step, data) ? "0 5px 20px rgba(45,138,45,0.32)" : "none",
                   transition: "all 0.2s",
@@ -395,18 +489,25 @@ export default function RiderRegister({ onSuccess }) {
                   flex: 2, padding: "15px", borderRadius: 50, border: "none",
                   background: submitting ? "#e8e8e8" : "linear-gradient(135deg,#f97316,#fb923c)",
                   color: submitting ? "#aaa" : "white",
-                  fontWeight: 800, fontSize: 15, cursor: submitting ? "wait" : "pointer",
+                  fontWeight: 800, fontSize: 15,
+                  cursor: submitting ? "wait" : "pointer",
                   fontFamily: "'Sora',sans-serif",
                   boxShadow: submitting ? "none" : "0 5px 20px rgba(249,115,22,0.35)",
                   transition: "all 0.2s",
-                }}>{submitting ? "Submitting…" : "🚀 Start Riding!"}</button>
+                }}>
+                  {submitting ? (
+                    <span style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
+                      <svg width="16" height="16" viewBox="0 0 24 24" style={{ animation: "spin 1s linear infinite" }}>
+                        <circle cx="12" cy="12" r="10" stroke="white" strokeWidth="3" fill="none" strokeDasharray="30 30" />
+                      </svg>
+                      Submitting…
+                    </span>
+                  ) : "🚀 Start Riding!"}
+                </button>
               )}
             </div>
-          </div>
 
-          <p style={{ textAlign: "center", marginTop: 20, fontSize: 13, color: "#8aaa8a" }}>
-            Already registered? Your profile is saved automatically.
-          </p>
+          </div>
         </div>
       </div>
     </>
