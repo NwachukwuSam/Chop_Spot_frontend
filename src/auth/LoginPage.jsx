@@ -1,4 +1,3 @@
-// LoginPage.jsx
 import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import * as API from "../utils/Api";
@@ -180,31 +179,57 @@ export default function LoginPage() {
         setLoading(true);
         try {
             const result = await API.login({ email: email.trim(), password });
+            
+            console.log("🔐 Login response:", result);
+            
+            // Store token - backend returns accessToken
+            if (result.accessToken) {
+                localStorage.setItem("chopspot_token", result.accessToken);
+                localStorage.setItem("adminToken", result.accessToken);
+                console.log("✅ Token stored successfully");
+            } else {
+                console.error("❌ No accessToken in login response!");
+                throw new Error("Invalid login response: no token received");
+            }
 
-            // Store token for all roles
-            localStorage.setItem("chopspot_token", result.token);
-            localStorage.setItem("adminToken", result.token);
+            // Store refresh token if provided
+            if (result.refreshToken) {
+                localStorage.setItem("refreshToken", result.refreshToken);
+            }
 
-            if (result.user) {
-                localStorage.setItem("chopspot_user", JSON.stringify(result.user));
+            // Store user data - it's at the root level
+            const userData = {
+                id: result.userId,
+                email: result.email,
+                username: result.username,
+                firstName: result.firstName,
+                lastName: result.lastName,
+                roles: result.roles || []
+            };
+            
+            localStorage.setItem("chopspot_user", JSON.stringify(userData));
+            console.log("✅ User data stored:", userData);
+            
+            // Check if user has admin role
+            const hasAdminRole = userData.roles && 
+                (userData.roles.includes("ADMIN") || userData.roles.includes("SUPER_ADMIN"));
+            
+            if (!hasAdminRole) {
+                console.warn("⚠️ User does not have admin role. Roles:", userData.roles);
+                setApiError("Your account does not have admin privileges. Please contact your administrator.");
+                setLoading(false);
+                return;
             }
 
             setSuccess(true);
 
-            // Redirect based on role (you can expand this)
+            // Redirect to admin dashboard
             setTimeout(() => {
-                if (result.user?.role === "ADMIN" || result.user?.role === "SUPER_ADMIN") {
-                    navigate("/admin-dashboard");
-                } else if (result.user?.role === "VENDOR") {
-                    navigate("/vendor-dashboard");
-                } else if (result.user?.role === "RIDER") {
-                    navigate("/rider-dashboard");
-                } else {
-                    navigate("/admin-dashboard"); // fallback
-                }
+                navigate("/admin-dashboard");
             }, 1200);
 
         } catch (err) {
+            console.error("❌ Login error:", err);
             const msg = err.message || "Invalid email or password. Please try again.";
             setApiError(msg);
             triggerShake();
