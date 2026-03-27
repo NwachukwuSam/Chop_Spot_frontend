@@ -74,11 +74,17 @@ async function publicRequest(endpoint, options = {}) {
 // POST /api/auth/verify-otp
 // POST /api/auth/reset-password
 // ─────────────────────────────────────────────────────────────────────────────
-export const login = (body) =>
-    publicRequest("/api/auth/login", {
+export const login = async (body) => {
+    const response = await publicRequest("/api/auth/login", {
         method: "POST",
         body: JSON.stringify(body),
     });
+    
+    console.log("🔐 Login API response:", response);
+    
+    // The response should have accessToken, userId, roles, etc.
+    return response;
+};
 
 export const register = (body) =>
     publicRequest("/api/auth/register", {
@@ -86,7 +92,23 @@ export const register = (body) =>
         body: JSON.stringify(body),
     });
 
-export const getMe = () => request("/api/auth/me");
+
+export const getMe = async () => {
+    try {
+        const response = await request("/api/auth/me");
+        console.log("👤 getMe response:", response);
+        return response;
+    } catch (err) {
+        console.error("Failed to fetch user data:", err);
+        // Fallback: try to get user data from localStorage
+        const storedUser = localStorage.getItem("chopspot_user");
+        if (storedUser) {
+            console.log("Using stored user data as fallback");
+            return JSON.parse(storedUser);
+        }
+        throw err;
+    }
+};
 
 export const forgotPassword = (body) =>
     publicRequest("/api/auth/forgot-password", {

@@ -1,8 +1,44 @@
-// VendorRegister.jsx
 import { useState } from "react";
 import * as API from "../utils/Api";
 
-// ─── Constants ───────────────────────────────────────────────────────────────
+// ─── Cloudinary Config ────────────────────────────────────────────────────────
+const CLOUDINARY_CLOUD_NAME = "dwqxxunes";
+const CLOUDINARY_UPLOAD_PRESET = "sales_book";
+
+const uploadToCloudinary = async (file) => {
+    const uploadData = new FormData();
+    uploadData.append("file", file);
+    uploadData.append("upload_preset", CLOUDINARY_UPLOAD_PRESET);
+    uploadData.append("cloud_name", CLOUDINARY_CLOUD_NAME);
+    uploadData.append("folder", "user_profiles");
+
+    const response = await fetch(
+        `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/image/upload`,
+        { method: "POST", body: uploadData }
+    );
+    if (!response.ok) throw new Error("Image upload failed");
+    const result = await response.json();
+    return result.secure_url;
+};
+
+// Upload a remote URL image to Cloudinary (for preset picks)
+const uploadUrlToCloudinary = async (imageUrl) => {
+    const uploadData = new FormData();
+    uploadData.append("file", imageUrl);
+    uploadData.append("upload_preset", CLOUDINARY_UPLOAD_PRESET);
+    uploadData.append("cloud_name", CLOUDINARY_CLOUD_NAME);
+    uploadData.append("folder", "user_profiles");
+
+    const response = await fetch(
+        `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/image/upload`,
+        { method: "POST", body: uploadData }
+    );
+    if (!response.ok) throw new Error("Image upload failed");
+    const result = await response.json();
+    return result.secure_url;
+};
+
+// ─── Constants ────────────────────────────────────────────────────────────────
 const CATEGORIES = [
     "Nigerian", "Continental", "Fast Food", "Grills & BBQ",
     "Street Food", "Soups & Swallow", "Pastries & Drinks",
@@ -27,6 +63,24 @@ const STEPS = [
     { id: 2, label: "Packaging", icon: "📦" },
     { id: 3, label: "Menu",      icon: "🍽️" },
     { id: 4, label: "Review",    icon: "✅" },
+];
+
+export const vendorImage = [
+    { id: 1,  image: "https://images.unsplash.com/photo-1567306226416-28f0efdc88ce?w=600&auto=format&fit=crop" },
+    { id: 2,  image: "https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=600&auto=format&fit=crop" },
+    { id: 3,  image: "https://images.unsplash.com/photo-1414235077428-338989a2e8c0?w=600&auto=format&fit=crop" },
+    { id: 4,  image: "https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?w=600&auto=format&fit=crop" },
+    { id: 5,  image: "https://images.unsplash.com/photo-1540189549336-e6e99c3679fe?w=600&auto=format&fit=crop" },
+    { id: 6,  image: "https://images.unsplash.com/photo-1555939594-58d7cb561ad1?w=600&auto=format&fit=crop" },
+    { id: 7,  image: "https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=600&auto=format&fit=crop" },
+    { id: 8,  image: "https://images.unsplash.com/photo-1512621776951-a57141f2eefd?w=600&auto=format&fit=crop" },
+    { id: 9,  image: "https://images.unsplash.com/photo-1544025162-d76694265947?w=600&auto=format&fit=crop" },
+    { id: 10, image: "https://images.unsplash.com/photo-1547592180-85f173990554?w=600&auto=format&fit=crop" },
+    { id: 11, image: "https://images.unsplash.com/photo-1565299585323-38d6b0865b47?w=600&auto=format&fit=crop" },
+    { id: 12, image: "https://images.unsplash.com/photo-1490645935967-10de6ba17061?w=600&auto=format&fit=crop" },
+    { id: 13, image: "https://images.unsplash.com/photo-1567620905732-2d1ec7ab7445?w=600&auto=format&fit=crop" },
+    { id: 14, image: "https://images.unsplash.com/photo-1512621776951-a57141f2eefd?w=600&auto=format&fit=crop" },
+    { id: 15, image: "https://images.unsplash.com/photo-1529692236671-f1f6cf9683ba?w=600&auto=format&fit=crop" },
 ];
 
 // ─── Shared styles ────────────────────────────────────────────────────────────
@@ -93,70 +147,227 @@ const Radio = ({ on }) => (
 );
 
 // ─── Step 1: Business Info ────────────────────────────────────────────────────
-const Step1 = ({ data, set }) => (
-    <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-        <Header emoji="🏪" title="Tell us about your business" sub="This is what hungry customers will see on ChopSpot" />
+const Step1 = ({ data, set }) => {
+    const [uploading, setUploading] = useState(false);
+    const [uploadErr, setUploadErr] = useState(null);
+    const [showGallery, setShowGallery] = useState(false);
 
-        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 8 }}>
-            <label style={lbl}>Restaurant Photo / Logo</label>
-            <div
-                onClick={() => document.getElementById("logo-inp").click()}
-                style={{
-                    width: 110, height: 110, borderRadius: 24, overflow: "hidden",
-                    background: data.logoPreview ? "transparent" : "#edf7ed",
-                    border: "2.5px dashed #8ac88a", cursor: "pointer",
-                    display: "flex", alignItems: "center", justifyContent: "center",
-                    transition: "border-color 0.2s",
-                }}
-                onMouseEnter={e => e.currentTarget.style.borderColor = "#2d8a2d"}
-                onMouseLeave={e => e.currentTarget.style.borderColor = "#8ac88a"}
-            >
-                {data.logoPreview
-                    ? <img src={data.logoPreview} style={{ width: "100%", height: "100%", objectFit: "cover" }} alt="logo" />
-                    : <div style={{ textAlign: "center" }}>
-                        <div style={{ fontSize: 32 }}>📸</div>
-                        <p style={{ margin: "4px 0 0", fontSize: 11, color: "#7aaa7a", fontWeight: 600 }}>Upload</p>
+    // Upload a local file the user picked
+    const handleFileUpload = async (file) => {
+        setUploading(true);
+        setUploadErr(null);
+        try {
+            // Show preview immediately
+            set("logoPreview", URL.createObjectURL(file));
+            const url = await uploadToCloudinary(file);
+            set("logoUrl", url);
+        } catch (err) {
+            setUploadErr("Upload failed. Please try again.");
+            set("logoPreview", null);
+            set("logoUrl", null);
+        } finally {
+            setUploading(false);
+        }
+    };
+
+    // Upload a preset vendor image URL to Cloudinary
+    const handleGalleryPick = async (imgUrl) => {
+        setShowGallery(false);
+        setUploading(true);
+        setUploadErr(null);
+        set("logoPreview", imgUrl); // show immediately as preview
+        try {
+            const url = await uploadUrlToCloudinary(imgUrl);
+            set("logoUrl", url);
+            set("logoPreview", url);
+        } catch (err) {
+            setUploadErr("Could not save image. Please try another.");
+            set("logoUrl", null);
+        } finally {
+            setUploading(false);
+        }
+    };
+
+    return (
+        <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+            <Header emoji="🏪" title="Tell us about your business" sub="This is what hungry customers will see on ChopSpot" />
+
+            {/* Logo / Photo Picker */}
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 8 }}>
+                <label style={lbl}>Restaurant Photo / Logo</label>
+
+                {/* Preview circle */}
+                <div
+                    onClick={() => !uploading && document.getElementById("logo-inp").click()}
+                    style={{
+                        width: 110, height: 110, borderRadius: 24, overflow: "hidden",
+                        background: data.logoPreview ? "transparent" : "#edf7ed",
+                        border: "2.5px dashed #8ac88a", cursor: uploading ? "wait" : "pointer",
+                        display: "flex", alignItems: "center", justifyContent: "center",
+                        transition: "border-color 0.2s", position: "relative",
+                    }}
+                    onMouseEnter={e => !uploading && (e.currentTarget.style.borderColor = "#2d8a2d")}
+                    onMouseLeave={e => !uploading && (e.currentTarget.style.borderColor = "#8ac88a")}
+                >
+                    {uploading ? (
+                        <div style={{ textAlign: "center" }}>
+                            <svg width="28" height="28" viewBox="0 0 24 24" style={{ animation: "spin 1s linear infinite" }}>
+                                <circle cx="12" cy="12" r="10" stroke="#2d8a2d" strokeWidth="3" fill="none" strokeDasharray="30 30" />
+                            </svg>
+                            <p style={{ fontSize: 10, color: "#7aaa7a", marginTop: 4, fontWeight: 600 }}>Uploading…</p>
+                        </div>
+                    ) : data.logoPreview ? (
+                        <img src={data.logoPreview} style={{ width: "100%", height: "100%", objectFit: "cover" }} alt="logo" />
+                    ) : (
+                        <div style={{ textAlign: "center" }}>
+                            <div style={{ fontSize: 32 }}>📸</div>
+                            <p style={{ margin: "4px 0 0", fontSize: 11, color: "#7aaa7a", fontWeight: 600 }}>Upload</p>
+                        </div>
+                    )}
+                </div>
+
+                <input id="logo-inp" type="file" accept="image/*" style={{ display: "none" }}
+                       onChange={e => { const f = e.target.files[0]; if (f) handleFileUpload(f); }}
+                />
+
+                {/* Two action buttons */}
+                <div style={{ display: "flex", gap: 8 }}>
+                    <button
+                        onClick={() => document.getElementById("logo-inp").click()}
+                        disabled={uploading}
+                        style={{
+                            padding: "7px 14px", borderRadius: 50, fontSize: 12, fontWeight: 700,
+                            border: "1.5px solid #d0e8d0", background: "white", color: "#2d8a2d",
+                            cursor: uploading ? "wait" : "pointer", fontFamily: "'Plus Jakarta Sans',sans-serif",
+                        }}
+                    >
+                        📁 Upload File
+                    </button>
+                    <button
+                        onClick={() => setShowGallery(true)}
+                        disabled={uploading}
+                        style={{
+                            padding: "7px 14px", borderRadius: 50, fontSize: 12, fontWeight: 700,
+                            border: "1.5px solid #d0e8d0", background: "white", color: "#2d8a2d",
+                            cursor: uploading ? "wait" : "pointer", fontFamily: "'Plus Jakarta Sans',sans-serif",
+                        }}
+                    >
+                        🖼️ Pick from Gallery
+                    </button>
+                </div>
+
+                {data.logoUrl && !uploading && (
+                    <span style={{ fontSize: 11, color: "#4caf50", fontWeight: 700 }}>✓ Image saved to cloud</span>
+                )}
+                {uploadErr && (
+                    <span style={{ fontSize: 11, color: "#dc2626", fontWeight: 600 }}>{uploadErr}</span>
+                )}
+                <span style={{ fontSize: 11, color: "#9ab59a" }}>JPG · PNG · up to 5 MB</span>
+            </div>
+
+            {/* Gallery Modal */}
+            {showGallery && (
+                <div style={{
+                    position: "fixed", inset: 0, background: "rgba(0,0,0,0.55)", zIndex: 999,
+                    display: "flex", alignItems: "center", justifyContent: "center", padding: 20,
+                }} onClick={() => setShowGallery(false)}>
+                    <div
+                        onClick={e => e.stopPropagation()}
+                        style={{
+                            background: "white", borderRadius: 24, padding: 24, maxWidth: 520, width: "100%",
+                            maxHeight: "80vh", overflowY: "auto", boxShadow: "0 32px 80px rgba(0,0,0,0.25)",
+                        }}
+                    >
+                        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
+                            <h3 style={{ fontFamily: "'Sora',sans-serif", fontWeight: 800, fontSize: 16, color: "#1a2e1a", margin: 0 }}>
+                                🖼️ Pick a Restaurant Photo
+                            </h3>
+                            <button onClick={() => setShowGallery(false)} style={{ background: "none", border: "none", fontSize: 22, cursor: "pointer", color: "#999" }}>×</button>
+                        </div>
+                        <p style={{ fontSize: 12, color: "#9ab59a", marginBottom: 16 }}>Select one — it will be saved to your cloud storage automatically.</p>
+                        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10 }}>
+                            {vendorImage.map(img => (
+                                <div
+                                    key={img.id}
+                                    onClick={() => handleGalleryPick(img.image)}
+                                    style={{
+                                        borderRadius: 14, overflow: "hidden", cursor: "pointer",
+                                        border: data.logoPreview === img.image ? "3px solid #2d8a2d" : "2px solid transparent",
+                                        aspectRatio: "1 / 1", transition: "all 0.18s",
+                                        boxShadow: "0 2px 10px rgba(0,0,0,0.08)",
+                                    }}
+                                    onMouseEnter={e => e.currentTarget.style.transform = "scale(1.04)"}
+                                    onMouseLeave={e => e.currentTarget.style.transform = "scale(1)"}
+                                >
+                                    <img src={img.image} alt={`food ${img.id}`} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
+                                </div>
+                            ))}
+                        </div>
                     </div>
-                }
-            </div>
-            <input id="logo-inp" type="file" accept="image/*" style={{ display: "none" }}
-                   onChange={e => { const f = e.target.files[0]; if (f) set("logoPreview", URL.createObjectURL(f)); }}
-            />
-            <span style={{ fontSize: 11, color: "#9ab59a" }}>JPG · PNG · up to 5 MB</span>
-        </div>
+                </div>
+            )}
 
-        <Field label="Restaurant / Business Name *">
-            <input value={data.name || ""} onChange={e => set("name", e.target.value)}
-                   placeholder="e.g. Mama Titi's Kitchen" style={inp()} onFocus={focus} onBlur={blur} />
-        </Field>
-
-        <Field label="Category *">
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-                {CATEGORIES.map(c => (
-                    <Chip key={c} label={c} active={data.category === c} onClick={() => set("category", c)} />
-                ))}
-            </div>
-        </Field>
-
-        <Field label="Short Description">
-      <textarea value={data.description || ""} onChange={e => set("description", e.target.value)}
-                placeholder="Tell customers what makes your food special…" rows={3}
-                style={{ ...inp(), resize: "none", lineHeight: 1.65 }} onFocus={focus} onBlur={blur}
-      />
-        </Field>
-
-        <div style={{ display: "flex", gap: 12 }}>
-            <Field label="WhatsApp / Phone *" style={{ flex: 1 }}>
-                <input value={data.phone || ""} onChange={e => set("phone", e.target.value)}
-                       placeholder="+234…" style={inp()} onFocus={focus} onBlur={blur} />
+            <Field label="Restaurant / Business Name *">
+                <input value={data.restaurantName || ""} onChange={e => set("restaurantName", e.target.value)}
+                       placeholder="e.g. Mama Titi's Kitchen" style={inp()} onFocus={focus} onBlur={blur} />
             </Field>
-            <Field label="Email (optional)" style={{ flex: 1 }}>
-                <input value={data.email || ""} onChange={e => set("email", e.target.value)}
-                       placeholder="you@example.com" style={inp()} onFocus={focus} onBlur={blur} />
+
+            <Field label="Owner's Full Name *">
+                <input value={data.ownerName || ""} onChange={e => set("ownerName", e.target.value)}
+                       placeholder="e.g. Titi Adeyemi" style={inp()} onFocus={focus} onBlur={blur} />
             </Field>
+
+            <Field label="Category *">
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                    {CATEGORIES.map(c => (
+                        <Chip key={c} label={c} active={data.category === c} onClick={() => set("category", c)} />
+                    ))}
+                </div>
+            </Field>
+
+            <Field label="Short Description">
+                <textarea value={data.description || ""} onChange={e => set("description", e.target.value)}
+                          placeholder="Tell customers what makes your food special…" rows={3}
+                          style={{ ...inp(), resize: "none", lineHeight: 1.65 }} onFocus={focus} onBlur={blur}
+                />
+            </Field>
+
+            <div style={{ display: "flex", gap: 12 }}>
+                <Field label="WhatsApp / Phone *" style={{ flex: 1 }}>
+                    <input value={data.restaurantPhone || ""} onChange={e => set("restaurantPhone", e.target.value)}
+                           placeholder="+234…" style={inp()} onFocus={focus} onBlur={blur} />
+                </Field>
+                <Field label="Contact Email (optional)" style={{ flex: 1 }}>
+                    <input value={data.restaurantEmail || ""} onChange={e => set("restaurantEmail", e.target.value)}
+                           placeholder="you@example.com" style={inp()} onFocus={focus} onBlur={blur} />
+                </Field>
+            </div>
+
+            <div style={{ background: "#f0f7f0", borderRadius: 14, padding: "14px 16px", border: "1.5px solid #d0e8d0" }}>
+                <p style={{ ...lbl, marginBottom: 10 }}>Account Credentials</p>
+                <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                    <Field label="Email Address *">
+                        <input type="email" value={data.email || ""} onChange={e => set("email", e.target.value)}
+                               placeholder="login@example.com" style={inp()} onFocus={focus} onBlur={blur} />
+                    </Field>
+                    <div style={{ display: "flex", gap: 12 }}>
+                        <Field label="Password *" style={{ flex: 1 }}>
+                            <input type="password" value={data.password || ""} onChange={e => set("password", e.target.value)}
+                                   placeholder="••••••••" style={inp()} onFocus={focus} onBlur={blur} />
+                        </Field>
+                        <Field label="Confirm Password *" style={{ flex: 1 }}>
+                            <input type="password" value={data.confirmPassword || ""} onChange={e => set("confirmPassword", e.target.value)}
+                                   placeholder="••••••••" style={inp()} onFocus={focus} onBlur={blur} />
+                        </Field>
+                    </div>
+                    {data.password && data.confirmPassword && data.password !== data.confirmPassword && (
+                        <p style={{ fontSize: 12, color: "#dc2626", margin: 0, fontWeight: 600 }}>⚠️ Passwords do not match</p>
+                    )}
+                </div>
+            </div>
         </div>
-    </div>
-);
+    );
+};
 
 // ─── Step 2: Location & Hours ─────────────────────────────────────────────────
 const Step2 = ({ data, set }) => {
@@ -169,7 +380,7 @@ const Step2 = ({ data, set }) => {
             <Header emoji="📍" title="Where are you located?" sub="Help customers find you easily" />
 
             <Field label="Full Address *">
-                <input value={data.address || ""} onChange={e => set("address", e.target.value)}
+                <input value={data.restaurantAddress || ""} onChange={e => set("restaurantAddress", e.target.value)}
                        placeholder="e.g. Block C, Faculty Canteen Area" style={inp()} onFocus={focus} onBlur={blur} />
             </Field>
             <Field label="Landmark / More Details">
@@ -204,7 +415,7 @@ const Step2 = ({ data, set }) => {
             </div>
 
             <Field label="Minimum Delivery Price (₦) *">
-                <input type="number" value={data.deliveryFrom || ""} onChange={e => set("deliveryFrom", e.target.value)}
+                <input type="number" value={data.deliveryFromPrice || ""} onChange={e => set("deliveryFromPrice", e.target.value)}
                        placeholder="e.g. 300" style={inp()} onFocus={focus} onBlur={blur} />
             </Field>
         </div>
@@ -247,8 +458,8 @@ const Step3 = ({ data, set }) => {
                                 <span style={{ fontWeight: 600, fontSize: 14, color: "#1a2e1a" }}>{pkg.name}</span>
                             </div>
                             <span style={{ fontWeight: 700, color: "#f97316", fontSize: 14 }}>
-                {pkg.price === 0 ? "Free" : `₦${pkg.price}`}
-              </span>
+                                {pkg.price === 0 ? "Free" : `₦${pkg.price}`}
+                            </span>
                         </div>
                     );
                 })}
@@ -334,12 +545,12 @@ const Step4 = ({ data, set }) => {
             {(data.menuCategories || []).map(cat => (
                 <div key={cat.id} style={{ background: "white", borderRadius: 18, border: "1.5px solid #e2ebe2", overflow: "hidden" }}>
                     <div style={{ background: "linear-gradient(135deg,#e8f5e0,#d4edda)", padding: "12px 16px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-            <span style={{ fontWeight: 800, fontSize: 12, color: "#1a6a1a", letterSpacing: 1, textTransform: "uppercase" }}>
-              🍽 {cat.name}
-                <span style={{ marginLeft: 8, fontWeight: 400, color: "#5a8a5a", fontSize: 11, textTransform: "none" }}>
-                ({cat.items.length} items)
-              </span>
-            </span>
+                        <span style={{ fontWeight: 800, fontSize: 12, color: "#1a6a1a", letterSpacing: 1, textTransform: "uppercase" }}>
+                            🍽 {cat.name}
+                            <span style={{ marginLeft: 8, fontWeight: 400, color: "#5a8a5a", fontSize: 11, textTransform: "none" }}>
+                                ({cat.items.length} items)
+                            </span>
+                        </span>
                         <button onClick={() => removeCat(cat.id)} style={{ background: "rgba(200,50,50,0.1)", border: "none", borderRadius: 8, padding: "4px 10px", cursor: "pointer", color: "#c0392b", fontWeight: 700, fontSize: 11 }}>Remove</button>
                     </div>
                     {cat.items.map(item => (
@@ -389,20 +600,22 @@ const Step5 = ({ data }) => {
     const sections = [
         {
             title: "Business Info", icon: "🏪", rows: [
-                ["Name", data.name || "—"],
+                ["Restaurant Name", data.restaurantName || "—"],
+                ["Owner Name", data.ownerName || "—"],
                 ["Category", data.category || "—"],
-                ["Phone", data.phone || "—"],
-                ...(data.email ? [["Email", data.email]] : []),
+                ["Phone", data.restaurantPhone || "—"],
+                ...(data.restaurantEmail ? [["Contact Email", data.restaurantEmail]] : []),
+                ["Login Email", data.email || "—"],
                 ["Description", data.description || "—"],
             ],
         },
         {
             title: "Location & Hours", icon: "📍", rows: [
-                ["Address", data.address || "—"],
+                ["Address", data.restaurantAddress || "—"],
                 ...(data.landmark ? [["Landmark", data.landmark]] : []),
                 ["Open Days", (data.openDays || []).join(", ") || "—"],
                 ["Hours", data.openTime && data.closeTime ? `${data.openTime} – ${data.closeTime}` : "—"],
-                ["Delivery from", data.deliveryFrom ? `₦${data.deliveryFrom}` : "—"],
+                ["Delivery from", data.deliveryFromPrice ? `₦${data.deliveryFromPrice}` : "—"],
             ],
         },
         {
@@ -425,6 +638,9 @@ const Step5 = ({ data }) => {
                 <div style={{ display: "flex", justifyContent: "center" }}>
                     <img src={data.logoPreview} style={{ width: 80, height: 80, borderRadius: 20, objectFit: "cover", border: "3px solid #e0eee0" }} alt="logo" />
                 </div>
+            )}
+            {data.logoUrl && (
+                <p style={{ textAlign: "center", fontSize: 11, color: "#4caf50", fontWeight: 700, margin: "-8px 0 0" }}>✓ Logo saved to cloud</p>
             )}
 
             {sections.map(s => (
@@ -450,8 +666,19 @@ const Step5 = ({ data }) => {
 
 // ─── Validation ───────────────────────────────────────────────────────────────
 const canAdvance = (step, data) => {
-    if (step === 0) return !!(data.name?.trim() && data.category && data.phone?.trim());
-    if (step === 1) return !!(data.address?.trim() && (data.openDays || []).length && data.deliveryFrom);
+    if (step === 0) {
+        const pwMatch = !data.password || !data.confirmPassword || data.password === data.confirmPassword;
+        return !!(
+            data.restaurantName?.trim() &&
+            data.ownerName?.trim() &&
+            data.category &&
+            data.restaurantPhone?.trim() &&
+            data.email?.trim() &&
+            data.password?.trim() &&
+            pwMatch
+        );
+    }
+    if (step === 1) return !!(data.restaurantAddress?.trim() && (data.openDays || []).length && data.deliveryFromPrice);
     if (step === 2) return (data.packages || []).length > 0;
     if (step === 3) return (data.menuCategories || []).some(c => c.items.length > 0);
     return true;
@@ -490,21 +717,43 @@ export default function VendorRegister({ onSuccess }) {
 
         try {
             const payload = {
-                restaurantName:        data.name,
-                category:              data.category,
-                restaurantDescription: data.description || null,
-                restaurantPhone:       data.phone,
-                restaurantEmail:       data.email || null,
-                restaurantAddress:     data.address,
-                landmark:              data.landmark || null,
-                openDays:              data.openDays,
-                openTime:              data.openTime  || "08:00",
-                closeTime:             data.closeTime || "20:00",
-                deliveryFromPrice:     Number(data.deliveryFrom) || 0,
-                packages:              (data.packages || []).map(p => ({ name: p.name, price: p.price })),
+                // Account credentials
+                email:           data.email,
+                password:        data.password,
+                confirmPassword: data.confirmPassword,
+
+                // Step 1 — Business Info
+                restaurantName:  data.restaurantName,
+                ownerName:       data.ownerName,
+                category:        data.category,
+                description:     data.description || null,
+                restaurantPhone: data.restaurantPhone,
+                restaurantEmail: data.restaurantEmail || null,
+                logoUrl:         data.logoUrl || null,
+
+                // Step 2 — Location & Hours
+                restaurantAddress: data.restaurantAddress,
+                landmark:          data.landmark || null,
+                openDays:          data.openDays,
+                openTime:          data.openTime  || "08:00",
+                closeTime:         data.closeTime || "20:00",
+                deliveryFromPrice: Number(data.deliveryFromPrice) || 0,
+
+                // Step 3 — Packaging
+                packages: (data.packages || []).map(p => ({
+                    id:    p.id,
+                    name:  p.name,
+                    price: p.price,
+                })),
+
+                // Step 4 — Menu
                 menuCategories: (data.menuCategories || []).map(cat => ({
-                    name: cat.name,
-                    items: cat.items.map(i => ({ name: i.name, price: i.price, available: i.available ?? true })),
+                    name:  cat.name,
+                    items: cat.items.map(i => ({
+                        name:      i.name,
+                        price:     i.price,
+                        available: i.available ?? true,
+                    })),
                 })),
             };
 
@@ -526,32 +775,32 @@ export default function VendorRegister({ onSuccess }) {
         <Step5 key={4} data={data} />,
     ];
 
-    if (done) return <SuccessScreen name={data.name} />;
+    if (done) return <SuccessScreen name={data.restaurantName} />;
 
     return (
         <>
             <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap');
-        *{box-sizing:border-box;margin:0;padding:0;}
-        body{font-family:'Plus Jakarta Sans',sans-serif;}
-        @keyframes fadeSlide{from{opacity:0;transform:translateY(18px)}to{opacity:1;transform:translateY(0)}}
-        @keyframes loadBar{from{width:0}to{width:100%}}
-        @keyframes popIn{from{opacity:0;transform:scale(0.88)}to{opacity:1;transform:scale(1)}}
-        @keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
-        ::-webkit-scrollbar{width:5px}
-        ::-webkit-scrollbar-thumb{background:#b0d5b0;border-radius:10px}
-        input::placeholder,textarea::placeholder{color:#b0c8b0}
-        .step-content{animation:fadeSlide 0.3s ease both}
-      `}</style>
+                @import url('https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap');
+                *{box-sizing:border-box;margin:0;padding:0;}
+                body{font-family:'Plus Jakarta Sans',sans-serif;}
+                @keyframes fadeSlide{from{opacity:0;transform:translateY(18px)}to{opacity:1;transform:translateY(0)}}
+                @keyframes loadBar{from{width:0}to{width:100%}}
+                @keyframes popIn{from{opacity:0;transform:scale(0.88)}to{opacity:1;transform:scale(1)}}
+                @keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
+                ::-webkit-scrollbar{width:5px}
+                ::-webkit-scrollbar-thumb{background:#b0d5b0;border-radius:10px}
+                input::placeholder,textarea::placeholder{color:#b0c8b0}
+                .step-content{animation:fadeSlide 0.3s ease both}
+            `}</style>
 
             <div style={{ minHeight: "100vh", background: "linear-gradient(155deg,#ecf7ec 0%,#ddf0dd 45%,#cde8cd 100%)" }}>
 
                 {/* Navbar */}
                 <nav style={{ background: "rgba(255,255,255,0.88)", backdropFilter: "blur(18px)", height: 60, display: "flex", alignItems: "center", justifyContent: "center", borderBottom: "1px solid rgba(45,138,45,0.1)", position: "sticky", top: 0, zIndex: 200 }}>
-          <span style={{ fontFamily: "'Sora',sans-serif", fontWeight: 800, fontSize: 20, color: "#1a6a1a" }}>
-            Chop<span style={{ color: "#f97316" }}>Spot</span>
-            <span style={{ color: "#9ab59a", fontWeight: 400, fontSize: 14, marginLeft: 8 }}>· Vendor Registration</span>
-          </span>
+                    <span style={{ fontFamily: "'Sora',sans-serif", fontWeight: 800, fontSize: 20, color: "#1a6a1a" }}>
+                        Chop<span style={{ color: "#f97316" }}>Spot</span>
+                        <span style={{ color: "#9ab59a", fontWeight: 400, fontSize: 14, marginLeft: 8 }}>· Vendor Registration</span>
+                    </span>
                 </nav>
 
                 <div style={{ maxWidth: 580, margin: "0 auto", padding: "32px 16px 72px" }}>
@@ -587,8 +836,8 @@ export default function VendorRegister({ onSuccess }) {
                                             }
                                         </div>
                                         <span style={{ fontSize: 9, color: i === step ? "rgba(255,255,255,0.9)" : "rgba(255,255,255,0.4)", fontWeight: 700, letterSpacing: 0.5, textTransform: "uppercase" }}>
-                      {s.label}
-                    </span>
+                                            {s.label}
+                                        </span>
                                     </div>
                                 ))}
                             </div>
@@ -642,11 +891,11 @@ export default function VendorRegister({ onSuccess }) {
                                 }}>
                                     {submitting ? (
                                         <span style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
-                      <svg width="16" height="16" viewBox="0 0 24 24" style={{ animation: "spin 1s linear infinite" }}>
-                        <circle cx="12" cy="12" r="10" stroke="white" strokeWidth="3" fill="none" strokeDasharray="30 30" />
-                      </svg>
-                      Submitting…
-                    </span>
+                                            <svg width="16" height="16" viewBox="0 0 24 24" style={{ animation: "spin 1s linear infinite" }}>
+                                                <circle cx="12" cy="12" r="10" stroke="white" strokeWidth="3" fill="none" strokeDasharray="30 30" />
+                                            </svg>
+                                            Submitting…
+                                        </span>
                                     ) : "🚀 Submit & Go Live"}
                                 </button>
                             )}

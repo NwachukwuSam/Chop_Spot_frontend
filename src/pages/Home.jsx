@@ -1,7 +1,7 @@
-// src/pages/Home.jsx
 import { useState, useEffect, useRef } from "react";
 import * as API from "../utils/Api";
 import Dashboard from "../dashboards/CustomerDashboard";
+import logo from '../assets/logo.jpeg';
 
 const DELIVERY_FEE = 350;
 const DELIVERY_LOCATIONS = [
@@ -143,58 +143,119 @@ const ProfileAvatar = ({ profile, onDashboard, onClear }) => {
 };
 
 // ── Vendor Card ─────────────────────────────────────────────────────────────
-const VendorCard = ({ vendor, onClick }) => (
-    <div onClick={onClick} style={{
-        background: "rgba(255,255,255,0.88)", borderRadius: 22, overflow: "hidden",
-        boxShadow: "0 2px 16px rgba(20,80,20,0.10)", cursor: "pointer",
-        transition: "transform 0.22s, box-shadow 0.22s",
-        border: "1.5px solid rgba(60,140,60,0.13)", backdropFilter: "blur(8px)",
-    }}
-         onMouseEnter={e => { e.currentTarget.style.transform = "translateY(-5px)"; e.currentTarget.style.boxShadow = "0 14px 36px rgba(20,80,20,0.18)"; }}
-         onMouseLeave={e => { e.currentTarget.style.transform = "translateY(0)"; e.currentTarget.style.boxShadow = "0 2px 16px rgba(20,80,20,0.10)"; }}
-    >
-        <div style={{ height: 148, position: "relative", overflow: "hidden" }}>
-            <img src={vendor.image || vendor.logo} alt={vendor.name} style={{
-                width: "100%", height: "100%", objectFit: "cover",
-                filter: !vendor.isOpen ? "grayscale(80%) brightness(0.8)" : "none",
-                transition: "transform 0.4s",
-            }}
-                 onMouseEnter={e => e.target.style.transform = "scale(1.07)"}
-                 onMouseLeave={e => e.target.style.transform = "scale(1)"}
-                 onError={e => e.target.style.background = "#c8e6c9"}
-            />
-            {!vendor.isOpen && (
-                <div style={{ position: "absolute", bottom: 10, left: 12, background: "#1a1a1a", color: "white", fontSize: 10, fontWeight: 800, padding: "4px 10px", borderRadius: 20, letterSpacing: 1.2 }}>CLOSED</div>
-            )}
-            <div style={{ position: "absolute", top: 10, right: 10, background: "rgba(255,255,255,0.93)", borderRadius: 20, padding: "3px 9px", fontSize: 12, fontWeight: 700, color: "#1a1a1a", display: "flex", alignItems: "center", gap: 3 }}>
-                ⭐ {vendor.rating || "4.8"}
+const VendorCard = ({ vendor, onClick }) => {
+    const vendorData = {
+        id: vendor.id,
+        name: vendor.restaurantName,
+        image: vendor.logoUrl || "https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?w=400&q=80",
+        rating: vendor.rating || 4.5,
+        deliveryFrom: vendor.deliveryFromPrice || 0,
+        category: vendor.category,
+        isOpen: vendor.open || vendor.isOpen,
+        address: vendor.restaurantAddress,
+        packages: (vendor.packages || []).map(p => ({ ...p, id: p.id || p._id })),
+    };
+
+    return (
+        <div onClick={() => onClick(vendorData)} style={{
+            background: "rgba(255,255,255,0.88)", borderRadius: 22, overflow: "hidden",
+            boxShadow: "0 2px 16px rgba(20,80,20,0.10)", cursor: "pointer",
+            transition: "transform 0.22s, box-shadow 0.22s",
+            border: "1.5px solid rgba(60,140,60,0.13)", backdropFilter: "blur(8px)",
+        }}
+             onMouseEnter={e => { e.currentTarget.style.transform = "translateY(-5px)"; e.currentTarget.style.boxShadow = "0 14px 36px rgba(20,80,20,0.18)"; }}
+             onMouseLeave={e => { e.currentTarget.style.transform = "translateY(0)"; e.currentTarget.style.boxShadow = "0 2px 16px rgba(20,80,20,0.10)"; }}
+        >
+            <div style={{ height: 148, position: "relative", overflow: "hidden" }}>
+                <img src={vendorData.image} alt={vendorData.name} style={{
+                    width: "100%", height: "100%", objectFit: "cover",
+                    filter: !vendorData.isOpen ? "grayscale(80%) brightness(0.8)" : "none",
+                    transition: "transform 0.4s",
+                }}
+                     onMouseEnter={e => e.target.style.transform = "scale(1.07)"}
+                     onMouseLeave={e => e.target.style.transform = "scale(1)"}
+                     onError={e => e.target.style.background = "#c8e6c9"}
+                />
+                {!vendorData.isOpen && (
+                    <div style={{ position: "absolute", bottom: 10, left: 12, background: "#1a1a1a", color: "white", fontSize: 10, fontWeight: 800, padding: "4px 10px", borderRadius: 20, letterSpacing: 1.2 }}>CLOSED</div>
+                )}
+                <div style={{ position: "absolute", top: 10, right: 10, background: "rgba(255,255,255,0.93)", borderRadius: 20, padding: "3px 9px", fontSize: 12, fontWeight: 700, color: "#1a1a1a", display: "flex", alignItems: "center", gap: 3 }}>
+                    ⭐ {vendorData.rating}
+                </div>
+            </div>
+            <div style={{ padding: "13px 15px 15px" }}>
+                <h3 style={{ margin: "0 0 3px", fontFamily: "'Sora',sans-serif", fontWeight: 700, fontSize: 14, color: "#1a2e1a", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{vendorData.name}</h3>
+                <div style={{ display: "flex", alignItems: "center", gap: 4, color: "#5a7a5a", fontSize: 12 }}>
+                    <svg width="12" height="12" fill="#2d8a2d" viewBox="0 0 24 24"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/></svg>
+                    From ₦{vendorData.deliveryFrom.toLocaleString()}
+                </div>
+                <span style={{ display: "inline-block", marginTop: 8, background: "#e8f5e0", color: "#2d6a2d", fontSize: 10, fontWeight: 700, padding: "3px 9px", borderRadius: 20, letterSpacing: 0.5 }}>{vendorData.category}</span>
             </div>
         </div>
-        <div style={{ padding: "13px 15px 15px" }}>
-            <h3 style={{ margin: "0 0 3px", fontFamily: "'Sora',sans-serif", fontWeight: 700, fontSize: 14, color: "#1a2e1a", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{vendor.name || vendor.restaurantName}</h3>
-            <div style={{ display: "flex", alignItems: "center", gap: 4, color: "#5a7a5a", fontSize: 12 }}>
-                <svg width="12" height="12" fill="#2d8a2d" viewBox="0 0 24 24"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/></svg>
-                From ₦{vendor.deliveryFromPrice?.toLocaleString() || vendor.deliveryFrom?.toLocaleString() || "300"}
-            </div>
-            <span style={{ display: "inline-block", marginTop: 8, background: "#e8f5e0", color: "#2d6a2d", fontSize: 10, fontWeight: 700, padding: "3px 9px", borderRadius: 20, letterSpacing: 0.5 }}>{vendor.category}</span>
-        </div>
-    </div>
-);
+    );
+};
 
 // ── Vendor Modal ────────────────────────────────────────────────────────────
 const VendorModal = ({ vendor, onClose, onGoToCart }) => {
     const [selectedPack, setSelectedPack] = useState(null);
     const [quantities, setQuantities] = useState({});
+    const [menuCategories, setMenuCategories] = useState([]);
+    const [menuLoading, setMenuLoading] = useState(true);
 
-    const handleQty = (itemId, delta) => setQuantities(p => ({ ...p, [itemId]: Math.max(0, (p[itemId] || 0) + delta) }));
+    // Fetch menu items from the separate /menu endpoint
+    useEffect(() => {
+        const fetchMenu = async () => {
+            setMenuLoading(true);
+            try {
+                const data = await API.publicApi.getRestaurantMenu(vendor.id);
+                console.log("Menu API response for", vendor.name, ":", data);
+
+                // Extract flat items array — handle any response shape
+                let items = [];
+                if (Array.isArray(data)) {
+                    items = data;
+                } else if (data?.items && Array.isArray(data.items)) {
+                    items = data.items;
+                } else if (data?.menuItems && Array.isArray(data.menuItems)) {
+                    items = data.menuItems;
+                } else if (data?.data && Array.isArray(data.data)) {
+                    items = data.data;
+                } else if (data?.content && Array.isArray(data.content)) {
+                    items = data.content;
+                }
+
+                // Normalise _id → id then group by category
+                const grouped = {};
+                items.forEach(item => {
+                    const normItem = { ...item, id: item.id || item._id };
+                    const cat = normItem.category || "Menu";
+                    if (!grouped[cat]) grouped[cat] = { name: cat, items: [] };
+                    grouped[cat].items.push(normItem);
+                });
+
+                setMenuCategories(Object.values(grouped));
+            } catch (err) {
+                console.error("Failed to load menu:", err);
+                setMenuCategories([]);
+            } finally {
+                setMenuLoading(false);
+            }
+        };
+        fetchMenu();
+    }, [vendor.id]);
+
+    const handleQty = (itemId, delta) =>
+        setQuantities(p => ({ ...p, [itemId]: Math.max(0, (p[itemId] || 0) + delta) }));
+
     const hasItems = Object.values(quantities).some(q => q > 0);
     const itemCount = Object.values(quantities).reduce((a, b) => a + b, 0);
 
     const handleAddToCart = () => {
         const cartItems = [];
-        (vendor.menuCategories || vendor.menu || []).forEach(section => {
+        menuCategories.forEach(section => {
             (section.items || []).forEach(item => {
-                if (quantities[item.id] > 0) cartItems.push({ ...item, qty: quantities[item.id] });
+                if (quantities[item.id] > 0)
+                    cartItems.push({ ...item, qty: quantities[item.id] });
             });
         });
         onGoToCart({ items: cartItems, pack: selectedPack, vendor });
@@ -204,69 +265,93 @@ const VendorModal = ({ vendor, onClose, onGoToCart }) => {
     return (
         <div style={{ position: "fixed", inset: 0, zIndex: 1000, background: "rgba(0,0,0,0.5)", backdropFilter: "blur(4px)", display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }} onClick={onClose}>
             <div style={{ background: "#fff", borderRadius: 26, width: "100%", maxWidth: 490, maxHeight: "90vh", display: "flex", flexDirection: "column", boxShadow: "0 28px 90px rgba(0,0,0,0.22)", animation: "mIn 0.3s cubic-bezier(.34,1.56,.64,1)", overflow: "hidden" }} onClick={e => e.stopPropagation()}>
+
+                {/* Hero image */}
                 <div style={{ position: "relative", height: 200, flexShrink: 0 }}>
-                    <img src={vendor.image || vendor.logo} alt={vendor.name || vendor.restaurantName} style={{ width: "100%", height: "100%", objectFit: "cover" }} onError={e => e.target.style.background = "#c8e6c9"}/>
+                    <img src={vendor.image} alt={vendor.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} onError={e => e.target.style.background = "#c8e6c9"}/>
                     <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to top,rgba(0,0,0,0.4),transparent)" }}/>
                     <button onClick={onClose} style={{ position: "absolute", top: 14, right: 14, background: "rgba(255,255,255,0.92)", border: "none", borderRadius: "50%", width: 36, height: 36, cursor: "pointer", fontSize: 20, display: "flex", alignItems: "center", justifyContent: "center", color: "#333" }}>×</button>
                 </div>
+
                 <div style={{ overflowY: "auto", flex: 1, padding: "20px 24px" }}>
-                    <h2 style={{ fontFamily: "'Sora',sans-serif", fontWeight: 800, fontSize: 22, margin: "0 0 3px", color: "#1a2e1a" }}>{vendor.name || vendor.restaurantName}</h2>
+                    <h2 style={{ fontFamily: "'Sora',sans-serif", fontWeight: 800, fontSize: 22, margin: "0 0 3px", color: "#1a2e1a" }}>{vendor.name}</h2>
                     <p style={{ color: "#6a8a6a", fontSize: 13, margin: "0 0 20px", display: "flex", alignItems: "center", gap: 4 }}>
                         <svg width="13" height="13" fill="#2d8a2d" viewBox="0 0 24 24"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/></svg>
-                        {vendor.address || vendor.restaurantAddress}
+                        {vendor.address}
                     </p>
 
-                    {/* Packaging selection */}
-                    <div style={{ marginBottom: 22 }}>
-                        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
-                            <div style={{ width: 24, height: 2.5, background: "#2d8a2d", borderRadius: 2 }}/>
-                            <span style={{ fontSize: 11, fontWeight: 800, letterSpacing: 1.5, color: "#3a6a3a", textTransform: "uppercase" }}>1 &nbsp; Select a Pack</span>
-                        </div>
-                        {(vendor.packages || []).map(pkg => (
-                            <div key={pkg.id} onClick={() => setSelectedPack(pkg)} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "13px 17px", borderRadius: 14, cursor: "pointer", marginBottom: 8, background: selectedPack?.id === pkg.id ? "#eaf6ea" : "#f4f8f4", border: `2px solid ${selectedPack?.id === pkg.id ? "#2d8a2d" : "transparent"}`, transition: "all 0.18s" }}>
-                                <span style={{ fontWeight: 600, fontSize: 14, color: "#1a2e1a" }}>{pkg.name}</span>
-                                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                                    <span style={{ color: "#f97316", fontWeight: 700, fontSize: 14 }}>₦{pkg.price.toLocaleString()}</span>
-                                    <div style={{ width: 22, height: 22, borderRadius: "50%", border: `2px solid ${selectedPack?.id === pkg.id ? "#2d8a2d" : "#bcd5bc"}`, background: selectedPack?.id === pkg.id ? "#2d8a2d" : "transparent", display: "flex", alignItems: "center", justifyContent: "center", transition: "all 0.18s" }}>
-                                        {selectedPack?.id === pkg.id && <svg width="11" height="11" fill="white" viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>}
+                    {/* ── Step 1: Packaging ── */}
+                    {vendor.packages && vendor.packages.length > 0 && (
+                        <div style={{ marginBottom: 22 }}>
+                            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
+                                <div style={{ width: 24, height: 2.5, background: "#2d8a2d", borderRadius: 2 }}/>
+                                <span style={{ fontSize: 11, fontWeight: 800, letterSpacing: 1.5, color: "#3a6a3a", textTransform: "uppercase" }}>1 &nbsp; Select a Pack</span>
+                            </div>
+                            {vendor.packages.map(pkg => (
+                                <div key={pkg.id} onClick={() => setSelectedPack(pkg)} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "13px 17px", borderRadius: 14, cursor: "pointer", marginBottom: 8, background: selectedPack?.id === pkg.id ? "#eaf6ea" : "#f4f8f4", border: `2px solid ${selectedPack?.id === pkg.id ? "#2d8a2d" : "transparent"}`, transition: "all 0.18s" }}>
+                                    <span style={{ fontWeight: 600, fontSize: 14, color: "#1a2e1a" }}>{pkg.name}</span>
+                                    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                                        <span style={{ color: "#f97316", fontWeight: 700, fontSize: 14 }}>
+                                            {pkg.price === 0 ? "Free" : `₦${Number(pkg.price).toLocaleString()}`}
+                                        </span>
+                                        <div style={{ width: 22, height: 22, borderRadius: "50%", border: `2px solid ${selectedPack?.id === pkg.id ? "#2d8a2d" : "#bcd5bc"}`, background: selectedPack?.id === pkg.id ? "#2d8a2d" : "transparent", display: "flex", alignItems: "center", justifyContent: "center", transition: "all 0.18s" }}>
+                                            {selectedPack?.id === pkg.id && <svg width="11" height="11" fill="white" viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>}
+                                        </div>
                                     </div>
                                 </div>
-                            </div>
-                        ))}
-                    </div>
+                            ))}
+                        </div>
+                    )}
 
-                    {/* Menu */}
+                    {/* ── Step 2: Menu ── */}
                     <div>
                         <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
                             <div style={{ width: 24, height: 2.5, background: "#ccc", borderRadius: 2 }}/>
-                            <span style={{ fontSize: 11, fontWeight: 800, letterSpacing: 1.5, color: "#999", textTransform: "uppercase" }}>2 &nbsp; Choose Your Food</span>
+                            <span style={{ fontSize: 11, fontWeight: 800, letterSpacing: 1.5, color: "#999", textTransform: "uppercase" }}>
+                                {vendor.packages?.length > 0 ? "2" : "1"} &nbsp; Choose Your Food
+                            </span>
                         </div>
-                        {(vendor.menuCategories || vendor.menu || []).map(section => (
-                            <div key={section.id || section.name} style={{ marginBottom: 18 }}>
-                                <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 10, paddingBottom: 6, borderBottom: "1px solid #e8f0e8" }}>
-                                    <span style={{ fontSize: 11, fontWeight: 800, color: "#7aaa7a", letterSpacing: 1, textTransform: "uppercase" }}>🍽 {section.name || section.category}</span>
-                                </div>
-                                {(section.items || []).map(item => (
-                                    <div key={item.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 0", borderBottom: "1px solid #f2f7f2" }}>
-                                        <div>
-                                            <p style={{ margin: 0, fontWeight: 600, color: item.available !== false ? "#1a2e1a" : "#bbb", fontSize: 14 }}>{item.name}</p>
-                                            <p style={{ margin: "2px 0 0", color: item.available !== false ? "#2d8a2d" : "#ccc", fontWeight: 700, fontSize: 13 }}>₦{item.price.toLocaleString()}</p>
-                                        </div>
-                                        {item.available !== false ? (
-                                            <div style={{ display: "flex", alignItems: "center", background: "#f0f7f0", borderRadius: 50, overflow: "hidden" }}>
-                                                <button onClick={() => handleQty(item.id, -1)} style={{ background: "none", border: "none", width: 34, height: 34, cursor: "pointer", fontSize: 20, color: "#6a9a6a", display: "flex", alignItems: "center", justifyContent: "center" }}>−</button>
-                                                <span style={{ width: 26, textAlign: "center", fontWeight: 700, fontSize: 14, color: "#1a2e1a" }}>{quantities[item.id] || 0}</span>
-                                                <button onClick={() => handleQty(item.id, 1)} style={{ background: "none", border: "none", width: 34, height: 34, cursor: "pointer", fontSize: 20, color: "#2d8a2d", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700 }}>+</button>
-                                            </div>
-                                        ) : (
-                                            <span style={{ fontSize: 12, color: "#bbb", fontStyle: "italic" }}>Out of stock</span>
-                                        )}
-                                    </div>
-                                ))}
+
+                        {menuLoading ? (
+                            <div style={{ textAlign: "center", padding: "36px 0", color: "#8aaa8a" }}>
+                                <div style={{ fontSize: 32, marginBottom: 10 }}>🍽️</div>
+                                <p style={{ fontSize: 13, fontWeight: 600 }}>Loading menu…</p>
                             </div>
-                        ))}
+                        ) : menuCategories.length === 0 ? (
+                            <div style={{ textAlign: "center", padding: "28px 0", color: "#bbb" }}>
+                                <p style={{ fontSize: 32 }}>🍴</p>
+                                <p style={{ fontSize: 13, marginTop: 8 }}>No menu items available yet.</p>
+                            </div>
+                        ) : (
+                            menuCategories.map(section => (
+                                <div key={section.name} style={{ marginBottom: 18 }}>
+                                    <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 10, paddingBottom: 6, borderBottom: "1px solid #e8f0e8" }}>
+                                        <span style={{ fontSize: 11, fontWeight: 800, color: "#7aaa7a", letterSpacing: 1, textTransform: "uppercase" }}>🍽 {section.name}</span>
+                                    </div>
+                                    {section.items.map(item => (
+                                        <div key={item.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 0", borderBottom: "1px solid #f2f7f2" }}>
+                                            <div>
+                                                <p style={{ margin: 0, fontWeight: 600, color: item.available !== false ? "#1a2e1a" : "#bbb", fontSize: 14 }}>{item.name}</p>
+                                                <p style={{ margin: "2px 0 0", color: item.available !== false ? "#2d8a2d" : "#ccc", fontWeight: 700, fontSize: 13 }}>₦{Number(item.price).toLocaleString()}</p>
+                                            </div>
+                                            {item.available !== false ? (
+                                                <div style={{ display: "flex", alignItems: "center", background: "#f0f7f0", borderRadius: 50, overflow: "hidden" }}>
+                                                    <button onClick={() => handleQty(item.id, -1)} style={{ background: "none", border: "none", width: 34, height: 34, cursor: "pointer", fontSize: 20, color: "#6a9a6a", display: "flex", alignItems: "center", justifyContent: "center" }}>−</button>
+                                                    <span style={{ width: 26, textAlign: "center", fontWeight: 700, fontSize: 14, color: "#1a2e1a" }}>{quantities[item.id] || 0}</span>
+                                                    <button onClick={() => handleQty(item.id, 1)} style={{ background: "none", border: "none", width: 34, height: 34, cursor: "pointer", fontSize: 20, color: "#2d8a2d", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700 }}>+</button>
+                                                </div>
+                                            ) : (
+                                                <span style={{ fontSize: 12, color: "#bbb", fontStyle: "italic" }}>Out of stock</span>
+                                            )}
+                                        </div>
+                                    ))}
+                                </div>
+                            ))
+                        )}
                     </div>
                 </div>
+
+                {/* Add to cart button */}
                 <div style={{ padding: "14px 24px 20px", borderTop: "1px solid #e8f0e8", flexShrink: 0, background: "#fff" }}>
                     <button onClick={hasItems ? handleAddToCart : undefined} style={{ width: "100%", padding: "16px", borderRadius: 50, border: "none", background: hasItems ? "linear-gradient(135deg,#2d8a2d,#4caf50)" : "#d4e8d4", color: hasItems ? "white" : "#8aaa8a", fontFamily: "'Sora',sans-serif", fontWeight: 800, fontSize: 16, cursor: hasItems ? "pointer" : "not-allowed", transition: "all 0.3s", display: "flex", alignItems: "center", justifyContent: "center", gap: 10, boxShadow: hasItems ? "0 4px 20px rgba(45,138,45,0.35)" : "none" }}>
                         🛒 {hasItems ? `Add ${itemCount} item${itemCount > 1 ? "s" : ""} to Cart` : "Select items to add to cart"}
@@ -300,11 +385,11 @@ const CartModal = ({ cartGroups, onClose, onCheckout, onRemoveGroup }) => {
                             <div key={gi} style={{ marginBottom: 20, paddingBottom: 16, borderBottom: "1.5px solid #f0f7f0" }}>
                                 <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 8 }}>
                                     <div>
-                                        <p style={{ margin: 0, fontWeight: 800, fontSize: 15, color: "#1a2e1a", fontFamily: "'Sora',sans-serif" }}>{group.vendor.name || group.vendor.restaurantName}</p>
+                                        <p style={{ margin: 0, fontWeight: 800, fontSize: 15, color: "#1a2e1a", fontFamily: "'Sora',sans-serif" }}>{group.vendor.name}</p>
                                         {group.pack && <p style={{ margin: "2px 0 0", fontSize: 12, color: "#8aaa8a" }}>{group.pack.name}</p>}
                                     </div>
                                     <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                                        {group.pack && <span style={{ fontWeight: 700, fontSize: 14, color: "#1a2e1a" }}>₦{group.pack.price.toLocaleString()}</span>}
+                                        {group.pack && <span style={{ fontWeight: 700, fontSize: 14, color: "#1a2e1a" }}>₦{Number(group.pack.price).toLocaleString()}</span>}
                                         <button onClick={() => onRemoveGroup(gi)} style={{ background: "none", border: "none", cursor: "pointer", color: "#f97316", fontSize: 18, padding: 0 }}>✕</button>
                                     </div>
                                 </div>
@@ -519,7 +604,6 @@ export default function Home() {
     const [showDashboard, setShowDashboard] = useState(false);
     const [error, setError] = useState(null);
 
-    // Load saved data on mount
     useEffect(() => {
         try {
             const p = localStorage.getItem("chopspot_profile");
@@ -529,16 +613,35 @@ export default function Home() {
         } catch (_) {}
     }, []);
 
-    // Fetch real vendors from backend
     useEffect(() => {
         const loadVendors = async () => {
             try {
                 setLoading(true);
-                const data = await API.publicApi.getRestaurants();   // or API.orderApi.getAllOrders() if needed
-                setVendors(Array.isArray(data) ? data : data?.data || data?.vendors || []);
+                setError(null);
+                const data = await API.publicApi.getRestaurants();
+                console.log("Full API response:", JSON.stringify(data, null, 2));
+
+                let vendorsList = [];
+                if (Array.isArray(data)) {
+                    vendorsList = data;
+                } else if (data?.content && Array.isArray(data.content)) {
+                    vendorsList = data.content;
+                } else if (data?.data && Array.isArray(data.data)) {
+                    vendorsList = data.data;
+                } else if (data?.restaurants && Array.isArray(data.restaurants)) {
+                    vendorsList = data.restaurants;
+                } else if (data?.vendors && Array.isArray(data.vendors)) {
+                    vendorsList = data.vendors;
+                } else {
+                    console.error("Unexpected API response structure:", data);
+                    setError("Invalid data format received from server");
+                }
+
+                setVendors(vendorsList);
+                console.log("Loaded vendors:", vendorsList.length);
             } catch (err) {
                 console.error("Failed to load vendors:", err);
-                setError("Could not load restaurants. Please check your connection.");
+                setError(err.message || "Could not load restaurants. Please check your connection.");
             } finally {
                 setLoading(false);
             }
@@ -546,13 +649,18 @@ export default function Home() {
         loadVendors();
     }, []);
 
-    const filtered = vendors.filter(v =>
-        (v.name || v.restaurantName || "").toLowerCase().includes(search.toLowerCase()) ||
-        (v.category || "").toLowerCase().includes(search.toLowerCase())
-    );
+    const filtered = vendors.filter(v => {
+        const name = v.restaurantName || v.businessName || v.name || "";
+        const category = v.category || v.cuisineType || "";
+        return name.toLowerCase().includes(search.toLowerCase()) ||
+               category.toLowerCase().includes(search.toLowerCase());
+    });
 
     const totalCartItems = cartGroups.reduce((a, g) => a + g.items.reduce((s, i) => s + i.qty, 0), 0);
     const cartTotal = cartGroups.reduce((s, g) => s + (g.pack?.price || 0) + g.items.reduce((a, i) => a + i.price * i.qty, 0), 0) + DELIVERY_FEE;
+
+    // VendorCard calls this with the already-transformed vendorData object
+    const handleVendorClick = (vendorData) => setSelectedVendor(vendorData);
 
     const handleGoToCart = (group) => {
         setCartGroups(p => [...p, group]);
@@ -574,16 +682,15 @@ export default function Home() {
 
     const handleConfirm = async () => {
         try {
-            // Create real order on backend
             const orderPayload = {
                 items: cartGroups.flatMap(g => g.items.map(i => ({ menuItemId: i.id, quantity: i.qty }))),
                 deliveryLocation: orderInfo.location?.value,
                 totalAmount: orderInfo.orderTotal,
                 paymentMethod: "Card",
             };
-            await API.orderApi.createOrder?.(orderPayload);   // add this method to Api.js if needed
-
-            // Save to local history
+            if (API.orderApi?.createOrder) {
+                await API.orderApi.createOrder(orderPayload);
+            }
             const newOrder = {
                 id: `ORD-${Date.now()}`,
                 date: new Date().toISOString(),
@@ -599,7 +706,6 @@ export default function Home() {
         } catch (err) {
             console.error("Order creation failed:", err);
         }
-
         setCartGroups([]);
         setShowPayment(false);
     };
@@ -616,42 +722,34 @@ export default function Home() {
     return (
         <>
             <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700;800&family=DM+Sans:wght@400;500;600&display=swap');
-        * { box-sizing: border-box; margin: 0; padding: 0; }
-        body { font-family: 'DM Sans', sans-serif; }
-        @keyframes mIn { from { opacity:0; transform:scale(0.93) translateY(16px); } to { opacity:1; transform:scale(1) translateY(0); } }
-        @keyframes floatA { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-8px)} }
-        @keyframes floatB { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-10px)} }
-        @keyframes floatC { 0%,100%{transform:rotate(20deg) translateY(0)} 50%{transform:rotate(20deg) translateY(-6px)} }
-        ::-webkit-scrollbar { width: 5px; }
-        ::-webkit-scrollbar-thumb { background: #b0d5b0; border-radius: 10px; }
-        input::placeholder { color: rgba(255,255,255,0.35); }
-        select { cursor: pointer; }
-        .vendor-grid { grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); }
-        @media (max-width: 480px) { .vendor-grid { grid-template-columns: repeat(2, 1fr); } }
-        @media (max-width: 700px) {
-          .hero-image-col { display: none !important; }
-          .nav-links { display: none !important; }
-          .nav-search { display: none !important; }
-          .mobile-search { display: block !important; }
-        }
-      `}</style>
+                @import url('https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700;800&family=DM+Sans:wght@400;500;600&display=swap');
+                * { box-sizing: border-box; margin: 0; padding: 0; }
+                body { font-family: 'DM Sans', sans-serif; }
+                @keyframes mIn { from { opacity:0; transform:scale(0.93) translateY(16px); } to { opacity:1; transform:scale(1) translateY(0); } }
+                @keyframes floatA { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-8px)} }
+                @keyframes floatB { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-10px)} }
+                @keyframes floatC { 0%,100%{transform:rotate(20deg) translateY(0)} 50%{transform:rotate(20deg) translateY(-6px)} }
+                ::-webkit-scrollbar { width: 5px; }
+                ::-webkit-scrollbar-thumb { background: #b0d5b0; border-radius: 10px; }
+                input::placeholder { color: rgba(255,255,255,0.35); }
+                select { cursor: pointer; }
+                .vendor-grid { grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); }
+                @media (max-width: 480px) { .vendor-grid { grid-template-columns: repeat(2, 1fr); } }
+                @media (max-width: 700px) {
+                    .hero-image-col { display: none !important; }
+                    .nav-links { display: none !important; }
+                    .nav-search { display: none !important; }
+                    .mobile-search { display: block !important; }
+                }
+            `}</style>
 
             <BG />
 
             <div style={{ position: "relative", zIndex: 1, minHeight: "100vh" }}>
                 {/* NAV */}
-                <nav style={{
-                    background: "rgba(20,42,20,0.96)", backdropFilter: "blur(20px)",
-                    padding: "0 28px", height: 68,
-                    display: "flex", alignItems: "center", justifyContent: "space-between",
-                    borderBottom: "1px solid rgba(255,255,255,0.07)",
-                    position: "sticky", top: 0, zIndex: 800,
-                    boxShadow: "0 2px 24px rgba(0,0,0,0.25)",
-                }}>
+                <nav style={{ background: "rgba(20,42,20,0.96)", backdropFilter: "blur(20px)", padding: "0 28px", height: 68, display: "flex", alignItems: "center", justifyContent: "space-between", borderBottom: "1px solid rgba(255,255,255,0.07)", position: "sticky", top: 0, zIndex: 800, boxShadow: "0 2px 24px rgba(0,0,0,0.25)" }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 10, flexShrink: 0 }}>
-                        <div style={{ width: 40, height: 40, borderRadius: 12, background: "linear-gradient(135deg,#f97316,#fb923c)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22 }}>🍊</div>
-                        <span style={{ fontFamily: "'Sora',sans-serif", fontWeight: 800, fontSize: 22, color: "white", letterSpacing: -0.5 }}>Chop<span style={{ color: "#f97316" }}>Spot</span></span>
+                        <img src={logo} alt="ChopSpot Logo" style={{ height: 40, width: "auto" }} />
                     </div>
 
                     <div style={{ display: "flex", alignItems: "center", gap: 6, position: "absolute", left: "50%", transform: "translateX(-50%)" }} className="nav-links">
@@ -666,11 +764,7 @@ export default function Home() {
                     <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                         <div style={{ background: "rgba(255,255,255,0.09)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 50, display: "flex", alignItems: "center", padding: "6px 14px", gap: 8, width: 190 }} className="nav-search">
                             <svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="rgba(255,255,255,0.45)" strokeWidth="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
-                            <input
-                                value={search} onChange={e => setSearch(e.target.value)}
-                                placeholder="search"
-                                style={{ border: "none", background: "transparent", outline: "none", color: "white", fontFamily: "'DM Sans',sans-serif", fontSize: 13, width: "100%" }}
-                            />
+                            <input value={search} onChange={e => setSearch(e.target.value)} placeholder="search" style={{ border: "none", background: "transparent", outline: "none", color: "white", fontFamily: "'DM Sans',sans-serif", fontSize: 13, width: "100%" }} />
                             {search && <button onClick={() => setSearch("")} style={{ background: "none", border: "none", cursor: "pointer", color: "rgba(255,255,255,0.4)", fontSize: 16, lineHeight: 1, flexShrink: 0 }}>×</button>}
                         </div>
 
@@ -690,38 +784,110 @@ export default function Home() {
                     </div>
                 </nav>
 
-                {/* HERO + REST OF YOUR BEAUTIFUL UI ... (kept exactly as you had) */}
-                {/* ... (the rest of your original Home component code remains the same for hero, stats, grid, modals, etc.) ... */}
+                {/* HERO */}
+                <div style={{ position: "relative", overflow: "hidden", minHeight: 420, display: "flex", alignItems: "center" }}>
+                    <div style={{ position: "absolute", top: -80, right: -80, width: 400, height: 400, borderRadius: "50%", background: "rgba(249,115,22,0.10)", filter: "blur(60px)", pointerEvents: "none" }}/>
+                    <div style={{ position: "absolute", bottom: -60, left: -60, width: 300, height: 300, borderRadius: "50%", background: "rgba(45,138,45,0.12)", filter: "blur(50px)", pointerEvents: "none" }}/>
+
+                    <div style={{ width: "100%", maxWidth: 1280, margin: "0 auto", padding: "40px 24px 36px", display: "flex", alignItems: "center", gap: 32, justifyContent: "space-between" }}>
+                        <div style={{ flex: "0 0 auto", maxWidth: 520, zIndex: 1 }}>
+                            <h1 style={{ fontFamily: "'Sora',sans-serif", fontWeight: 800, fontSize: "clamp(28px,4.5vw,52px)", color: "#1a2e1a", lineHeight: 1.12, margin: "0 0 16px", letterSpacing: -1 }}>
+                                Taste the Best<br />
+                                <span style={{ color: "#f97316", fontStyle: "italic" }}>That Surprises</span><br />
+                                You. 🔥
+                            </h1>
+                            <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+                                <button onClick={() => document.getElementById("restaurant-grid")?.scrollIntoView({ behavior: "smooth" })} style={{ background: "linear-gradient(135deg,#2d8a2d,#4caf50)", color: "white", border: "none", borderRadius: 50, padding: "14px 30px", fontFamily: "'Sora',sans-serif", fontWeight: 800, fontSize: 14, cursor: "pointer", boxShadow: "0 4px 20px rgba(45,138,45,0.38)", transition: "transform 0.18s" }} onMouseEnter={e => e.currentTarget.style.transform="scale(1.03)"} onMouseLeave={e => e.currentTarget.style.transform="scale(1)"}>Order Now →</button>
+                                <button style={{ background: "transparent", color: "#2d8a2d", border: "2px solid #2d8a2d", borderRadius: 50, padding: "14px 28px", fontFamily: "'Sora',sans-serif", fontWeight: 700, fontSize: 14, cursor: "pointer", transition: "all 0.18s" }} onMouseEnter={e => { e.currentTarget.style.background="#2d8a2d"; e.currentTarget.style.color="white"; }} onMouseLeave={e => { e.currentTarget.style.background="transparent"; e.currentTarget.style.color="#2d8a2d"; }}>See Menu</button>
+                            </div>
+                            
+                        </div>
+
+                        <div style={{ flex: "0 0 auto", position: "relative", zIndex: 1, display: "flex", alignItems: "center", justifyContent: "center" }} className="hero-image-col">
+                            <div style={{ position: "absolute", width: "clamp(260px,35vw,420px)", height: "clamp(260px,35vw,420px)", borderRadius: "50%", background: "linear-gradient(135deg,rgba(249,115,22,0.15),rgba(45,138,45,0.15))", filter: "blur(2px)" }}/>
+                            <div style={{ position: "absolute", width: "clamp(280px,37vw,440px)", height: "clamp(280px,37vw,440px)", borderRadius: "50%", border: "2px dashed rgba(45,138,45,0.20)" }}/>
+                            <div style={{ width: "clamp(220px,30vw,360px)", height: "clamp(220px,30vw,360px)", borderRadius: "50%", overflow: "hidden", boxShadow: "0 20px 60px rgba(0,0,0,0.18), 0 0 0 6px rgba(255,255,255,0.6)", position: "relative", zIndex: 2 }}>
+                                <img src="https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?w=600&q=80" alt="Delicious food" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                            </div>
+                            <div style={{ position: "absolute", top: "8%", left: "-5%", background: "white", borderRadius: 16, padding: "10px 16px", boxShadow: "0 8px 24px rgba(0,0,0,0.12)", display: "flex", alignItems: "center", gap: 8, zIndex: 3, animation: "floatA 3s ease-in-out infinite" }}>
+                                <span style={{ fontSize: 20 }}>🍔</span>
+                                <div><p style={{ margin: 0, fontFamily: "'Sora',sans-serif", fontWeight: 800, fontSize: 12, color: "#1a2e1a" }}>Burger King</p><p style={{ margin: 0, fontSize: 10, color: "#f97316", fontWeight: 600 }}>Ready in 15 min</p></div>
+                            </div>
+                            <div style={{ position: "absolute", bottom: "10%", right: "-8%", background: "linear-gradient(135deg,#2d8a2d,#4caf50)", borderRadius: 16, padding: "10px 16px", boxShadow: "0 8px 24px rgba(45,138,45,0.35)", display: "flex", alignItems: "center", gap: 8, zIndex: 3, animation: "floatB 3.5s ease-in-out infinite" }}>
+                                <span style={{ fontSize: 18 }}>⭐</span>
+                                <div><p style={{ margin: 0, fontFamily: "'Sora',sans-serif", fontWeight: 800, fontSize: 12, color: "white" }}>Top Rated</p><p style={{ margin: 0, fontSize: 10, color: "rgba(255,255,255,0.8)", fontWeight: 600 }}>4.9 / 5.0</p></div>
+                            </div>
+                            <div style={{ position: "absolute", top: "55%", right: "-12%", fontSize: 28, transform: "rotate(20deg)", zIndex: 3, animation: "floatC 4s ease-in-out infinite", filter: "drop-shadow(0 4px 8px rgba(0,0,0,0.15))" }}>🌿</div>
+                            <div style={{ position: "absolute", top: "15%", right: "5%", fontSize: 22, transform: "rotate(-15deg)", zIndex: 3, animation: "floatB 3s ease-in-out infinite", filter: "drop-shadow(0 4px 8px rgba(0,0,0,0.12))" }}>🫑</div>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Mobile search */}
+                <div style={{ padding: "0 16px 20px", display: "none" }} className="mobile-search">
+                    <div style={{ width: "100%", background: "rgba(255,255,255,0.92)", backdropFilter: "blur(12px)", borderRadius: 50, boxShadow: "0 4px 20px rgba(20,80,20,0.11)", display: "flex", alignItems: "center", padding: "4px 16px", border: "1.5px solid rgba(45,138,45,0.18)" }}>
+                        <svg width="17" height="17" fill="none" viewBox="0 0 24 24" stroke="#2d8a2d" strokeWidth="2" style={{ flexShrink: 0 }}><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+                        <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search restaurants..." style={{ border: "none", flex: 1, padding: "9px 10px", fontSize: 14, fontFamily: "'DM Sans',sans-serif", background: "transparent", color: "#1a2e1a", outline: "none" }}/>
+                    </div>
+                </div>
 
                 {/* Vendor Grid */}
                 <div style={{ padding: "0 16px 80px", maxWidth: 1280, margin: "0 auto" }}>
-                    <h2 style={{ fontFamily: "'Sora',sans-serif", fontWeight: 700, fontSize: 18, color: "#1a2e1a", marginBottom: 14, padding: "0 4px" }}>
+                    <h2 id="restaurant-grid" style={{ fontFamily: "'Sora',sans-serif", fontWeight: 700, fontSize: 18, color: "#1a2e1a", marginBottom: 14, padding: "0 4px" }}>
                         {search ? `Results for "${search}"` : "All Restaurants"}
                         <span style={{ fontSize: 13, fontWeight: 400, color: "#7aaa7a", marginLeft: 8 }}>({filtered.length})</span>
                     </h2>
 
+                    {error && (
+                        <div style={{ textAlign: "center", padding: "40px", color: "#d32f2f", background: "#ffebee", borderRadius: 12, marginBottom: 20 }}>
+                            <p style={{ fontWeight: 600 }}>⚠️ {error}</p>
+                            <button onClick={() => window.location.reload()} style={{ marginTop: 10, padding: "8px 16px", background: "#2d8a2d", color: "white", border: "none", borderRadius: 8, cursor: "pointer" }}>Retry</button>
+                        </div>
+                    )}
+
                     {loading ? (
-                        <div style={{ textAlign: "center", padding: "80px 0", color: "#8aaa8a" }}>Loading restaurants...</div>
+                        <div style={{ textAlign: "center", padding: "80px 0", color: "#8aaa8a" }}>
+                            <div style={{ fontSize: 48, marginBottom: 16 }}>🍽️</div>
+                            <p style={{ fontSize: 16, fontWeight: 700 }}>Loading delicious restaurants...</p>
+                            <p style={{ fontSize: 12, marginTop: 8 }}>Please wait while we fetch the best spots for you</p>
+                        </div>
                     ) : filtered.length === 0 ? (
                         <div style={{ textAlign: "center", padding: "60px 0", color: "#8aaa8a" }}>
                             <p style={{ fontSize: 40 }}>🍽️</p>
                             <p style={{ fontSize: 16, fontWeight: 700, marginTop: 10 }}>No restaurants found</p>
+                            {search && <p style={{ fontSize: 14, marginTop: 8 }}>Try searching for something else</p>}
                         </div>
                     ) : (
                         <div style={{ display: "grid", gap: 14 }} className="vendor-grid">
-                            {filtered.map(v => <VendorCard key={v.id} vendor={v} onClick={() => setSelectedVendor(v)} />)}
+                            {filtered.map(v => (
+                                <VendorCard
+                                    key={v.id || v._id}
+                                    vendor={v}
+                                    onClick={handleVendorClick}
+                                />
+                            ))}
                         </div>
                     )}
                 </div>
 
-                {/* FAB + WhatsApp + All Modals (VendorModal, CartModal, CheckoutModal, PaymentModal) remain exactly as you wrote them */}
-                {/* ... (kept 100% of your modal code) ... */}
+                {/* FAB Cart */}
+                {totalCartItems > 0 && (
+                    <div onClick={() => setShowCart(true)} style={{ position: "fixed", bottom: 28, right: 28, zIndex: 700, background: "linear-gradient(135deg,#f97316,#fb923c)", borderRadius: 50, padding: "14px 22px", display: "flex", alignItems: "center", gap: 8, cursor: "pointer", boxShadow: "0 6px 24px rgba(249,115,22,0.45)", color: "white", fontWeight: 800, fontFamily: "'Sora',sans-serif", fontSize: 15, animation: "mIn 0.3s cubic-bezier(.34,1.56,.64,1)" }}>
+                        🛒 View Cart · {totalCartItems}
+                    </div>
+                )}
 
-                {selectedVendor && <VendorModal vendor={selectedVendor} onClose={() => setSelectedVendor(null)} onGoToCart={handleGoToCart} />}
-                {showCart && <CartModal cartGroups={cartGroups} onClose={() => setShowCart(false)} onCheckout={() => { setShowCart(false); setShowCheckout(true); }} onRemoveGroup={handleRemoveGroup} />}
-                {showCheckout && <CheckoutModal totalAmount={cartTotal} savedProfile={savedProfile} onClose={() => setShowCheckout(false)} onPay={handlePay} />}
-                {showPayment && <PaymentModal orderInfo={orderInfo} onClose={() => setShowPayment(false)} onConfirm={handleConfirm} />}
+                {/* WhatsApp */}
+                <div style={{ position: "fixed", bottom: 28, left: 28, zIndex: 700, background: "#25D366", borderRadius: 50, padding: "10px 18px", display: "flex", alignItems: "center", gap: 8, cursor: "pointer", boxShadow: "0 4px 16px rgba(37,211,102,0.35)", color: "white", fontWeight: 700, fontSize: 13, fontFamily: "'DM Sans',sans-serif" }}>
+                    <svg width="18" height="18" fill="white" viewBox="0 0 24 24"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
+                    Contact ChopSpot
+                </div>
             </div>
+
+            {selectedVendor && <VendorModal vendor={selectedVendor} onClose={() => setSelectedVendor(null)} onGoToCart={handleGoToCart} />}
+            {showCart && <CartModal cartGroups={cartGroups} onClose={() => setShowCart(false)} onCheckout={() => { setShowCart(false); setShowCheckout(true); }} onRemoveGroup={handleRemoveGroup} />}
+            {showCheckout && <CheckoutModal totalAmount={cartTotal} savedProfile={savedProfile} onClose={() => setShowCheckout(false)} onPay={handlePay} />}
+            {showPayment && <PaymentModal orderInfo={orderInfo} onClose={() => setShowPayment(false)} onConfirm={handleConfirm} />}
         </>
     );
 }
