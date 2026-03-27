@@ -229,6 +229,14 @@ const Step3 = ({ data, set }) => (
             <input value={data.accountName || ""} onChange={e => set("accountName", e.target.value)}
                    placeholder="As on your bank account" style={inp()} onFocus={foc} onBlur={blr} />
         </Field>
+        <Field label="Password">
+            <input type="password" value={data.password || ""} onChange={e => set("password", e.target.value)}
+                   placeholder="Create a strong password" style={inp()} onFocus={foc} onBlur={blr} />
+        </Field>
+        <Field label="Confirm Password">
+            <input type="password" value={data.confirmPassword || ""} onChange={e => set("confirmPassword", e.target.value)}
+                   placeholder="Confirm your password" style={inp()} onFocus={foc} onBlur={blr} />
+        </Field>
 
         <div style={{ background: "#e8f5e0", border: "1.5px solid #b8d8b8", borderRadius: 14, padding: "14px 16px", display: "flex", gap: 10 }}>
             <span style={{ fontSize: 18, flexShrink: 0 }}>💡</span>
@@ -367,6 +375,8 @@ export default function RiderRegister({ onSuccess }) {
                 bankName:      data.bankName      || null,
                 accountNumber: data.accountNumber || null,
                 accountName:   data.accountName   || null,
+                password: data.password           || null, 
+                confirmPassword: data.confirmPassword || null,
             };
 
             const result = await API.riderApi.register(payload);

@@ -4,9 +4,10 @@ import { riderApi, orderApi } from "../utils/Api.js";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 const fmt = (n) => `₦${Number(n || 0).toLocaleString()}`;
-const fmtTime = (iso) => new Date(iso).toLocaleTimeString("en-NG", { hour: "2-digit", minute: "2-digit" });
-const fmtDate = (iso) => new Date(iso).toLocaleDateString("en-NG", { day: "numeric", month: "short", year: "numeric" });
+const fmtTime = (iso) => iso ? new Date(iso).toLocaleTimeString("en-NG", { hour: "2-digit", minute: "2-digit" }) : "";
+const fmtDate = (iso) => iso ? new Date(iso).toLocaleDateString("en-NG", { day: "numeric", month: "short", year: "numeric" }) : "";
 const timeAgo = (iso) => {
+    if (!iso) return "";
     const m = Math.floor((Date.now() - new Date(iso)) / 60000);
     if (m < 1) return "just now";
     if (m < 60) return `${m}m ago`;
@@ -78,15 +79,31 @@ const StatusBadge = ({ status }) => {
                 gap: 5,
             }}
         >
-      <span style={{ width: 6, height: 6, borderRadius: "50%", background: s.dot, display: "inline-block" }} />
+            <span style={{ width: 6, height: 6, borderRadius: "50%", background: s.dot, display: "inline-block" }} />
             {status}
-    </span>
+        </span>
     );
 };
 
 // ── Available Order Card ──────────────────────────────────────────────────────
 const AvailableCard = ({ order, onAccept, onDecline }) => {
     const [expanded, setExpanded] = useState(false);
+
+    // Format order data from backend
+    const formattedOrder = {
+        id: order._id || order.id,
+        customer: order.customer?.firstName && order.customer?.lastName 
+            ? `${order.customer.firstName} ${order.customer.lastName}`
+            : order.customer?.fullName || order.customerName || "Customer",
+        date: order.createdAt || new Date().toISOString(),
+        deliveryFee: order.deliveryFee || 500,
+        pickupFrom: order.pickupAddress || order.restaurant?.address || order.restaurantAddress || "Restaurant address",
+        deliverTo: order.deliveryAddress || "Delivery address",
+        items: order.items?.map(item => `${item.quantity}x ${item.name}`).join(", ") || "Food items",
+        total: order.totalAmount || 0,
+        phone: order.customer?.phone || order.phone || "",
+        status: order.status
+    };
 
     return (
         <div
@@ -114,11 +131,11 @@ const AvailableCard = ({ order, onAccept, onDecline }) => {
                 onClick={() => setExpanded((e) => !e)}
             >
                 <div>
-                    <p style={{ margin: 0, fontFamily: "'Sora',sans-serif", fontWeight: 700, fontSize: 15, color: "#1a2e1a" }}>{order.customer}</p>
-                    <p style={{ margin: "3px 0 0", fontSize: 12, color: "#8aaa8a" }}>{order.id} · {timeAgo(order.date)}</p>
+                    <p style={{ margin: 0, fontFamily: "'Sora',sans-serif", fontWeight: 700, fontSize: 15, color: "#1a2e1a" }}>{formattedOrder.customer}</p>
+                    <p style={{ margin: "3px 0 0", fontSize: 12, color: "#8aaa8a" }}>Order #{formattedOrder.id.slice(-6)} · {timeAgo(formattedOrder.date)}</p>
                 </div>
                 <div style={{ textAlign: "right" }}>
-                    <p style={{ margin: 0, fontFamily: "'Sora',sans-serif", fontWeight: 800, fontSize: 17, color: "#f97316" }}>{fmt(order.deliveryFee)}</p>
+                    <p style={{ margin: 0, fontFamily: "'Sora',sans-serif", fontWeight: 800, fontSize: 17, color: "#f97316" }}>{fmt(formattedOrder.deliveryFee)}</p>
                     <p style={{ margin: "2px 0 0", fontSize: 10, color: "#8aaa8a", fontWeight: 700, letterSpacing: 0.5 }}>YOUR EARN</p>
                 </div>
             </div>
@@ -134,11 +151,11 @@ const AvailableCard = ({ order, onAccept, onDecline }) => {
                     <div style={{ flex: 1 }}>
                         <p style={{ margin: "0 0 12px", fontSize: 13, color: "#4a6a4a" }}>
                             <span style={{ color: "#2d8a2d", fontWeight: 700 }}>Pickup: </span>
-                            {order.pickupFrom}
+                            {formattedOrder.pickupFrom}
                         </p>
                         <p style={{ margin: 0, fontSize: 13, color: "#4a6a4a" }}>
                             <span style={{ color: "#f97316", fontWeight: 700 }}>Deliver: </span>
-                            {order.deliverTo}
+                            {formattedOrder.deliverTo}
                         </p>
                     </div>
                 </div>
@@ -147,9 +164,9 @@ const AvailableCard = ({ order, onAccept, onDecline }) => {
                 {expanded && (
                     <div style={{ marginTop: 10, padding: "12px 14px", background: "#f4f8f4", borderRadius: 12, border: "1px solid #e0eee0", fontSize: 13 }}>
                         {[
-                            ["Items", order.items],
-                            ["Order Total", fmt(order.total)],
-                            ["Customer Phone", order.phone],
+                            ["Items", formattedOrder.items],
+                            ["Order Total", fmt(formattedOrder.total)],
+                            ["Customer Phone", formattedOrder.phone],
                         ].map(([k, v]) => (
                             <div key={k} style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
                                 <span style={{ color: "#7a9a7a", fontWeight: 600 }}>{k}</span>
@@ -162,7 +179,7 @@ const AvailableCard = ({ order, onAccept, onDecline }) => {
                 {/* Actions */}
                 <div style={{ display: "flex", gap: 10, marginTop: 14 }}>
                     <button
-                        onClick={() => onDecline(order.id)}
+                        onClick={() => onDecline(order._id || order.id)}
                         style={{
                             flex: 1,
                             padding: "11px",
@@ -217,6 +234,19 @@ const AvailableCard = ({ order, onAccept, onDecline }) => {
 const ActiveDeliveryCard = ({ order, onPickedUp, onDelivered }) => {
     const isPickedUp = order.riderStatus === "Picked Up";
 
+    // Format order data
+    const formattedOrder = {
+        id: order._id || order.id,
+        customer: order.customer?.firstName && order.customer?.lastName 
+            ? `${order.customer.firstName} ${order.customer.lastName}`
+            : order.customer?.fullName || order.customerName || "Customer",
+        phone: order.customer?.phone || order.phone || "",
+        deliveryFee: order.deliveryFee || 500,
+        pickupFrom: order.pickupAddress || order.restaurant?.address || order.restaurantAddress || "Restaurant address",
+        deliverTo: order.deliveryAddress || "Delivery address",
+        items: order.items?.map(item => `${item.quantity}x ${item.name}`).join(", ") || "Food items"
+    };
+
     return (
         <div
             style={{
@@ -239,19 +269,19 @@ const ActiveDeliveryCard = ({ order, onPickedUp, onDelivered }) => {
             >
                 <div style={{ width: 9, height: 9, borderRadius: "50%", background: isPickedUp ? "#f97316" : "#4caf50", animation: "pulse 1.5s infinite" }} />
                 <span style={{ fontWeight: 700, fontSize: 13, color: isPickedUp ? "#b35000" : "#2d6a2d" }}>
-          {isPickedUp ? "🏍️ EN ROUTE — Heading to customer" : "⏳ ACCEPTED — Head to restaurant now"}
-        </span>
+                    {isPickedUp ? "🏍️ EN ROUTE — Heading to customer" : "⏳ ACCEPTED — Head to restaurant now"}
+                </span>
             </div>
 
             <div style={{ padding: "20px" }}>
                 {/* Customer + earn */}
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 18 }}>
                     <div>
-                        <h3 style={{ fontFamily: "'Sora',sans-serif", fontWeight: 800, fontSize: 20, color: "#1a2e1a", margin: "0 0 3px" }}>{order.customer}</h3>
-                        <p style={{ margin: 0, fontSize: 12, color: "#8aaa8a" }}>{order.id} · {order.phone}</p>
+                        <h3 style={{ fontFamily: "'Sora',sans-serif", fontWeight: 800, fontSize: 20, color: "#1a2e1a", margin: "0 0 3px" }}>{formattedOrder.customer}</h3>
+                        <p style={{ margin: 0, fontSize: 12, color: "#8aaa8a" }}>Order #{formattedOrder.id.slice(-6)} · {formattedOrder.phone}</p>
                     </div>
                     <div style={{ textAlign: "right" }}>
-                        <p style={{ margin: 0, fontFamily: "'Sora',sans-serif", fontWeight: 800, fontSize: 22, color: "#f97316" }}>{fmt(order.deliveryFee)}</p>
+                        <p style={{ margin: 0, fontFamily: "'Sora',sans-serif", fontWeight: 800, fontSize: 22, color: "#f97316" }}>{fmt(formattedOrder.deliveryFee)}</p>
                         <p style={{ margin: "2px 0 0", fontSize: 10, color: "#8aaa8a", fontWeight: 700 }}>YOUR EARN</p>
                     </div>
                 </div>
@@ -267,24 +297,24 @@ const ActiveDeliveryCard = ({ order, onPickedUp, onDelivered }) => {
                         <div style={{ flex: 1 }}>
                             <div style={{ marginBottom: 14 }}>
                                 <p style={{ margin: "0 0 2px", fontSize: 10, color: "#8aaa8a", fontWeight: 800, letterSpacing: 1, textTransform: "uppercase" }}>Pickup from</p>
-                                <p style={{ margin: 0, fontSize: 14, color: "#1a2e1a", fontWeight: 600 }}>{order.pickupFrom}</p>
+                                <p style={{ margin: 0, fontSize: 14, color: "#1a2e1a", fontWeight: 600 }}>{formattedOrder.pickupFrom}</p>
                             </div>
                             <div>
                                 <p style={{ margin: "0 0 2px", fontSize: 10, color: "#8aaa8a", fontWeight: 800, letterSpacing: 1, textTransform: "uppercase" }}>Deliver to</p>
-                                <p style={{ margin: 0, fontSize: 14, color: "#1a2e1a", fontWeight: 600 }}>{order.deliverTo}</p>
+                                <p style={{ margin: 0, fontSize: 14, color: "#1a2e1a", fontWeight: 600 }}>{formattedOrder.deliverTo}</p>
                             </div>
                         </div>
                     </div>
                     <div style={{ paddingTop: 12, borderTop: "1px solid #e0eee0", display: "flex", justifyContent: "space-between", fontSize: 13 }}>
                         <span style={{ color: "#7a9a7a" }}>Items</span>
-                        <span style={{ color: "#4a6a4a", maxWidth: "65%", textAlign: "right" }}>{order.items}</span>
+                        <span style={{ color: "#4a6a4a", maxWidth: "65%", textAlign: "right" }}>{formattedOrder.items}</span>
                     </div>
                 </div>
 
                 {/* Action button */}
                 {!isPickedUp ? (
                     <button
-                        onClick={() => onPickedUp(order.id)}
+                        onClick={() => onPickedUp(order._id || order.id)}
                         style={{
                             width: "100%",
                             padding: "17px",
@@ -306,7 +336,7 @@ const ActiveDeliveryCard = ({ order, onPickedUp, onDelivered }) => {
                     </button>
                 ) : (
                     <button
-                        onClick={() => onDelivered(order.id)}
+                        onClick={() => onDelivered(order._id || order.id)}
                         style={{
                             width: "100%",
                             padding: "17px",
@@ -361,7 +391,7 @@ const DeliveryToast = ({ order, onDismiss }) => (
             <div style={{ width: 50, height: 50, borderRadius: "50%", background: "linear-gradient(135deg,#2d8a2d,#4caf50)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 24, flexShrink: 0 }}>🎉</div>
             <div style={{ flex: 1 }}>
                 <p style={{ fontFamily: "'Sora',sans-serif", fontWeight: 800, fontSize: 15, color: "#1a2e1a", margin: "0 0 2px" }}>Delivery Complete!</p>
-                <p style={{ fontSize: 12, color: "#7a9a7a", margin: "0 0 3px" }}>Order {order?.id} — {order?.customer}</p>
+                <p style={{ fontSize: 12, color: "#7a9a7a", margin: "0 0 3px" }}>Order #{order?.id?.slice(-6)} — {order?.customer}</p>
                 <p style={{ fontSize: 14, color: "#f97316", fontWeight: 800, margin: 0 }}>+{fmt(order?.deliveryFee)} earned 💰</p>
             </div>
             <button onClick={onDismiss} style={{ background: "none", border: "none", color: "#aaa", fontSize: 20, cursor: "pointer", padding: 0 }}>
@@ -386,7 +416,7 @@ const HistoryTab = ({ orders }) => {
     return (
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
             {[...orders]
-                .sort((a, b) => new Date(b.completedAt) - new Date(a.completedAt))
+                .sort((a, b) => new Date(b.completedAt || b.updatedAt) - new Date(a.completedAt || a.updatedAt))
                 .map((order, i) => (
                     <div
                         key={order.id}
@@ -402,14 +432,14 @@ const HistoryTab = ({ orders }) => {
                         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 10 }}>
                             <div>
                                 <p style={{ margin: 0, fontFamily: "'Sora',sans-serif", fontWeight: 700, fontSize: 15 }}>{order.customer}</p>
-                                <p style={{ margin: "4px 0 0", fontSize: 13, color: "#8aaa8a" }}>{order.id}</p>
+                                <p style={{ margin: "4px 0 0", fontSize: 13, color: "#8aaa8a" }}>Order #{order.id.slice(-6)}</p>
                             </div>
                             <div style={{ textAlign: "right" }}>
                                 <p style={{ margin: 0, fontWeight: 800, color: "#f97316" }}>{fmt(order.deliveryFee)}</p>
                                 <p style={{ margin: "2px 0 0", fontSize: 11, color: "#10b981" }}>Delivered</p>
                             </div>
                         </div>
-                        <p style={{ margin: 0, fontSize: 12, color: "#8aaa8a" }}>{timeAgo(order.completedAt)}</p>
+                        <p style={{ margin: 0, fontSize: 12, color: "#8aaa8a" }}>{timeAgo(order.completedAt || order.updatedAt)}</p>
                     </div>
                 ))}
         </div>
@@ -435,7 +465,7 @@ const EarningsTab = ({ completedOrders }) => {
                     <div key={order.id} style={{ display: "flex", justifyContent: "space-between", padding: "10px 0", borderTop: "1px solid #e0eee0" }}>
                         <div>
                             <p style={{ margin: 0, fontSize: 14 }}>{order.customer}</p>
-                            <p style={{ margin: 2, fontSize: 12, color: "#8aaa8a" }}>{timeAgo(order.completedAt)}</p>
+                            <p style={{ margin: 2, fontSize: 12, color: "#8aaa8a" }}>{timeAgo(order.completedAt || order.updatedAt)}</p>
                         </div>
                         <p style={{ fontWeight: 700, color: "#f97316" }}>{fmt(order.deliveryFee)}</p>
                     </div>
@@ -447,14 +477,36 @@ const EarningsTab = ({ completedOrders }) => {
 
 // ── Profile Tab ───────────────────────────────────────────────────────────────
 const ProfileTab = ({ rider, onUpdate }) => {
-    const [v, setV] = useState(rider);
+    const [v, setV] = useState({
+        fullName: `${rider.firstName || ""} ${rider.lastName || ""}`.trim() || rider.fullName || "",
+        firstName: rider.firstName || "",
+        lastName: rider.lastName || "",
+        phone: rider.phone || "",
+        email: rider.email || "",
+        vehicleType: rider.vehicleType || "",
+        vehicleNumber: rider.vehicleNumber || rider.driverLicenseNumber || "",
+        bankName: rider.bankName || "",
+        accountNumber: rider.accountNumber || "",
+        accountName: rider.accountName || "",
+    });
 
     const set = (key, value) => setV((prev) => ({ ...prev, [key]: value }));
 
     const save = async () => {
         try {
-            await riderApi.updateProfile(v);
-            onUpdate(v);
+            const updateData = {
+                firstName: v.firstName,
+                lastName: v.lastName,
+                phone: v.phone,
+                email: v.email,
+                vehicleType: v.vehicleType,
+                vehicleNumber: v.vehicleNumber,
+                bankName: v.bankName,
+                accountNumber: v.accountNumber,
+                accountName: v.accountName,
+            };
+            await riderApi.updateProfile(updateData);
+            onUpdate({ ...rider, ...updateData, fullName: `${v.firstName} ${v.lastName}`.trim() });
             alert("Profile saved successfully!");
         } catch (e) {
             alert("Failed to save profile: " + e.message);
@@ -480,23 +532,88 @@ const ProfileTab = ({ rider, onUpdate }) => {
                         overflow: "hidden",
                     }}
                 >
-                    {v.avatarPreview ? <img src={v.avatarPreview} style={{ width: "100%", height: "100%", objectFit: "cover" }} alt="avatar" /> : v.fullName?.[0] || "R"}
+                    {rider.avatarPreview ? <img src={rider.avatarPreview} style={{ width: "100%", height: "100%", objectFit: "cover" }} alt="avatar" /> : (v.firstName?.[0] || v.fullName?.[0] || "R")}
                 </div>
             </div>
 
             {/* Personal Info */}
             <div style={{ background: "white", borderRadius: 20, padding: 20, border: "1.5px solid #e0eee0" }}>
-                <input value={v.fullName || ""} onChange={(e) => set("fullName", e.target.value)} style={inp()} placeholder="Full Name" onFocus={foc} onBlur={blr} />
-                <input value={v.phone || ""} onChange={(e) => set("phone", e.target.value)} style={inp({ marginTop: 12 })} placeholder="Phone Number" onFocus={foc} onBlur={blr} />
-                <input value={v.email || ""} onChange={(e) => set("email", e.target.value)} style={inp({ marginTop: 12 })} placeholder="Email" onFocus={foc} onBlur={blr} />
+                <input 
+                    value={v.firstName} 
+                    onChange={(e) => set("firstName", e.target.value)} 
+                    style={inp()} 
+                    placeholder="First Name" 
+                    onFocus={foc} 
+                    onBlur={blr} 
+                />
+                <input 
+                    value={v.lastName} 
+                    onChange={(e) => set("lastName", e.target.value)} 
+                    style={inp({ marginTop: 12 })} 
+                    placeholder="Last Name" 
+                    onFocus={foc} 
+                    onBlur={blr} 
+                />
+                <input 
+                    value={v.phone} 
+                    onChange={(e) => set("phone", e.target.value)} 
+                    style={inp({ marginTop: 12 })} 
+                    placeholder="Phone Number" 
+                    onFocus={foc} 
+                    onBlur={blr} 
+                />
+                <input 
+                    value={v.email} 
+                    onChange={(e) => set("email", e.target.value)} 
+                    style={inp({ marginTop: 12 })} 
+                    placeholder="Email" 
+                    onFocus={foc} 
+                    onBlur={blr} 
+                />
             </div>
 
             {/* Vehicle & Bank Info */}
             <div style={{ background: "white", borderRadius: 20, padding: 20, border: "1.5px solid #e0eee0" }}>
-                <input value={v.vehicleType || ""} onChange={(e) => set("vehicleType", e.target.value)} style={inp()} placeholder="Vehicle Type" onFocus={foc} onBlur={blr} />
-                <input value={v.vehicleNumber || ""} onChange={(e) => set("vehicleNumber", e.target.value)} style={inp({ marginTop: 12 })} placeholder="Plate Number" onFocus={foc} onBlur={blr} />
-                <input value={v.bankName || ""} onChange={(e) => set("bankName", e.target.value)} style={inp({ marginTop: 12 })} placeholder="Bank Name" onFocus={foc} onBlur={blr} />
-                <input value={v.accountNumber || ""} onChange={(e) => set("accountNumber", e.target.value.replace(/\D/g, "").slice(0, 10))} style={inp({ marginTop: 12, letterSpacing: 2 })} placeholder="Account Number" onFocus={foc} onBlur={blr} />
+                <input 
+                    value={v.vehicleType} 
+                    onChange={(e) => set("vehicleType", e.target.value)} 
+                    style={inp()} 
+                    placeholder="Vehicle Type (e.g., Motorcycle, Car)" 
+                    onFocus={foc} 
+                    onBlur={blr} 
+                />
+                <input 
+                    value={v.vehicleNumber} 
+                    onChange={(e) => set("vehicleNumber", e.target.value)} 
+                    style={inp({ marginTop: 12 })} 
+                    placeholder="Plate / License Number" 
+                    onFocus={foc} 
+                    onBlur={blr} 
+                />
+                <input 
+                    value={v.bankName} 
+                    onChange={(e) => set("bankName", e.target.value)} 
+                    style={inp({ marginTop: 12 })} 
+                    placeholder="Bank Name" 
+                    onFocus={foc} 
+                    onBlur={blr} 
+                />
+                <input 
+                    value={v.accountName} 
+                    onChange={(e) => set("accountName", e.target.value)} 
+                    style={inp({ marginTop: 12 })} 
+                    placeholder="Account Name" 
+                    onFocus={foc} 
+                    onBlur={blr} 
+                />
+                <input 
+                    value={v.accountNumber} 
+                    onChange={(e) => set("accountNumber", e.target.value.replace(/\D/g, "").slice(0, 10))} 
+                    style={inp({ marginTop: 12, letterSpacing: 2 })} 
+                    placeholder="Account Number" 
+                    onFocus={foc} 
+                    onBlur={blr} 
+                />
             </div>
 
             <button
@@ -540,6 +657,65 @@ export default function RiderDashboard({ initialRider, onLogout }) {
     const [declinedIds, setDeclinedIds] = useState([]);
     const [loading, setLoading] = useState(!initialRider);
 
+    // Fetch available orders (pending orders not assigned to any rider)
+    const fetchAvailableOrders = async () => {
+        try {
+            // Get all orders with status PENDING (not assigned to any rider)
+            const allOrders = await orderApi.getAllOrders("PENDING");
+            // Filter orders that are not assigned to any rider
+            const unassigned = allOrders.filter(order => !order.riderId);
+            setAvailableOrders(unassigned);
+        } catch (err) {
+            console.error("Failed to fetch available orders:", err);
+            setAvailableOrders([]);
+        }
+    };
+
+    // Fetch rider's assigned orders
+    const fetchRiderOrders = async () => {
+        try {
+            const myOrders = await orderApi.getRiderOrders();
+            
+            // Separate active and completed orders
+            const active = myOrders.filter(order => 
+                order.status === "PICKED_UP" || 
+                order.status === "PREPARING" || 
+                order.status === "ACCEPTED"
+            );
+            const completed = myOrders.filter(order => 
+                order.status === "DELIVERED"
+            ).map(order => ({
+                ...order,
+                id: order._id,
+                customer: order.customer?.firstName && order.customer?.lastName 
+                    ? `${order.customer.firstName} ${order.customer.lastName}`
+                    : order.customer?.fullName || order.customerName,
+                deliveryFee: order.deliveryFee,
+                completedAt: order.updatedAt
+            }));
+
+            // If there's an active order, set it as active delivery
+            if (active.length > 0) {
+                const currentOrder = active[0];
+                setActiveDelivery({
+                    ...currentOrder,
+                    id: currentOrder._id,
+                    customer: currentOrder.customer?.firstName && currentOrder.customer?.lastName 
+                        ? `${currentOrder.customer.firstName} ${currentOrder.customer.lastName}`
+                        : currentOrder.customer?.fullName || currentOrder.customerName,
+                    riderStatus: currentOrder.status === "PICKED_UP" ? "Picked Up" : "Accepted"
+                });
+            } else {
+                setActiveDelivery(null);
+            }
+
+            setCompletedOrders(completed);
+        } catch (err) {
+            console.error("Failed to fetch rider orders:", err);
+            setCompletedOrders([]);
+        }
+    };
+
     useEffect(() => {
         const loadRiderData = async () => {
             if (initialRider) {
@@ -552,10 +728,14 @@ export default function RiderDashboard({ initialRider, onLogout }) {
             try {
                 setLoading(true);
                 const profile = await riderApi.getProfile();
-                setRider(profile);
-
-                const orders = await orderApi.getRiderOrders();
-                setCompletedOrders(orders.filter((o) => o.status === "DELIVERED"));
+                // Format the profile data
+                const formattedProfile = {
+                    ...profile,
+                    fullName: `${profile.firstName || ""} ${profile.lastName || ""}`.trim(),
+                    vehicleNumber: profile.vehicleNumber || profile.driverLicenseNumber,
+                };
+                setRider(formattedProfile);
+                await fetchRiderOrders();
             } catch (err) {
                 console.error("Failed to load rider data:", err);
             } finally {
@@ -566,10 +746,24 @@ export default function RiderDashboard({ initialRider, onLogout }) {
         loadRiderData();
     }, [initialRider]);
 
+    // Fetch available orders when online and not on active delivery
+    useEffect(() => {
+        if (rider?.availability === "ONLINE" && !activeDelivery) {
+            fetchAvailableOrders();
+            // Poll for new orders every 30 seconds
+            const interval = setInterval(fetchAvailableOrders, 30000);
+            return () => clearInterval(interval);
+        }
+    }, [rider?.availability, activeDelivery]);
+
     const updateRider = (updated) => {
-        setRider(updated);
+        const updatedWithFullName = {
+            ...updated,
+            fullName: `${updated.firstName || ""} ${updated.lastName || ""}`.trim()
+        };
+        setRider(updatedWithFullName);
         try {
-            localStorage.setItem("chopspot_rider", JSON.stringify({ ...updated, completedOrders }));
+            localStorage.setItem("chopspot_rider", JSON.stringify({ ...updatedWithFullName, completedOrders }));
         } catch (_) {}
     };
 
@@ -578,41 +772,97 @@ export default function RiderDashboard({ initialRider, onLogout }) {
         try {
             await riderApi.updateAvailability(newStatus);
             setRider((r) => ({ ...r, availability: newStatus }));
+            if (newStatus === "OFFLINE") {
+                setAvailableOrders([]);
+            } else {
+                fetchAvailableOrders();
+            }
         } catch (e) {
             alert("Failed to update availability");
         }
     };
 
-    const handleAccept = (order) => {
-        setActiveDelivery({ ...order, riderStatus: "Accepted" });
-        setAvailableOrders((p) => p.filter((o) => o.id !== order.id));
-        setActiveTab("orders");
+    const handleAccept = async (order) => {
+        try {
+            // Assign rider to order
+            await orderApi.assignRider(order._id, rider.userId);
+            
+            // Update order status to PREPARING (accepted by rider)
+            await orderApi.updateOrderStatus(order._id, "PREPARING");
+            
+            // Format customer name
+            const customerName = order.customer?.firstName && order.customer?.lastName 
+                ? `${order.customer.firstName} ${order.customer.lastName}`
+                : order.customer?.fullName || order.customerName;
+            
+            // Set as active delivery
+            setActiveDelivery({ 
+                ...order, 
+                id: order._id,
+                customer: customerName,
+                riderStatus: "Accepted" 
+            });
+            setAvailableOrders((p) => p.filter((o) => o._id !== order._id));
+            setActiveTab("orders");
+            
+            // Show success message
+            alert("Order accepted! Head to the restaurant to pick up.");
+        } catch (err) {
+            console.error("Failed to accept order:", err);
+            alert("Failed to accept order. Please try again.");
+        }
     };
 
     const handleDecline = (id) => {
         setDeclinedIds((p) => [...p, id]);
-        setAvailableOrders((p) => p.filter((o) => o.id !== id));
+        setAvailableOrders((p) => p.filter((o) => o._id !== id));
     };
 
-    const handlePickedUp = () => {
-        setActiveDelivery((p) => ({ ...p, riderStatus: "Picked Up" }));
+    const handlePickedUp = async (orderId) => {
+        try {
+            await orderApi.updateOrderStatus(orderId, "PICKED_UP");
+            setActiveDelivery((p) => ({ ...p, riderStatus: "Picked Up" }));
+            alert("Order picked up! Deliver to customer.");
+        } catch (err) {
+            console.error("Failed to mark as picked up:", err);
+            alert("Failed to update order status.");
+        }
     };
 
-    const handleDelivered = () => {
-        const done = { ...activeDelivery, riderStatus: "Delivered", completedAt: new Date().toISOString() };
-        const updated = [done, ...completedOrders];
-        setCompletedOrders(updated);
-        setActiveDelivery(null);
-        setToast(done);
+    const handleDelivered = async (orderId) => {
+        try {
+            await orderApi.updateOrderStatus(orderId, "DELIVERED");
+            
+            const done = { 
+                ...activeDelivery, 
+                id: orderId,
+                customer: activeDelivery.customer,
+                deliveryFee: activeDelivery.deliveryFee,
+                riderStatus: "Delivered", 
+                completedAt: new Date().toISOString() 
+            };
+            const updated = [done, ...completedOrders];
+            setCompletedOrders(updated);
+            setActiveDelivery(null);
+            setToast(done);
 
-        updateRider({
-            ...rider,
-            totalDeliveries: (rider.totalDeliveries || 0) + 1,
-            earnings: (rider.earnings || 0) + (done.deliveryFee || 0),
-            completedOrders: updated,
-        });
+            updateRider({
+                ...rider,
+                totalDeliveries: (rider.totalDeliveries || 0) + 1,
+                earnings: (rider.earnings || 0) + (done.deliveryFee || 0),
+                completedOrders: updated,
+            });
 
-        setTimeout(() => setToast(null), 5000);
+            setTimeout(() => setToast(null), 5000);
+            
+            // Refresh available orders
+            if (rider.availability === "ONLINE") {
+                fetchAvailableOrders();
+            }
+        } catch (err) {
+            console.error("Failed to mark as delivered:", err);
+            alert("Failed to complete delivery.");
+        }
     };
 
     if (loading) {
@@ -656,24 +906,25 @@ export default function RiderDashboard({ initialRider, onLogout }) {
     }
 
     const isOnline = rider.availability === "ONLINE";
-    const initials = rider.fullName?.trim().split(" ").map((w) => w[0]).slice(0, 2).join("").toUpperCase() || "R";
-    const visibleOrders = availableOrders.filter((o) => !declinedIds.includes(o.id));
+    const fullName = `${rider.firstName || ""} ${rider.lastName || ""}`.trim() || rider.fullName || "Rider";
+    const initials = fullName.split(" ").map((w) => w[0]).slice(0, 2).join("").toUpperCase() || "R";
+    const visibleOrders = availableOrders.filter((o) => !declinedIds.includes(o._id));
     const pendingCount = isOnline && !activeDelivery ? visibleOrders.length : 0;
 
     return (
         <>
             <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700;800&family=DM+Sans:wght@400;500;600;700&display=swap');
-        *{box-sizing:border-box;margin:0;padding:0;}
-        body{font-family:'DM Sans',sans-serif;background:#f0f6f0;}
-        @keyframes fadeUp{from{opacity:0;transform:translateY(18px)}to{opacity:1;transform:translateY(0)}}
-        @keyframes toastSlide{from{opacity:0;transform:translateX(-50%) translateY(-16px)}to{opacity:1;transform:translateX(-50%) translateY(0)}}
-        @keyframes pulse{0%,100%{opacity:1}50%{opacity:0.45}}
-        ::-webkit-scrollbar{width:5px}
-        ::-webkit-scrollbar-thumb{background:#b0d5b0;border-radius:10px}
-        input::placeholder{color:#aac5aa}
-        .tab-btn{transition:all 0.18s;}
-      `}</style>
+                @import url('https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700;800&family=DM+Sans:wght@400;500;600;700&display=swap');
+                *{box-sizing:border-box;margin:0;padding:0;}
+                body{font-family:'DM Sans',sans-serif;background:#f0f6f0;}
+                @keyframes fadeUp{from{opacity:0;transform:translateY(18px)}to{opacity:1;transform:translateY(0)}}
+                @keyframes toastSlide{from{opacity:0;transform:translateX(-50%) translateY(-16px)}to{opacity:1;transform:translateX(-50%) translateY(0)}}
+                @keyframes pulse{0%,100%{opacity:1}50%{opacity:0.45}}
+                ::-webkit-scrollbar{width:5px}
+                ::-webkit-scrollbar-thumb{background:#b0d5b0;border-radius:10px}
+                input::placeholder{color:#aac5aa}
+                .tab-btn{transition:all 0.18s;}
+            `}</style>
 
             {toast && <DeliveryToast order={toast} onDismiss={() => setToast(null)} />}
 
@@ -698,9 +949,9 @@ export default function RiderDashboard({ initialRider, onLogout }) {
                     <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                         <div style={{ width: 36, height: 36, borderRadius: 10, background: "linear-gradient(135deg,#2d8a2d,#4caf50)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18 }}>🏍️</div>
                         <span style={{ fontFamily: "'Sora',sans-serif", fontWeight: 800, fontSize: 18, color: "#1a6a1a" }}>
-              Chop<span style={{ color: "#f97316" }}>Spot</span>
-              <span style={{ color: "#9ab59a", fontWeight: 500, fontSize: 12, marginLeft: 6 }}>Rider</span>
-            </span>
+                            Chop<span style={{ color: "#f97316" }}>Spot</span>
+                            <span style={{ color: "#9ab59a", fontWeight: 500, fontSize: 12, marginLeft: 6 }}>Rider</span>
+                        </span>
                     </div>
 
                     <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
@@ -809,20 +1060,21 @@ export default function RiderDashboard({ initialRider, onLogout }) {
                                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                                     <h2 style={{ fontFamily: "'Sora',sans-serif", fontWeight: 800, fontSize: 20, color: "#1a2e1a", margin: 0 }}>Available Orders</h2>
                                     <span style={{ fontSize: 12, color: "#7aaa7a", background: "white", border: "1px solid #e0eee0", padding: "4px 12px", borderRadius: 20 }}>
-                    {visibleOrders.length} near you
-                  </span>
+                                        {visibleOrders.length} near you
+                                    </span>
                                 </div>
 
                                 {isOnline && !activeDelivery && visibleOrders.length === 0 && (
                                     <div style={{ textAlign: "center", padding: "50px 0", color: "#8aaa8a" }}>
                                         <p style={{ fontSize: 40 }}>🔍</p>
                                         <p style={{ fontWeight: 700, fontSize: 15, marginTop: 10, color: "#5a7a5a" }}>No orders nearby right now</p>
+                                        <p style={{ fontSize: 13, marginTop: 4 }}>Check back soon!</p>
                                     </div>
                                 )}
 
                                 {isOnline && !activeDelivery &&
                                     visibleOrders.map((order, i) => (
-                                        <div key={order.id} style={{ animation: `fadeUp 0.35s ease ${i * 0.07}s both` }}>
+                                        <div key={order._id} style={{ animation: `fadeUp 0.35s ease ${i * 0.07}s both` }}>
                                             <AvailableCard order={order} onAccept={handleAccept} onDecline={handleDecline} />
                                         </div>
                                     ))}
