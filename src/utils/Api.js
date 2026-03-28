@@ -6,19 +6,73 @@
 const BASE_URL = "https://delichops-backend-akuq.onrender.com";
 
 // ─── Token helpers ────────────────────────────────────────────────────────────
-const getToken = () =>
-    localStorage.getItem("chopspot_token") ||
-    localStorage.getItem("adminToken") ||
-    "";
+// const getToken = () =>
+//     localStorage.getItem("chopspot_token") ||
+//     localStorage.getItem("adminToken") ||
+//     "";
 
-const buildHeaders = () => ({
-    "Content-Type": "application/json",
-    Authorization: `Bearer ${getToken()}`,
-});
+// const buildHeaders = () => ({
+//     "Content-Type": "application/json",
+//     Authorization: `Bearer ${getToken()}`,
+// });
+
+// ─── Token helpers ────────────────────────────────────────────────────────────
+const TOKEN_KEYS = [
+    "chopspot_token",
+    "adminToken",
+    "accessToken",
+    "token",
+    "tastycart_token",
+    "authToken",
+    "jwt",
+];
+
+const getToken = () => {
+    for (const key of TOKEN_KEYS) {
+        const val = localStorage.getItem(key);
+        if (val) return val;
+    }
+    return "";
+};
+
+const buildHeaders = () => {
+    const token = getToken();
+    if (!token) {
+        console.warn("[API] ⚠️ No auth token found. Checked:", TOKEN_KEYS);
+    }
+    return {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+    };
+};
 
 // ─── Core request helpers ─────────────────────────────────────────────────────
 
 // Authenticated request (requires a JWT in localStorage)
+// async function request(endpoint, options = {}) {
+//     const url = `${BASE_URL}${endpoint}`;
+//     const res = await fetch(url, {
+//         ...options,
+//         headers: buildHeaders(),
+//     });
+
+//     let data;
+//     try {
+//         data = await res.json();
+//     } catch {
+//         data = {};
+//     }
+
+//     if (!res.ok) {
+//         const msg = data?.message || data?.error || `Request failed: ${res.status}`;
+//         const err = new Error(msg);
+//         err.status = res.status;
+//         err.data = data;
+//         throw err;
+//     }
+//     return data;
+// }
+
 async function request(endpoint, options = {}) {
     const url = `${BASE_URL}${endpoint}`;
     const res = await fetch(url, {
@@ -34,7 +88,9 @@ async function request(endpoint, options = {}) {
     }
 
     if (!res.ok) {
-        const msg = data?.message || data?.error || `Request failed: ${res.status}`;
+        // Log the full server response so we can see the real reason
+        console.error(`[API] ${options.method || "GET"} ${endpoint} → ${res.status}`, data);
+        const msg = data?.message || data?.error || data?.detail || `Request failed: ${res.status}`;
         const err = new Error(msg);
         err.status = res.status;
         err.data = data;
@@ -148,6 +204,7 @@ export const publicApi = {
         publicRequest(`/api/public/restaurants/search?q=${encodeURIComponent(q)}`),
 };
 
+
 // ─────────────────────────────────────────────────────────────────────────────
 // VENDOR  (requires VENDOR role JWT)
 //
@@ -200,6 +257,24 @@ export const vendorApi = {
         request(`/api/vendor/menu/${id}`, { method: "DELETE" }),
 };
 
+// Add this to your Api.js file for debugging
+export const debugAuthAndVendor = async () => {
+    try {
+        const token = localStorage.getItem("chopspot_token") || localStorage.getItem("adminToken");
+        console.log("Token present:", !!token);
+        console.log("Token value:", token ? token.substring(0, 50) + "..." : "none");
+        
+        const profile = await vendorApi.getProfile();
+        console.log("Full vendor profile:", profile);
+        console.log("Vendor ID:", profile._id || profile.id);
+        console.log("User ID:", profile.userId);
+        
+        return profile;
+    } catch (error) {
+        console.error("Debug error:", error);
+        return null;
+    }
+};
 // ─────────────────────────────────────────────────────────────────────────────
 // RIDER  (requires RIDER role JWT)
 //
