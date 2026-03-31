@@ -4,6 +4,8 @@ import { orderApi } from "../utils/Api";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
 
+import { useUserProfile } from "../hooks/useUserProfile";
+
 // ── Helpers ──────────────────────────────────────────────────────────────────
 const fmt     = (n)   => `₦${Number(n || 0).toLocaleString()}`;
 const fmtDate = (iso) => new Date(iso).toLocaleDateString("en-NG", { day: "numeric", month: "short", year: "numeric" });
@@ -315,9 +317,8 @@ const EditProfileModal = ({ profile, onClose, onSave }) => {
 export default function CustomerDashboard({ profile: initialProfile, onBack, onUpdateProfile }) {
     const navigate = useNavigate();
     const { logout } = useAuth();
-
-    // ── State ─────────────────────────────────────────────────────────────────
-    const [profile,       setProfile]       = useState(initialProfile || null);
+    const { profile: fetchedProfile, saveProfile } = useUserProfile({ isLoggedIn: true });
+    const [profile, setProfile] = useState(initialProfile || null);
     const [orders,        setOrders]        = useState([]);
     const [selectedOrder, setSelectedOrder] = useState(null);
     const [showEdit,      setShowEdit]      = useState(false);
@@ -353,6 +354,10 @@ export default function CustomerDashboard({ profile: initialProfile, onBack, onU
         }
     }, []);
 
+    useEffect(() => {
+        if (fetchedProfile) setProfile(fetchedProfile);
+    }, [fetchedProfile]);
+
     // Initial load
     useEffect(() => { fetchOrders(); }, [fetchOrders]);
 
@@ -374,8 +379,14 @@ export default function CustomerDashboard({ profile: initialProfile, onBack, onU
     const active      = orders.filter(o => isActiveOrder(o.status) && o.status !== "PENDING").length;
     const avgOrder    = totalOrders ? Math.round(totalSpent / totalOrders) : 0;
 
-    const initials = profile?.fullName
-        ? profile.fullName.trim().split(" ").map(w => w[0]).slice(0, 2).join("").toUpperCase()
+    // With this:
+    const displayName = profile?.fullName
+        || (profile?.firstName && profile?.lastName
+            ? `${profile.firstName} ${profile.lastName}`
+            : profile?.firstName || null);
+
+    const initials = displayName
+        ? displayName.trim().split(" ").map(w => w[0]).slice(0, 2).join("").toUpperCase()
         : "?";
 
     // Tab filter — matches normalised uppercase status values
@@ -387,11 +398,30 @@ export default function CustomerDashboard({ profile: initialProfile, onBack, onU
     };
     const filteredOrders = orders.filter(TAB_FILTER[activeTab] || TAB_FILTER.all);
 
-    const handleSaveProfile = (updated) => {
-        onUpdateProfile?.(updated);
-        setProfile(updated);
-        setShowEdit(false);
-        try { localStorage.setItem("chopspot_profile", JSON.stringify(updated)); } catch (_) {}
+    const handleSaveProfile = async (updated) => {
+        // Split fullName back into firstName/lastName for the API
+        const nameParts = (updated.fullName || "").trim().split(" ");
+        const firstName = nameParts[0] || "";
+        const lastName  = nameParts.slice(1).join(" ") || "";
+
+        const apiPayload = {
+            firstName,
+            lastName,
+            whatsapp:                updated.whatsapp,
+            hostel:                  updated.hostel,
+            room:                    updated.room,
+            defaultDeliveryLocation: updated.location?.value,
+        };
+
+        try {
+            await saveProfile(apiPayload);           // persists to server
+            setProfile(prev => ({ ...prev, ...updated, firstName, lastName }));
+            setShowEdit(false);
+        } catch (_) {
+            // saveProfile already handles fallback internally
+            setProfile(prev => ({ ...prev, ...updated, firstName, lastName }));
+            setShowEdit(false);
+        }
     };
 
     const handleLogout = () => {
@@ -463,11 +493,15 @@ export default function CustomerDashboard({ profile: initialProfile, onBack, onU
                             <div style={{ flex: 1 }}>
                                 <p style={{ color: "rgba(255,255,255,0.65)", fontSize: 11, margin: "0 0 3px", letterSpacing: 1.2, textTransform: "uppercase" }}>My Profile</p>
                                 <h2 style={{ fontFamily: "'Sora',sans-serif", fontWeight: 800, fontSize: "clamp(18px,3vw,26px)", color: "white", margin: "0 0 6px" }}>
-                                    {profile?.fullName || "No profile yet"}
+                                    {displayName || "No profile yet"}
                                 </h2>
                                 {profile && (
                                     <div style={{ display: "flex", flexWrap: "wrap", gap: "6px 16px" }}>
-                                        {[["📱", profile.whatsapp], ["📍", profile.location?.label || "—"], ["🏠", [profile.hostel, profile.room].filter(Boolean).join(", ") || "—"]].map(([icon, val]) => (
+                                        {[
+                                            ["📱", profile.whatsapp || profile.phoneNumber || "—"],
+                                            ["📍", profile.defaultDeliveryLocation || "—"],
+                                            ["🏠", [profile.hostel, profile.room].filter(Boolean).join(", ") || "—"]
+                                        ].map(([icon, val]) => (
                                             <span key={icon} style={{ fontSize: 12, color: "rgba(255,255,255,0.75)", display: "flex", alignItems: "center", gap: 4 }}>{icon} {val}</span>
                                         ))}
                                     </div>

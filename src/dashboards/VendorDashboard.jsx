@@ -41,10 +41,15 @@ const blur = (e) => {
 };
 
 const STATUS = {
-    Pending: { bg: "#fff8e6", color: "#b36000", dot: "#f97316", label: "Pending" },
-    Delivered: { bg: "#e8f5e0", color: "#2d6a2d", dot: "#4caf50", label: "Delivered" },
-    Cancelled: { bg: "#fdecea", color: "#c0392b", dot: "#e74c3c", label: "Cancelled" },
-    Preparing: { bg: "#e8f0ff", color: "#1a3a8a", dot: "#4070e0", label: "Preparing" },
+    PENDING:          { bg: "#fff8e6", color: "#b36000", dot: "#f97316", label: "Pending" },
+    ACCEPTED:         { bg: "#e8f5e0", color: "#1a6a1a", dot: "#4caf50", label: "Accepted" },
+    PREPARING:        { bg: "#e8f0ff", color: "#1a3a8a", dot: "#4070e0", label: "Preparing" },
+    READY_FOR_PICKUP: { bg: "#f3eeff", color: "#6a3ab2", dot: "#9c27b0", label: "Ready for Pickup" },
+    PICKED_UP:        { bg: "#fff3e0", color: "#e65100", dot: "#ff9800", label: "Picked Up" },
+    DELIVERED:        { bg: "#e8f5e0", color: "#2d6a2d", dot: "#4caf50", label: "Delivered" },
+    CANCELLED:        { bg: "#fdecea", color: "#c0392b", dot: "#e74c3c", label: "Cancelled" },
+    PENDING_PAYMENT:  { bg: "#f3f4f6", color: "#6b7280", dot: "#9ca3af", label: "Awaiting Payment" },
+    PAYMENT_FAILED:   { bg: "#fdecea", color: "#c0392b", dot: "#e74c3c", label: "Payment Failed" },
 };
 
 const fmt = (n) => `₦${Number(n || 0).toLocaleString()}`;
@@ -80,12 +85,30 @@ const TABS = [
     { id: "profile", label: "Profile", icon: "🏪" },
 ];
 
+function normaliseVendorOrder(o) {
+    return {
+        ...o,
+        date:     o.createdAt || o.date,
+        total:    o.totalAmount || o.total || 0,
+        customer: o.customerName || o.customerId || "Customer",
+        whatsapp: o.whatsappNumber || o.whatsapp || "—",
+        location: o.deliveryLocation || o.location || "—",
+        pack:     o.packageName ? { name: o.packageName, price: o.packagePrice || 0 } : null,
+        status:   (o.status || "PENDING").toUpperCase(),
+        items: (o.items || []).map(i => ({
+            name:  i.name,
+            qty:   i.quantity || i.qty || 1,
+            price: i.price || 0,
+        })),
+    };
+}
+
 // ─── Order Detail Modal ───────────────────────────────────────────────────────
 const OrderModal = ({ order, onClose, onUpdateStatus }) => {
     if (!order) return null;
     const sc = STATUS[order.status] || STATUS.Pending;
-    const nextStatus = { Pending: "Preparing", Preparing: "Delivered", Delivered: null, Cancelled: null };
-    const actionLabel = { Pending: "Mark as Preparing", Preparing: "Mark as Delivered" };
+    const nextStatus   = { PENDING: "ACCEPTED", ACCEPTED: "PREPARING", PREPARING: "READY_FOR_PICKUP", READY_FOR_PICKUP: "PICKED_UP" };
+    const actionLabel  = { PENDING: "Accept Order", ACCEPTED: "Mark Preparing", PREPARING: "Mark Ready", READY_FOR_PICKUP: "Mark Picked Up" };
 
     return (
         <div
@@ -548,7 +571,7 @@ export default function VendorDashboard({ initialVendor, onLogout }) {
                 setVendor(profile);
 
                 const vendorOrders = await orderApi.getVendorOrders();
-                setOrders(vendorOrders);
+                setOrders(vendorOrders.map(normaliseVendorOrder));
             } catch (err) {
                 console.error("Failed to load vendor data:", err);
             } finally {
@@ -558,6 +581,16 @@ export default function VendorDashboard({ initialVendor, onLogout }) {
 
         loadData();
     }, [initialVendor]);
+
+    useEffect(() => {
+        const interval = setInterval(async () => {
+            try {
+                const fresh = await orderApi.getVendorOrders();
+                setOrders(fresh.map(normaliseVendorOrder));
+            } catch (_) {}
+        }, 30_000);
+        return () => clearInterval(interval);
+    }, []);
 
     const updateVendor = (updated) => {
         setVendor(updated);
@@ -603,8 +636,9 @@ export default function VendorDashboard({ initialVendor, onLogout }) {
         );
     }
 
-    const pendingCount = orders.filter((o) => o.status === "Pending").length;
-    const initials = vendor.name?.trim().split(" ").map((w) => w[0]).slice(0, 2).join("").toUpperCase() || "V";
+    const pendingCount = orders.filter(o => o.status === "PENDING").length;
+    const initials = (vendor.restaurantName || vendor.name || "V")
+        .trim().split(" ").map(w => w[0]).slice(0, 2).join("").toUpperCase();
 
     return (
         <>

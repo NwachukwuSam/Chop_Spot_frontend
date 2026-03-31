@@ -60,7 +60,7 @@ function Field({ label, type = "text", value, onChange, placeholder, error, auto
 // ── OTP digit input ───────────────────────────────────────────────────────────
 function OtpInput({ value, onChange }) {
     const refs = useRef([]);
-    const digits = value.split("");
+    const digits = value.split(""); // OTP is 4 digits
 
     const handleKey = (e, idx) => {
         if (e.key === "Backspace" && !digits[idx] && idx > 0) {
@@ -73,19 +73,19 @@ function OtpInput({ value, onChange }) {
         const next = [...digits];
         next[idx] = val;
         onChange(next.join("").slice(0, 6));
-        if (val && idx < 5) refs.current[idx + 1]?.focus();
+        if (val && idx < 3) refs.current[idx + 1]?.focus();
     };
 
     const handlePaste = (e) => {
-        const pasted = e.clipboardData.getData("text").replace(/\D/g, "").slice(0, 6);
+        const pasted = e.clipboardData.getData("text").replace(/\D/g, "").slice(0, 4);
         onChange(pasted);
-        refs.current[Math.min(pasted.length, 5)]?.focus();
+        refs.current[Math.min(pasted.length, 3)]?.focus();
         e.preventDefault();
     };
 
     return (
         <div style={{ display: "flex", gap: 10, justifyContent: "center" }}>
-            {Array.from({ length: 6 }).map((_, idx) => (
+            {Array.from({ length: 4 }).map((_, idx) => (
                 <input
                     key={idx}
                     ref={el => refs.current[idx] = el}
@@ -176,12 +176,13 @@ export default function ForgotPasswordPage() {
 
     // ── Step 1: Verify OTP ────────────────────────────────────────────────────
     const handleVerifyOtp = async () => {
-        if (otp.length < 6) { toast.warning("Enter all 6 digits of your code"); triggerShake(); return; }
+        if (otp.length < 4) { toast.warning("Enter all 4 digits of your code"); triggerShake(); return; }
         setLoading(true);
         try {
-            const result = await API.verifyOtp({ email: email.trim(), otp });
-            // Backend returns a short-lived token to authorise the password reset
-            setOtpToken(result.resetToken || result.token || "verified");
+            // Backend returns { message, email, status } — no token needed
+            // The OTP itself is the proof; backend re-verifies it on reset-password
+            await API.verifyOtp({ email: email.trim(), otp });
+            setOtpToken("verified"); // flag that step 1 passed
             toast.success("Code verified! Set your new password.");
             setStep(2);
         } catch (err) {
@@ -219,7 +220,13 @@ export default function ForgotPasswordPage() {
         setPassErr({});
         setLoading(true);
         try {
-            await API.resetPassword({ email: email.trim(), otp, newPassword: password, resetToken: otpToken });
+            // Backend: resetPassword(email, otp, newPassword, confirmPassword)
+            await API.resetPassword({
+                email:           email.trim(),
+                otp,
+                newPassword:     password,
+                confirmPassword: password,   // backend validates these match server-side too
+            });
             toast.success("Password reset! You can now sign in 🎉", 5000);
             setTimeout(() => navigate("/login", { state: { registeredEmail: email.trim() } }), 1800);
         } catch (err) {
@@ -324,7 +331,7 @@ export default function ForgotPasswordPage() {
                                     ) : (
                                         <p style={{ fontSize: 13, color: "#64748b" }}>
                                             Code expires in{" "}
-                                            <Countdown key={resendKey} seconds={300} onExpire={() => setExpired(true)} />
+                                            <Countdown key={resendKey} seconds={600} onExpire={() => setExpired(true)} />
                                             {" · "}
                                             <button onClick={handleResend} disabled={loading} style={{ background: "none", border: "none", color: "#1a5c1a", fontWeight: 700, cursor: "pointer", fontSize: 13 }}>
                                                 Resend
@@ -335,7 +342,7 @@ export default function ForgotPasswordPage() {
 
                                 <div style={{ display: "flex", gap: 10 }}>
                                     <button onClick={() => setStep(0)} style={{ flex: "0 0 auto", padding: "15px 18px", borderRadius: 12, border: "1.5px solid #e2e8f0", background: "white", color: "#64748b", fontWeight: 600, fontSize: 14, cursor: "pointer" }}>← Back</button>
-                                    <button onClick={handleVerifyOtp} disabled={loading || otp.length < 6 || expired} style={{ ...btnStyle(loading || otp.length < 6 || expired), flex: 1 }}>
+                                    <button onClick={handleVerifyOtp} disabled={loading || otp.length < 4 || expired} style={{ ...btnStyle(loading || otp.length < 6 || expired), flex: 1 }}>
                                         {loading ? <>{spinner} Verifying…</> : <>Verify Code</>}
                                     </button>
                                 </div>

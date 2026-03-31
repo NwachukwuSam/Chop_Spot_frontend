@@ -1,635 +1,71 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import * as API from "../utils/Api";
 import Dashboard from "../dashboards/CustomerDashboard";
-import logo from '../assets/logo.jpeg';
-import { useCart } from "../hooks/useCart";
-import { useAuth } from "../hooks/useAuth";
-import { useToast } from "../context/ToastContext";
+import logo from "../assets/logo.jpeg";
+import { useCart }        from "../hooks/useCart";
+import { useAuth }        from "../hooks/useAuth";
+import { useUserProfile } from "../hooks/useUserProfile";
+import { useToast }       from "../context/ToastContext";
+
+import { BG }            from "../components/home/BG";
+import { ProfileAvatar } from "../components/home/ProfileAvatar";
+import { VendorCard }    from "../components/home/VendorCard";
+import { VendorModal }   from "../components/home/VendorModal";
+import { CartModal }     from "../components/home/CartModal";
+import { CheckoutModal } from "../components/home/CheckoutModal";
+import { PaymentModal }  from "../components/home/PaymentModal";
 
 const DELIVERY_FEE = 350;
-const DELIVERY_LOCATIONS = [
-    { label: "Porter's Lodge (₦300)", value: "porters", fee: 300 },
-    { label: "Hall 1 (₦350)", value: "hall1", fee: 350 },
-    { label: "Hall 2 (₦350)", value: "hall2", fee: 350 },
-    { label: "Main Gate (₦400)", value: "maingate", fee: 400 },
-    { label: "Faculty Area (₦450)", value: "faculty", fee: 450 },
-];
 
-const BG = () => (
-    <div style={{ position: "fixed", inset: 0, zIndex: 0, background: "linear-gradient(160deg,#e8f5e0 0%,#d4edda 45%,#c3e6cb 100%)" }}>
-        <svg width="100%" height="100%" xmlns="http://www.w3.org/2000/svg" style={{ position: "absolute", inset: 0 }}>
-            <defs>
-                <pattern id="fp" x="0" y="0" width="145" height="145" patternUnits="userSpaceOnUse">
-                    <g transform="translate(8,8)" opacity="0.14" stroke="#1a6a1a" fill="none" strokeWidth="1.7">
-                        <ellipse cx="22" cy="32" rx="22" ry="6"/><rect x="2" y="14" width="40" height="16" rx="3"/><ellipse cx="22" cy="12" rx="22" ry="7"/>
-                    </g>
-                    <g transform="translate(85,5)" opacity="0.12" stroke="#1a6a1a" fill="none" strokeWidth="1.7">
-                        <rect x="4" y="16" width="28" height="22" rx="3"/><line x1="11" y1="16" x2="8" y2="2"/><line x1="18" y1="16" x2="18" y2="0"/><line x1="25" y1="16" x2="28" y2="2"/>
-                    </g>
-                    <g transform="translate(0,80)" opacity="0.12" stroke="#1a6a1a" fill="none" strokeWidth="1.7">
-                        <polygon points="5,5 32,5 27,40 10,40"/><path d="M14 5 Q18 0 23 5"/>
-                    </g>
-                    <g transform="translate(82,80)" opacity="0.12" stroke="#1a6a1a" fill="none" strokeWidth="1.7">
-                        <circle cx="22" cy="22" r="18"/><circle cx="22" cy="22" r="8"/>
-                    </g>
-                    <g transform="translate(42,42)" opacity="0.12" stroke="#1a6a1a" fill="none" strokeWidth="1.7">
-                        <path d="M14 24 L6 48 L22 48 Z"/><circle cx="14" cy="16" r="10"/>
-                    </g>
-                    <g transform="translate(108,42)" opacity="0.10" stroke="#1a6a1a" fill="none" strokeWidth="1.7">
-                        <path d="M16 2 L2 30 L30 30 Z"/>
-                        <circle cx="10" cy="22" r="2.5" fill="#1a6a1a" stroke="none"/>
-                        <circle cx="20" cy="20" r="2.5" fill="#1a6a1a" stroke="none"/>
-                    </g>
-                    <g transform="translate(38,100)" opacity="0.10" stroke="#1a6a1a" fill="none" strokeWidth="1.7">
-                        <line x1="8" y1="2" x2="8" y2="32"/><line x1="4" y1="2" x2="4" y2="12"/><line x1="8" y1="2" x2="8" y2="12"/><line x1="12" y1="2" x2="12" y2="12"/>
-                    </g>
-                    <g transform="translate(110,105)" opacity="0.10" stroke="#1a6a1a" fill="none" strokeWidth="1.7">
-                        <rect x="2" y="8" width="24" height="20" rx="4"/><path d="M8 8 Q14 0 20 8"/>
-                    </g>
-                </pattern>
-            </defs>
-            <rect width="100%" height="100%" fill="url(#fp)"/>
-        </svg>
-    </div>
-);
-
-// ── Profile Avatar ──────────────────────────────────────────────────────────
-const ProfileAvatar = ({ profile, isLoggedIn, onDashboard, onClear, onLogout, onLogin }) => {
-    const [open, setOpen] = useState(false);
-    const ref = useRef(null);
-    const hasProfile = profile?.fullName;
-    const initials = hasProfile
-        ? profile.fullName.trim().split(" ").map(w => w[0]).slice(0, 2).join("").toUpperCase()
-        : null;
-
-    useEffect(() => {
-        const handler = e => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
-        document.addEventListener("mousedown", handler);
-        return () => document.removeEventListener("mousedown", handler);
-    }, []);
-
-    return (
-        <div ref={ref} style={{ position: "relative" }}>
-            <div
-                onClick={() => setOpen(o => !o)}
-                style={{
-                    width: 40, height: 40, borderRadius: "50%", cursor: "pointer",
-                    background: hasProfile ? "linear-gradient(135deg,#2d8a2d,#4caf50)" : "rgba(45,138,45,0.12)",
-                    display: "flex", alignItems: "center", justifyContent: "center",
-                    border: hasProfile ? "2px solid #2d8a2d" : "2px solid transparent",
-                    boxShadow: hasProfile ? "0 2px 12px rgba(45,138,45,0.3)" : "none",
-                    transition: "all 0.2s", fontSize: hasProfile ? 14 : 20, fontWeight: 800,
-                    color: "white", fontFamily: "'Sora',sans-serif",
-                }}
-                title={hasProfile ? profile.fullName : "Profile"}
-            >
-                {hasProfile ? initials : (
-                    <svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="#2d8a2d" strokeWidth="2">
-                        <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
-                        <circle cx="12" cy="7" r="4"/>
-                    </svg>
-                )}
-            </div>
-
-            {open && (
-                <div style={{
-                    position: "absolute", top: 50, right: 0, width: 240,
-                    background: "white", borderRadius: 18, zIndex: 999,
-                    boxShadow: "0 8px 40px rgba(0,0,0,0.15)", overflow: "hidden",
-                    animation: "mIn 0.2s cubic-bezier(.34,1.56,.64,1)",
-                    border: "1px solid rgba(45,138,45,0.1)"
-                }}>
-                    {hasProfile ? (
-                        <>
-                            <div style={{ background: "linear-gradient(135deg,#2d8a2d,#4caf50)", padding: "16px 18px" }}>
-                                <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                                    <div style={{ width: 42, height: 42, borderRadius: "50%", background: "rgba(255,255,255,0.25)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, fontWeight: 800, color: "white", fontFamily: "'Sora',sans-serif", flexShrink: 0 }}>
-                                        {initials}
-                                    </div>
-                                    <div>
-                                        <p style={{ margin: 0, fontWeight: 800, fontSize: 14, color: "white", fontFamily: "'Sora',sans-serif" }}>{profile.fullName}</p>
-                                        <p style={{ margin: "2px 0 0", fontSize: 11, color: "rgba(255,255,255,0.75)" }}>{profile.gender}</p>
-                                    </div>
-                                </div>
-                            </div>
-                            <div style={{ padding: "12px 18px" }}>
-                                {[
-                                    ["📱", profile.whatsapp],
-                                    ["📍", profile.location?.label || "—"],
-                                    ["🏠", [profile.hostel, profile.room].filter(Boolean).join(", ") || "—"],
-                                ].map(([icon, val]) => (
-                                    <div key={val} style={{ display: "flex", alignItems: "center", gap: 8, padding: "5px 0", fontSize: 12, color: "#5a7a5a" }}>
-                                        <span>{icon}</span><span style={{ fontWeight: 500 }}>{val}</span>
-                                    </div>
-                                ))}
-                            </div>
-                            <div style={{ padding: "0 12px 14px", display: "flex", flexDirection: "column", gap: 6 }}>
-                                <button onClick={() => { setOpen(false); onDashboard(); }} style={{ width: "100%", padding: "10px", borderRadius: 12, border: "none", background: "linear-gradient(135deg,#2d8a2d,#4caf50)", color: "white", fontWeight: 700, fontSize: 13, cursor: "pointer", fontFamily: "'Sora',sans-serif" }}>
-                                    📊 Go to Dashboard
-                                </button>
-                                <button onClick={() => { onClear(); setOpen(false); }} style={{ width: "100%", padding: "10px", borderRadius: 12, border: "1.5px solid #f0f0f0", background: "white", color: "#aaa", fontWeight: 600, fontSize: 12, cursor: "pointer" }}>
-                                    Clear saved profile
-                                </button>
-                                {isLoggedIn && (
-                                    <button onClick={() => { onLogout(); setOpen(false); }} style={{ width: "100%", padding: "10px", borderRadius: 12, border: "1.5px solid #fee2e2", background: "white", color: "#dc2626", fontWeight: 600, fontSize: 12, cursor: "pointer" }}>
-                                        Sign Out
-                                    </button>
-                                )}
-                            </div>
-                        </>
-                    ) : (
-                        <div style={{ padding: "20px 18px", textAlign: "center" }}>
-                            <div style={{ fontSize: 36, marginBottom: 8 }}>👤</div>
-                            <p style={{ fontWeight: 700, fontSize: 14, color: "#1a2e1a", margin: "0 0 4px", fontFamily: "'Sora',sans-serif" }}>
-                                {isLoggedIn ? "No delivery profile yet" : "Not signed in"}
-                            </p>
-                            <p style={{ fontSize: 12, color: "#8aaa8a", margin: "0 0 12px" }}>
-                                {isLoggedIn
-                                    ? "Complete a checkout and tick 'Save my details' to build your profile."
-                                    : "Sign in to track orders and save delivery details."
-                                }
-                            </p>
-                            {!isLoggedIn && (
-                                <button onClick={() => { setOpen(false); onLogin(); }} style={{ width: "100%", padding: "10px", borderRadius: 12, border: "none", background: "linear-gradient(135deg,#2d8a2d,#4caf50)", color: "white", fontWeight: 700, fontSize: 13, cursor: "pointer", fontFamily: "'Sora',sans-serif" }}>
-                                    Sign In
-                                </button>
-                            )}
-                        </div>
-                    )}
-                </div>
-            )}
-        </div>
-    );
-};
-
-// ── Vendor Card ─────────────────────────────────────────────────────────────
-const VendorCard = ({ vendor, onClick }) => {
-    const vendorData = {
-        id: vendor.id,
-        name: vendor.restaurantName,
-        image: vendor.logoUrl || "https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?w=400&q=80",
-        rating: vendor.rating || 4.5,
-        deliveryFrom: vendor.deliveryFromPrice || 0,
-        category: vendor.category,
-        isOpen: vendor.open || vendor.isOpen,
-        address: vendor.restaurantAddress,
-        packages: (vendor.packages || []).map(p => ({ ...p, id: p.id || p._id })),
-    };
-
-    return (
-        <div onClick={() => onClick(vendorData)} style={{
-            background: "rgba(255,255,255,0.88)", borderRadius: 22, overflow: "hidden",
-            boxShadow: "0 2px 16px rgba(20,80,20,0.10)", cursor: "pointer",
-            transition: "transform 0.22s, box-shadow 0.22s",
-            border: "1.5px solid rgba(60,140,60,0.13)", backdropFilter: "blur(8px)",
-        }}
-             onMouseEnter={e => { e.currentTarget.style.transform = "translateY(-5px)"; e.currentTarget.style.boxShadow = "0 14px 36px rgba(20,80,20,0.18)"; }}
-             onMouseLeave={e => { e.currentTarget.style.transform = "translateY(0)"; e.currentTarget.style.boxShadow = "0 2px 16px rgba(20,80,20,0.10)"; }}
-        >
-            <div style={{ height: 148, position: "relative", overflow: "hidden" }}>
-                <img src={vendorData.image} alt={vendorData.name} style={{
-                    width: "100%", height: "100%", objectFit: "cover",
-                    filter: !vendorData.isOpen ? "grayscale(80%) brightness(0.8)" : "none",
-                    transition: "transform 0.4s",
-                }}
-                     onMouseEnter={e => e.target.style.transform = "scale(1.07)"}
-                     onMouseLeave={e => e.target.style.transform = "scale(1)"}
-                     onError={e => e.target.style.background = "#c8e6c9"}
-                />
-                {!vendorData.isOpen && (
-                    <div style={{ position: "absolute", bottom: 10, left: 12, background: "#1a1a1a", color: "white", fontSize: 10, fontWeight: 800, padding: "4px 10px", borderRadius: 20, letterSpacing: 1.2 }}>CLOSED</div>
-                )}
-                <div style={{ position: "absolute", top: 10, right: 10, background: "rgba(255,255,255,0.93)", borderRadius: 20, padding: "3px 9px", fontSize: 12, fontWeight: 700, color: "#1a1a1a", display: "flex", alignItems: "center", gap: 3 }}>
-                    ⭐ {vendorData.rating}
-                </div>
-            </div>
-            <div style={{ padding: "13px 15px 15px" }}>
-                <h3 style={{ margin: "0 0 3px", fontFamily: "'Sora',sans-serif", fontWeight: 700, fontSize: 14, color: "#1a2e1a", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{vendorData.name}</h3>
-                <div style={{ display: "flex", alignItems: "center", gap: 4, color: "#5a7a5a", fontSize: 12 }}>
-                    <svg width="12" height="12" fill="#2d8a2d" viewBox="0 0 24 24"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/></svg>
-                    From ₦{vendorData.deliveryFrom.toLocaleString()}
-                </div>
-                <span style={{ display: "inline-block", marginTop: 8, background: "#e8f5e0", color: "#2d6a2d", fontSize: 10, fontWeight: 700, padding: "3px 9px", borderRadius: 20, letterSpacing: 0.5 }}>{vendorData.category}</span>
-            </div>
-        </div>
-    );
-};
-
-// ── Vendor Modal ────────────────────────────────────────────────────────────
-const VendorModal = ({ vendor, onClose, onGoToCart }) => {
-    const [selectedPack, setSelectedPack] = useState(null);
-    const [quantities, setQuantities] = useState({});
-    const [menuCategories, setMenuCategories] = useState([]);
-    const [menuLoading, setMenuLoading] = useState(true);
-
-    useEffect(() => {
-        const fetchMenu = async () => {
-            setMenuLoading(true);
-            try {
-                const data = await API.publicApi.getRestaurantMenu(vendor.id);
-                let items = [];
-                if (Array.isArray(data)) items = data;
-                else if (data?.items && Array.isArray(data.items)) items = data.items;
-                else if (data?.menuItems && Array.isArray(data.menuItems)) items = data.menuItems;
-                else if (data?.data && Array.isArray(data.data)) items = data.data;
-                else if (data?.content && Array.isArray(data.content)) items = data.content;
-
-                const grouped = {};
-                items.forEach(item => {
-                    const normItem = { ...item, id: item.id || item._id };
-                    const cat = normItem.category || "Menu";
-                    if (!grouped[cat]) grouped[cat] = { name: cat, items: [] };
-                    grouped[cat].items.push(normItem);
-                });
-                setMenuCategories(Object.values(grouped));
-            } catch (err) {
-                console.error("Failed to load menu:", err);
-                setMenuCategories([]);
-            } finally {
-                setMenuLoading(false);
-            }
-        };
-        fetchMenu();
-    }, [vendor.id]);
-
-    const handleQty = (itemId, delta) =>
-        setQuantities(p => ({ ...p, [itemId]: Math.max(0, (p[itemId] || 0) + delta) }));
-
-    const hasItems = Object.values(quantities).some(q => q > 0);
-    const itemCount = Object.values(quantities).reduce((a, b) => a + b, 0);
-
-    const handleAddToCart = () => {
-        const cartItems = [];
-        menuCategories.forEach(section => {
-            (section.items || []).forEach(item => {
-                if (quantities[item.id] > 0)
-                    cartItems.push({ ...item, qty: quantities[item.id] });
-            });
-        });
-        onGoToCart({ items: cartItems, pack: selectedPack, vendor });
-        onClose();
-    };
-
-    return (
-        <div style={{ position: "fixed", inset: 0, zIndex: 1000, background: "rgba(0,0,0,0.5)", backdropFilter: "blur(4px)", display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }} onClick={onClose}>
-            <div style={{ background: "#fff", borderRadius: 26, width: "100%", maxWidth: 490, maxHeight: "90vh", display: "flex", flexDirection: "column", boxShadow: "0 28px 90px rgba(0,0,0,0.22)", animation: "mIn 0.3s cubic-bezier(.34,1.56,.64,1)", overflow: "hidden" }} onClick={e => e.stopPropagation()}>
-                <div style={{ position: "relative", height: 200, flexShrink: 0 }}>
-                    <img src={vendor.image} alt={vendor.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} onError={e => e.target.style.background = "#c8e6c9"}/>
-                    <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to top,rgba(0,0,0,0.4),transparent)" }}/>
-                    <button onClick={onClose} style={{ position: "absolute", top: 14, right: 14, background: "rgba(255,255,255,0.92)", border: "none", borderRadius: "50%", width: 36, height: 36, cursor: "pointer", fontSize: 20, display: "flex", alignItems: "center", justifyContent: "center", color: "#333" }}>×</button>
-                </div>
-
-                <div style={{ overflowY: "auto", flex: 1, padding: "20px 24px" }}>
-                    <h2 style={{ fontFamily: "'Sora',sans-serif", fontWeight: 800, fontSize: 22, margin: "0 0 3px", color: "#1a2e1a" }}>{vendor.name}</h2>
-                    <p style={{ color: "#6a8a6a", fontSize: 13, margin: "0 0 20px", display: "flex", alignItems: "center", gap: 4 }}>
-                        <svg width="13" height="13" fill="#2d8a2d" viewBox="0 0 24 24"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/></svg>
-                        {vendor.address}
-                    </p>
-
-                    {vendor.packages && vendor.packages.length > 0 && (
-                        <div style={{ marginBottom: 22 }}>
-                            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
-                                <div style={{ width: 24, height: 2.5, background: "#2d8a2d", borderRadius: 2 }}/>
-                                <span style={{ fontSize: 11, fontWeight: 800, letterSpacing: 1.5, color: "#3a6a3a", textTransform: "uppercase" }}>1 &nbsp; Select a Pack</span>
-                            </div>
-                            {vendor.packages.map(pkg => (
-                                <div key={pkg.id} onClick={() => setSelectedPack(pkg)} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "13px 17px", borderRadius: 14, cursor: "pointer", marginBottom: 8, background: selectedPack?.id === pkg.id ? "#eaf6ea" : "#f4f8f4", border: `2px solid ${selectedPack?.id === pkg.id ? "#2d8a2d" : "transparent"}`, transition: "all 0.18s" }}>
-                                    <span style={{ fontWeight: 600, fontSize: 14, color: "#1a2e1a" }}>{pkg.name}</span>
-                                    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                                        <span style={{ color: "#f97316", fontWeight: 700, fontSize: 14 }}>
-                                            {pkg.price === 0 ? "Free" : `₦${Number(pkg.price).toLocaleString()}`}
-                                        </span>
-                                        <div style={{ width: 22, height: 22, borderRadius: "50%", border: `2px solid ${selectedPack?.id === pkg.id ? "#2d8a2d" : "#bcd5bc"}`, background: selectedPack?.id === pkg.id ? "#2d8a2d" : "transparent", display: "flex", alignItems: "center", justifyContent: "center", transition: "all 0.18s" }}>
-                                            {selectedPack?.id === pkg.id && <svg width="11" height="11" fill="white" viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>}
-                                        </div>
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                    )}
-
-                    <div>
-                        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
-                            <div style={{ width: 24, height: 2.5, background: "#ccc", borderRadius: 2 }}/>
-                            <span style={{ fontSize: 11, fontWeight: 800, letterSpacing: 1.5, color: "#999", textTransform: "uppercase" }}>
-                                {vendor.packages?.length > 0 ? "2" : "1"} &nbsp; Choose Your Food
-                            </span>
-                        </div>
-
-                        {menuLoading ? (
-                            <div style={{ textAlign: "center", padding: "36px 0", color: "#8aaa8a" }}>
-                                <div style={{ fontSize: 32, marginBottom: 10 }}>🍽️</div>
-                                <p style={{ fontSize: 13, fontWeight: 600 }}>Loading menu…</p>
-                            </div>
-                        ) : menuCategories.length === 0 ? (
-                            <div style={{ textAlign: "center", padding: "28px 0", color: "#bbb" }}>
-                                <p style={{ fontSize: 32 }}>🍴</p>
-                                <p style={{ fontSize: 13, marginTop: 8 }}>No menu items available yet.</p>
-                            </div>
-                        ) : (
-                            menuCategories.map(section => (
-                                <div key={section.name} style={{ marginBottom: 18 }}>
-                                    <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 10, paddingBottom: 6, borderBottom: "1px solid #e8f0e8" }}>
-                                        <span style={{ fontSize: 11, fontWeight: 800, color: "#7aaa7a", letterSpacing: 1, textTransform: "uppercase" }}>🍽 {section.name}</span>
-                                    </div>
-                                    {section.items.map(item => (
-                                        <div key={item.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 0", borderBottom: "1px solid #f2f7f2" }}>
-                                            <div>
-                                                <p style={{ margin: 0, fontWeight: 600, color: item.available !== false ? "#1a2e1a" : "#bbb", fontSize: 14 }}>{item.name}</p>
-                                                <p style={{ margin: "2px 0 0", color: item.available !== false ? "#2d8a2d" : "#ccc", fontWeight: 700, fontSize: 13 }}>₦{Number(item.price).toLocaleString()}</p>
-                                            </div>
-                                            {item.available !== false ? (
-                                                <div style={{ display: "flex", alignItems: "center", background: "#f0f7f0", borderRadius: 50, overflow: "hidden" }}>
-                                                    <button onClick={() => handleQty(item.id, -1)} style={{ background: "none", border: "none", width: 34, height: 34, cursor: "pointer", fontSize: 20, color: "#6a9a6a", display: "flex", alignItems: "center", justifyContent: "center" }}>−</button>
-                                                    <span style={{ width: 26, textAlign: "center", fontWeight: 700, fontSize: 14, color: "#1a2e1a" }}>{quantities[item.id] || 0}</span>
-                                                    <button onClick={() => handleQty(item.id, 1)} style={{ background: "none", border: "none", width: 34, height: 34, cursor: "pointer", fontSize: 20, color: "#2d8a2d", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700 }}>+</button>
-                                                </div>
-                                            ) : (
-                                                <span style={{ fontSize: 12, color: "#bbb", fontStyle: "italic" }}>Out of stock</span>
-                                            )}
-                                        </div>
-                                    ))}
-                                </div>
-                            ))
-                        )}
-                    </div>
-                </div>
-
-                <div style={{ padding: "14px 24px 20px", borderTop: "1px solid #e8f0e8", flexShrink: 0, background: "#fff" }}>
-                    <button onClick={hasItems ? handleAddToCart : undefined} style={{ width: "100%", padding: "16px", borderRadius: 50, border: "none", background: hasItems ? "linear-gradient(135deg,#2d8a2d,#4caf50)" : "#d4e8d4", color: hasItems ? "white" : "#8aaa8a", fontFamily: "'Sora',sans-serif", fontWeight: 800, fontSize: 16, cursor: hasItems ? "pointer" : "not-allowed", transition: "all 0.3s", display: "flex", alignItems: "center", justifyContent: "center", gap: 10, boxShadow: hasItems ? "0 4px 20px rgba(45,138,45,0.35)" : "none" }}>
-                        🛒 {hasItems ? `Add ${itemCount} item${itemCount > 1 ? "s" : ""} to Cart` : "Select items to add to cart"}
-                    </button>
-                </div>
-            </div>
-        </div>
-    );
-};
-
-// ── Cart Modal ──────────────────────────────────────────────────────────────
-const CartModal = ({ cartGroups, onClose, onCheckout, onRemoveGroup }) => {
-    const itemsTotal = cartGroups.reduce((s, g) => s + (g.pack?.price || 0) + g.items.reduce((a, i) => a + i.price * i.qty, 0), 0);
-    const grandTotal = itemsTotal + DELIVERY_FEE;
-
-    return (
-        <div style={{ position: "fixed", inset: 0, zIndex: 1100, background: "rgba(0,0,0,0.5)", backdropFilter: "blur(4px)", display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }} onClick={onClose}>
-            <div style={{ background: "#fff", borderRadius: 26, width: "100%", maxWidth: 490, maxHeight: "88vh", display: "flex", flexDirection: "column", boxShadow: "0 28px 90px rgba(0,0,0,0.22)", animation: "mIn 0.3s cubic-bezier(.34,1.56,.64,1)" }} onClick={e => e.stopPropagation()}>
-                <div style={{ padding: "22px 24px 10px", display: "flex", alignItems: "center", justifyContent: "space-between", flexShrink: 0 }}>
-                    <h2 style={{ fontFamily: "'Sora',sans-serif", fontWeight: 800, fontSize: 24, margin: 0, color: "#1a2e1a" }}>Your Cart</h2>
-                    <button onClick={onClose} style={{ background: "#f0f7f0", border: "none", borderRadius: "50%", width: 36, height: 36, cursor: "pointer", fontSize: 18, color: "#555", display: "flex", alignItems: "center", justifyContent: "center" }}>×</button>
-                </div>
-                {cartGroups.length === 0 ? (
-                    <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 40, color: "#aaa" }}>
-                        <p style={{ fontSize: 44, margin: 0 }}>🛒</p>
-                        <p style={{ fontWeight: 600, fontSize: 16, marginTop: 12 }}>Your cart is empty</p>
-                    </div>
-                ) : (
-                    <div style={{ overflowY: "auto", flex: 1, padding: "0 24px" }}>
-                        {cartGroups.map((group, gi) => (
-                            <div key={gi} style={{ marginBottom: 20, paddingBottom: 16, borderBottom: "1.5px solid #f0f7f0" }}>
-                                <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 8 }}>
-                                    <div>
-                                        <p style={{ margin: 0, fontWeight: 800, fontSize: 15, color: "#1a2e1a", fontFamily: "'Sora',sans-serif" }}>{group.vendor.name}</p>
-                                        {group.pack && <p style={{ margin: "2px 0 0", fontSize: 12, color: "#8aaa8a" }}>{group.pack.name}</p>}
-                                    </div>
-                                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                                        {group.pack && <span style={{ fontWeight: 700, fontSize: 14, color: "#1a2e1a" }}>₦{Number(group.pack.price).toLocaleString()}</span>}
-                                        <button onClick={() => onRemoveGroup(gi)} style={{ background: "none", border: "none", cursor: "pointer", color: "#f97316", fontSize: 18, padding: 0 }}>✕</button>
-                                    </div>
-                                </div>
-                                <div style={{ height: 1, background: "#f0f7f0", marginBottom: 8 }}/>
-                                {group.items.map(item => (
-                                    <div key={item.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "7px 8px", color: "#3a4a3a", fontSize: 14 }}>
-                                        <span style={{ color: "#4a6a4a" }}>{item.name} ×{item.qty}</span>
-                                        <span style={{ fontWeight: 700 }}>₦{(item.price * item.qty).toLocaleString()}</span>
-                                    </div>
-                                ))}
-                                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 10px", background: "#f4f8f4", borderRadius: 10, marginTop: 8 }}>
-                                    <span style={{ color: "#5a7a5a", fontSize: 13 }}>🛵 Delivery (1 pack)</span>
-                                    <span style={{ fontWeight: 700, fontSize: 14, color: "#1a2e1a" }}>₦{DELIVERY_FEE.toLocaleString()}</span>
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-                )}
-                {cartGroups.length > 0 && (
-                    <div style={{ padding: "14px 24px 22px", borderTop: "1.5px solid #f0f7f0", flexShrink: 0 }}>
-                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-                            <span style={{ fontFamily: "'Sora',sans-serif", fontWeight: 800, fontSize: 18, color: "#1a2e1a" }}>Total</span>
-                            <span style={{ fontFamily: "'Sora',sans-serif", fontWeight: 800, fontSize: 22, color: "#f97316" }}>₦{grandTotal.toLocaleString()}</span>
-                        </div>
-                        <button onClick={onCheckout} style={{ width: "100%", padding: "17px", borderRadius: 50, border: "none", background: "linear-gradient(135deg,#f97316,#fb923c)", color: "white", fontFamily: "'Sora',sans-serif", fontWeight: 800, fontSize: 16, cursor: "pointer", boxShadow: "0 4px 20px rgba(249,115,22,0.4)", transition: "transform 0.15s" }}
-                                onMouseEnter={e => e.currentTarget.style.transform = "scale(1.02)"}
-                                onMouseLeave={e => e.currentTarget.style.transform = "scale(1)"}
-                        >Continue to Checkout</button>
-                    </div>
-                )}
-            </div>
-        </div>
-    );
-};
-
-// ── Checkout Modal ──────────────────────────────────────────────────────────
-const CheckoutModal = ({ totalAmount, savedProfile, onClose, onPay }) => {
-    const [form, setForm] = useState({
-        gender: savedProfile?.gender || "Male",
-        fullName: savedProfile?.fullName || "",
-        whatsapp: savedProfile?.whatsapp || "",
-        location: savedProfile?.location?.value || DELIVERY_LOCATIONS[0].value,
-        hostel: savedProfile?.hostel || "",
-        room: savedProfile?.room || "",
-        saveDetails: false,
-    });
-    const set = (k, v) => setForm(p => ({ ...p, [k]: v }));
-    const selectedLoc = DELIVERY_LOCATIONS.find(l => l.value === form.location);
-    const orderTotal = totalAmount - DELIVERY_FEE + (selectedLoc?.fee || 0);
-    const isValid = form.fullName.trim() && form.whatsapp.trim();
-
-    const iStyle = { width: "100%", padding: "14px 16px", borderRadius: 14, border: "1.5px solid #d8eed8", background: "#f4f8f4", fontSize: 15, color: "#1a2e1a", fontFamily: "'DM Sans',sans-serif", outline: "none", boxSizing: "border-box", transition: "border-color 0.2s" };
-    const lStyle = { fontSize: 11, fontWeight: 800, letterSpacing: 1.4, color: "#5a7a5a", textTransform: "uppercase", display: "block", marginBottom: 7 };
-
-    return (
-        <div style={{ position: "fixed", inset: 0, zIndex: 1200, background: "rgba(0,0,0,0.55)", backdropFilter: "blur(4px)", display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }} onClick={onClose}>
-            <div style={{ background: "#fff", borderRadius: 26, width: "100%", maxWidth: 490, maxHeight: "92vh", display: "flex", flexDirection: "column", boxShadow: "0 28px 90px rgba(0,0,0,0.22)", animation: "mIn 0.3s cubic-bezier(.34,1.56,.64,1)" }} onClick={e => e.stopPropagation()}>
-                <div style={{ padding: "22px 24px 10px", display: "flex", alignItems: "center", justifyContent: "space-between", flexShrink: 0 }}>
-                    <h2 style={{ fontFamily: "'Sora',sans-serif", fontWeight: 800, fontSize: 24, margin: 0, color: "#1a2e1a" }}>Checkout</h2>
-                    <button onClick={onClose} style={{ background: "#f0f7f0", border: "none", borderRadius: "50%", width: 36, height: 36, cursor: "pointer", fontSize: 18, color: "#555", display: "flex", alignItems: "center", justifyContent: "center" }}>×</button>
-                </div>
-                <div style={{ overflowY: "auto", flex: 1, padding: "4px 24px 0" }}>
-                    {savedProfile?.fullName && (
-                        <div style={{ background: "#e8f5e0", border: "1.5px solid #b8ddb8", borderRadius: 12, padding: "10px 14px", marginBottom: 16, fontSize: 13, color: "#2d6a2d", display: "flex", alignItems: "center", gap: 8 }}>
-                            ✅ Using your saved profile details
-                        </div>
-                    )}
-                    {[["GENDER","gender","select"],["FULL NAME","fullName","text","Your full name"],["WHATSAPP NUMBER","whatsapp","text","+234..."]].map(([label, key, type, ph]) => (
-                        <div key={key} style={{ marginBottom: 16 }}>
-                            <label style={lStyle}>{label}</label>
-                            {type === "select" ? (
-                                <select value={form[key]} onChange={e => set(key, e.target.value)} style={{ ...iStyle, appearance: "none" }}>
-                                    <option>Male</option><option>Female</option><option>Prefer not to say</option>
-                                </select>
-                            ) : (
-                                <input value={form[key]} onChange={e => set(key, e.target.value)} placeholder={ph} style={iStyle}
-                                       onFocus={e => e.target.style.borderColor = "#2d8a2d"} onBlur={e => e.target.style.borderColor = "#d8eed8"}
-                                />
-                            )}
-                        </div>
-                    ))}
-                    <div style={{ marginBottom: 16 }}>
-                        <label style={lStyle}>Delivery Location</label>
-                        <select value={form.location} onChange={e => set("location", e.target.value)} style={{ ...iStyle, appearance: "none" }}>
-                            {DELIVERY_LOCATIONS.map(l => <option key={l.value} value={l.value}>{l.label}</option>)}
-                        </select>
-                    </div>
-                    <div style={{ display: "flex", gap: 12, marginBottom: 16 }}>
-                        {[["HOSTEL / BUILDING","hostel","e.g. Block C"],["ROOM / FLAT","room","e.g. Room 204"]].map(([label, key, ph]) => (
-                            <div key={key} style={{ flex: 1 }}>
-                                <label style={lStyle}>{label}</label>
-                                <input value={form[key]} onChange={e => set(key, e.target.value)} placeholder={ph} style={iStyle}
-                                       onFocus={e => e.target.style.borderColor = "#2d8a2d"} onBlur={e => e.target.style.borderColor = "#d8eed8"}
-                                />
-                            </div>
-                        ))}
-                    </div>
-                    <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 20 }}>
-                        <div onClick={() => set("saveDetails", !form.saveDetails)} style={{ width: 20, height: 20, borderRadius: 4, border: `2px solid ${form.saveDetails ? "#2d8a2d" : "#bcd5bc"}`, background: form.saveDetails ? "#2d8a2d" : "white", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", transition: "all 0.18s", flexShrink: 0 }}>
-                            {form.saveDetails && <svg width="12" height="12" fill="white" viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>}
-                        </div>
-                        <span style={{ fontSize: 14, color: "#5a7a5a" }}>Save my details for next time</span>
-                    </div>
-                </div>
-                <div style={{ padding: "14px 24px 22px", borderTop: "1.5px solid #f0f7f0", flexShrink: 0 }}>
-                    <button onClick={isValid ? () => onPay({ ...form, location: selectedLoc, orderTotal, saveDetails: form.saveDetails }) : undefined} style={{ width: "100%", padding: "17px", borderRadius: 50, border: "none", background: isValid ? "linear-gradient(135deg,#f97316,#fb923c)" : "#e0e8e0", color: isValid ? "white" : "#aaa", fontFamily: "'Sora',sans-serif", fontWeight: 800, fontSize: 16, cursor: isValid ? "pointer" : "not-allowed", boxShadow: isValid ? "0 4px 20px rgba(249,115,22,0.38)" : "none", transition: "all 0.2s" }}>
-                        Order Now ₦{orderTotal.toLocaleString()}
-                    </button>
-                </div>
-            </div>
-        </div>
-    );
-};
-
-// ── Payment Modal ───────────────────────────────────────────────────────────
-const PaymentModal = ({ orderInfo, onClose, onConfirm }) => {
-    const [method, setMethod] = useState("card");
-    const [cardNum, setCardNum] = useState("");
-    const [expiry, setExpiry] = useState("");
-    const [cvv, setCvv] = useState("");
-    const [paid, setPaid] = useState(false);
-
-    const formatCard = v => v.replace(/\D/g,"").slice(0,16).replace(/(.{4})/g,"$1 ").trim();
-    const formatExp = v => { const d = v.replace(/\D/g,"").slice(0,4); return d.length >= 3 ? d.slice(0,2)+"/"+d.slice(2) : d; };
-    const handlePay = () => { setPaid(true); setTimeout(() => onConfirm(method === 'card' ? 'CARD' : 'TRANSFER'), 2400); };
-
-    if (paid) return (
-        <div style={{ position: "fixed", inset: 0, zIndex: 1400, background: "rgba(0,0,0,0.6)", backdropFilter: "blur(6px)", display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
-            <div style={{ background: "#fff", borderRadius: 26, width: "100%", maxWidth: 400, padding: "52px 40px", textAlign: "center", animation: "mIn 0.35s cubic-bezier(.34,1.56,.64,1)" }}>
-                <div style={{ fontSize: 60, marginBottom: 20 }}>🎉</div>
-                <h2 style={{ fontFamily: "'Sora',sans-serif", fontWeight: 800, fontSize: 26, color: "#1a2e1a", marginBottom: 10 }}>Order Placed!</h2>
-                <p style={{ color: "#6a8a6a", fontSize: 14 }}>Your food is on its way. We'll notify you on WhatsApp!</p>
-            </div>
-        </div>
-    );
-
-    return (
-        <div style={{ position: "fixed", inset: 0, zIndex: 1300, background: "rgba(0,0,0,0.55)", backdropFilter: "blur(4px)", display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }} onClick={onClose}>
-            <div style={{ background: "#fff", borderRadius: 26, width: "100%", maxWidth: 460, maxHeight: "90vh", overflowY: "auto", boxShadow: "0 28px 90px rgba(0,0,0,0.22)", animation: "mIn 0.3s cubic-bezier(.34,1.56,.64,1)", padding: "28px 28px 32px" }} onClick={e => e.stopPropagation()}>
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 24 }}>
-                    <h2 style={{ fontFamily: "'Sora',sans-serif", fontWeight: 800, fontSize: 22, margin: 0, color: "#1a2e1a" }}>Payment</h2>
-                    <button onClick={onClose} style={{ background: "#f0f7f0", border: "none", borderRadius: "50%", width: 34, height: 34, cursor: "pointer", fontSize: 18, color: "#555", display: "flex", alignItems: "center", justifyContent: "center" }}>×</button>
-                </div>
-
-                <div style={{ display: "flex", gap: 10, marginBottom: 22 }}>
-                    {[["card","💳 Card"],["transfer","🏦 Transfer"]].map(([val, label]) => (
-                        <button key={val} onClick={() => setMethod(val)} style={{ flex: 1, padding: "12px", borderRadius: 14, border: `2px solid ${method === val ? "#2d8a2d" : "#e8f0e8"}`, background: method === val ? "#eaf6ea" : "white", fontFamily: "'Sora',sans-serif", fontWeight: 700, fontSize: 14, cursor: "pointer", color: method === val ? "#1a4a1a" : "#5a7a5a", transition: "all 0.18s" }}>{label}</button>
-                    ))}
-                </div>
-
-                {method === "card" ? (
-                    <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-                        {[
-                            { label: "Card Number", val: cardNum, set: v => setCardNum(formatCard(v)), ph: "1234 5678 9012 3456" },
-                            { label: "Expiry", val: expiry, set: v => setExpiry(formatExp(v)), ph: "MM/YY" },
-                            { label: "CVV", val: cvv, set: v => setCvv(v.replace(/\D/g,"").slice(0,3)), ph: "•••" },
-                        ].map(({ label, val, set, ph }) => (
-                            <div key={label}>
-                                <label style={{ fontSize: 11, fontWeight: 800, color: "#5a7a5a", letterSpacing: 1.2, textTransform: "uppercase", display: "block", marginBottom: 6 }}>{label}</label>
-                                <input value={val} onChange={e => set(e.target.value)} placeholder={ph} style={{ width: "100%", padding: "13px 16px", borderRadius: 12, border: "1.5px solid #d8eed8", background: "#f4f8f4", fontSize: 15, outline: "none", boxSizing: "border-box" }}
-                                       onFocus={e => e.target.style.borderColor = "#2d8a2d"} onBlur={e => e.target.style.borderColor = "#d8eed8"}
-                                />
-                            </div>
-                        ))}
-                    </div>
-                ) : (
-                    <div style={{ background: "#f4f8f4", borderRadius: 16, padding: "20px", textAlign: "center" }}>
-                        <p style={{ fontWeight: 800, fontSize: 16, color: "#1a2e1a", marginBottom: 6 }}>Bank Transfer</p>
-                        <p style={{ fontSize: 13, color: "#5a7a5a", marginBottom: 12 }}>Transfer to the details below then confirm payment</p>
-                        <div style={{ background: "white", borderRadius: 12, padding: "16px", textAlign: "left" }}>
-                            {[["Bank","First Bank Nigeria"],["Account Name","ChopSpot Foods Ltd"],["Account No","3012345678"]].map(([k, v]) => (
-                                <div key={k} style={{ display: "flex", justifyContent: "space-between", padding: "6px 0", fontSize: 13 }}>
-                                    <span style={{ color: "#8aaa8a" }}>{k}</span>
-                                    <span style={{ fontWeight: 700, color: "#1a2e1a" }}>{v}</span>
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-                )}
-
-                <button onClick={handlePay} style={{ width: "100%", padding: "17px", borderRadius: 50, border: "none", marginTop: 20, background: "linear-gradient(135deg,#2d8a2d,#4caf50)", color: "white", fontFamily: "'Sora',sans-serif", fontWeight: 800, fontSize: 16, cursor: "pointer", boxShadow: "0 4px 20px rgba(45,138,45,0.35)", transition: "transform 0.15s" }}
-                        onMouseEnter={e => e.currentTarget.style.transform = "scale(1.02)"}
-                        onMouseLeave={e => e.currentTarget.style.transform = "scale(1)"}
-                >🔒 Pay ₦{orderInfo?.orderTotal?.toLocaleString()} Securely</button>
-                <p style={{ textAlign: "center", fontSize: 12, color: "#aaa", marginTop: 10 }}>🔐 256-bit encrypted & secure</p>
-            </div>
-        </div>
-    );
-};
-
-// ── MAIN HOME ───────────────────────────────────────────────────────────────
 export default function Home() {
-    const navigate  = useNavigate();
-    const location  = useLocation();
+    const navigate = useNavigate();
+    const location = useLocation();
 
-    // ── hooks ──
-    const { isLoggedIn, userId, logout, refresh } = useAuth();
-    const { cartGroups, cartLoading: cartSyncing, cartError, addGroup, removeGroup, clearCart, mergeGuestCartOnLogin, totalItems: totalCartItems } = useCart({ isLoggedIn, userId, onError: (msg) => toast.error(msg) });
+    // ── Auth ─────────────────────────────────────────────────────────────────
+    const { isLoggedIn, userId, user, logout, refresh } = useAuth();
+
+    // ── Cart ─────────────────────────────────────────────────────────────────
+    const {
+        cartGroups,
+        cartLoading: cartSyncing,
+        addGroup,
+        removeGroup,
+        clearCart,
+        mergeGuestCartOnLogin,
+        totalItems: totalCartItems,
+    } = useCart({ isLoggedIn, userId, onError: (msg) => toast.error(msg) });
+
     const toast = useToast();
 
-    // ── state ──
-    const [vendors, setVendors]             = useState([]);
-    const [loading, setLoading]             = useState(true);
-    const [search, setSearch]               = useState("");
+    // ── User profile (API-backed) ─────────────────────────────────────────────
+    // FIX: Home.jsx previously never called useUserProfile, so the profile
+    // was always the old localStorage shape. Now we fetch the real UserProfile
+    // from GET /api/users/profile on login and pass it to CheckoutModal and
+    // ProfileAvatar so pre-fill works correctly.
+    const { profile, saveProfile } = useUserProfile({ isLoggedIn });
+
+    // ── UI state ─────────────────────────────────────────────────────────────
+    const [vendors,        setVendors]        = useState([]);
+    const [loading,        setLoading]        = useState(true);
+    const [error,          setError]          = useState(null);
+    const [search,         setSearch]         = useState("");
     const [selectedVendor, setSelectedVendor] = useState(null);
-    const [showCart, setShowCart]           = useState(false);
-    const [showCheckout, setShowCheckout]   = useState(false);
-    const [showPayment, setShowPayment]     = useState(false);
-    const [orderInfo, setOrderInfo]         = useState(null);
-    const [savedProfile, setSavedProfile]   = useState(null);
-    // orders now fetched directly by CustomerDashboard — not stored here
-    const [showDashboard, setShowDashboard] = useState(false);
-    const [error, setError]                 = useState(null);
+    const [showCart,       setShowCart]       = useState(false);
+    const [showCheckout,   setShowCheckout]   = useState(false);
+    const [showPayment,    setShowPayment]    = useState(false);
+    const [orderInfo,      setOrderInfo]      = useState(null);
+    const [showDashboard,  setShowDashboard]  = useState(false);
 
-    // Load saved profile & orders on mount
+    // ── After returning from login ────────────────────────────────────────────
     useEffect(() => {
-        try {
-            const p = localStorage.getItem("chopspot_profile");
-            if (p) setSavedProfile(JSON.parse(p));
-            // orders are fetched from the API by CustomerDashboard
-        } catch (_) {}
-    }, []);
-
-    // After returning from login page, re-read auth state and optionally open checkout
-    useEffect(() => {
-        if (location.state?.openCheckout) {
-            // Re-read auth from localStorage (token was just written by LoginPage)
-            refresh();
-            // Merge any guest cart items into the server cart, then open checkout
-            mergeGuestCartOnLogin().then(() => setShowCheckout(true));
-            // Clear router state so a hard refresh doesn't re-trigger this
-            navigate("/", { replace: true, state: {} });
-        }
+        if (!location.state?.openCheckout) return;
+        refresh();
+        mergeGuestCartOnLogin().then(() => setShowCheckout(true));
+        navigate("/", { replace: true, state: {} });
     }, [location.state]);
 
-    // Fetch vendors
+    // ── Fetch vendor list ─────────────────────────────────────────────────────
     useEffect(() => {
         const loadVendors = async () => {
             try {
@@ -637,15 +73,18 @@ export default function Home() {
                 setError(null);
                 const data = await API.publicApi.getRestaurants();
 
-                let vendorsList = [];
-                if (Array.isArray(data)) vendorsList = data;
-                else if (data?.content && Array.isArray(data.content)) vendorsList = data.content;
-                else if (data?.data && Array.isArray(data.data)) vendorsList = data.data;
-                else if (data?.restaurants && Array.isArray(data.restaurants)) vendorsList = data.restaurants;
-                else if (data?.vendors && Array.isArray(data.vendors)) vendorsList = data.vendors;
-                else { console.error("Unexpected API response structure:", data); setError("Invalid data format received from server"); }
+                let list = [];
+                if      (Array.isArray(data))                                  list = data;
+                else if (data?.content     && Array.isArray(data.content))     list = data.content;
+                else if (data?.data        && Array.isArray(data.data))        list = data.data;
+                else if (data?.restaurants && Array.isArray(data.restaurants)) list = data.restaurants;
+                else if (data?.vendors     && Array.isArray(data.vendors))     list = data.vendors;
+                else {
+                    console.error("Unexpected API response structure:", data);
+                    setError("Invalid data format received from server");
+                }
 
-                setVendors(vendorsList);
+                setVendors(list);
             } catch (err) {
                 console.error("Failed to load vendors:", err);
                 setError(err.message || "Could not load restaurants. Please check your connection.");
@@ -656,18 +95,25 @@ export default function Home() {
         loadVendors();
     }, []);
 
+    // ── Derived ───────────────────────────────────────────────────────────────
     const filtered = vendors.filter(v => {
-        const name = v.restaurantName || v.businessName || v.name || "";
-        const category = v.category || v.cuisineType || "";
-        return name.toLowerCase().includes(search.toLowerCase()) ||
-            category.toLowerCase().includes(search.toLowerCase());
+        const name     = v.restaurantName || v.businessName || v.name || "";
+        const category = v.category       || v.cuisineType  || "";
+        return (
+            name.toLowerCase().includes(search.toLowerCase()) ||
+            category.toLowerCase().includes(search.toLowerCase())
+        );
     });
 
-    const cartTotal = cartGroups.reduce((s, g) => s + (g.pack?.price || 0) + g.items.reduce((a, i) => a + i.price * i.qty, 0), 0) + DELIVERY_FEE;
+    const cartTotal =
+        cartGroups.reduce(
+            (s, g) => s + (g.pack?.price || 0) + g.items.reduce((a, i) => a + i.price * i.qty, 0),
+            0
+        ) + DELIVERY_FEE;
 
+    // ── Handlers ──────────────────────────────────────────────────────────────
     const handleVendorClick = (vendorData) => setSelectedVendor(vendorData);
 
-    // Add to cart — works for logged-in and guest users
     const handleGoToCart = (group) => {
         addGroup(group);
         const itemCount = group.items.reduce((a, i) => a + i.qty, 0);
@@ -675,109 +121,131 @@ export default function Home() {
         setShowCart(true);
     };
 
-    // ── Auth-gated checkout ──────────────────────────────────────────────────
-    // Called when user clicks "Continue to Checkout" inside CartModal
     const handleCheckout = () => {
         setShowCart(false);
         if (!isLoggedIn) {
-            // Redirect to login, carrying returnTo so we come back here after login
             navigate("/login", { state: { returnTo: "/", openCheckout: true } });
             return;
         }
         setShowCheckout(true);
     };
 
-    const handlePay = (info) => {
+    const handlePay = async (info) => {
         if (info.saveDetails) {
-            const profile = { gender: info.gender, fullName: info.fullName, whatsapp: info.whatsapp, location: info.location, hostel: info.hostel, room: info.room };
-            setSavedProfile(profile);
-            try { localStorage.setItem("chopspot_profile", JSON.stringify(profile)); } catch (_) {}
+            saveProfile({
+                whatsapp: info.whatsapp,
+                hostel: info.hostel,
+                room: info.room,
+                defaultDeliveryLocation: info.location?.value,
+            });
         }
-        // info carries: fullName, whatsapp, gender, location (obj), hostel, room, orderTotal, saveDetails
-        // paymentMethod is set in PaymentModal and passed via onConfirm — store info for now
-        setOrderInfo(info);
-        setShowCheckout(false);
-        setShowPayment(true);
-    };
 
-    const handleConfirm = async (paymentMethod = "CARD") => {
+        // ── Step 1: Create the order NOW (before payment) ──────────────
+        const loadingId = toast.loading("Creating your order…");
         try {
-            // Build items list from all cart groups
-            // Each group may have a pack (packaging) + items (food)
-            const items = cartGroups.flatMap(g =>
-                g.items.map(i => ({
-                    menuItemId:   i.id,
-                    menuItemName: i.name,
-                    quantity:     i.qty,
-                    unitPrice:    i.price,
-                }))
-            );
-
-            // Pricing breakdown — mirrors the Order model fields exactly
-            const firstGroup  = cartGroups[0] || {};
+            const firstGroup   = cartGroups[0] || {};
             const packagePrice = firstGroup.pack?.price || 0;
             const packageName  = firstGroup.pack?.name  || null;
             const itemsSubtotal = cartGroups.reduce(
                 (s, g) => s + g.items.reduce((a, i) => a + i.price * i.qty, 0), 0
             );
             const subtotal    = itemsSubtotal + packagePrice;
-            const deliveryFee = orderInfo.location?.fee || DELIVERY_FEE;
+            const deliveryFee = info.location?.fee || DELIVERY_FEE;
             const totalAmount = subtotal + deliveryFee;
 
-            // vendorId — use first group's vendor (single-vendor order assumption)
-            const vendorId = firstGroup.vendor?.id || null;
-
             const orderPayload = {
-                vendorId,
-                items,
+                vendorId:        firstGroup.vendor?.id || null,
+                items: cartGroups.flatMap(g =>
+                    g.items.map(i => ({
+                        menuItemId: i.id,
+                        name:       i.name,
+                        price:      i.price,
+                        quantity:   i.qty,
+                    }))
+                ),
                 packageName,
                 packagePrice,
                 subtotal,
                 deliveryFee,
                 totalAmount,
-                deliveryLocation: orderInfo.location?.label || "",
-                hostel:           orderInfo.hostel           || "",
-                room:             orderInfo.room             || "",
-                whatsappNumber:   orderInfo.whatsapp         || "",
-                paymentMethod,
+                deliveryLocation: info.location?.label || "",
+                hostel:           info.hostel           || "",
+                room:             info.room             || "",
+                whatsappNumber:   info.whatsapp         || "",
+                paymentMethod:    "CARD",
             };
 
-            console.log("📦 Placing order:", orderPayload);
-            await API.orderApi.createOrder(orderPayload);
+            const createdOrder = await API.orderApi.createOrder(orderPayload);
+            toast.dismiss(loadingId);
 
-            // Clear the server cart after successful order
-            await clearCart();
-            toast.success("Order placed! We'll notify you on WhatsApp 🎉", 6000);
+            // Pass orderId + orderInfo into payment modal
+            setOrderInfo({ ...info, orderId: createdOrder.id, orderTotal: totalAmount });
+            setShowCheckout(false);
+            setShowPayment(true);
         } catch (err) {
-            console.error("❌ Order creation failed:", err);
-            toast.error(err.message || "Order failed. Please try again.");
+            toast.dismiss(loadingId);
+            toast.error(err.message || "Could not create order. Please try again.");
         }
+    };
+
+    const handleConfirm = async (paystackReference, paymentMethod = "CARD") => {
+        const loadingId = toast.loading("Confirming your payment…");
+        try {
+            await API.orderApi.confirmPayment(orderInfo.orderId, {
+                paystackReference,
+                paymentMethod,
+            });
+            await clearCart();
+            toast.dismiss(loadingId);
+            toast.success("Order confirmed! 🎉 We'll WhatsApp you when it's ready.", 7000);
+        } catch (err) {
+            toast.dismiss(loadingId);
+            toast.error(
+                err.message ||
+                "Payment received but confirmation failed. Contact support with your reference."
+            );
+        }
+    };
+
+    const handlePaymentClose = async () => {
         setShowPayment(false);
+        // Cancel the pending order if user backs out
+        if (orderInfo?.orderId) {
+            try {
+                await API.orderApi.cancelOrder(orderInfo.orderId);
+                toast.info("Order cancelled. Your cart is still saved.");
+            } catch (_) {
+                // silent — order stays as PENDING_PAYMENT, will expire/be cleaned up
+            }
+        }
+        setOrderInfo(null);
     };
 
-    const clearProfile = () => {
-        setSavedProfile(null);
-        try { localStorage.removeItem("chopspot_profile"); } catch (_) {}
-    };
+    const handleLogin  = () => navigate("/login", { state: { returnTo: "/" } });
 
-    const handleLogin = () => navigate("/login", { state: { returnTo: "/" } });
-
+    // ── Dashboard full-screen takeover ────────────────────────────────────────
     if (showDashboard) {
-        return <Dashboard profile={savedProfile} onBack={() => setShowDashboard(false)} onUpdateProfile={p => { setSavedProfile(p); try { localStorage.setItem("chopspot_profile", JSON.stringify(p)); } catch(_){} }} />;
+        return (
+            <Dashboard
+                profile={profile}
+                onBack={() => setShowDashboard(false)}
+            />
+        );
     }
 
+    // ── Render ────────────────────────────────────────────────────────────────
     return (
         <>
             <style>{`
                 @import url('https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700;800&family=DM+Sans:wght@400;500;600&display=swap');
                 * { box-sizing: border-box; margin: 0; padding: 0; }
                 body { font-family: 'DM Sans', sans-serif; }
-                @keyframes mIn { from { opacity:0; transform:scale(0.93) translateY(16px); } to { opacity:1; transform:scale(1) translateY(0); } }
+                @keyframes mIn    { from { opacity:0; transform:scale(0.93) translateY(16px); } to { opacity:1; transform:scale(1) translateY(0); } }
                 @keyframes floatA { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-8px)} }
                 @keyframes floatB { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-10px)} }
                 @keyframes floatC { 0%,100%{transform:rotate(20deg) translateY(0)} 50%{transform:rotate(20deg) translateY(-6px)} }
-                @keyframes spin { from{transform:rotate(0deg)} to{transform:rotate(360deg)} }
-                ::-webkit-scrollbar { width: 5px; }
+                @keyframes spin   { from{transform:rotate(0deg)} to{transform:rotate(360deg)} }
+                ::-webkit-scrollbar       { width: 5px; }
                 ::-webkit-scrollbar-thumb { background: #b0d5b0; border-radius: 10px; }
                 input::placeholder { color: rgba(255,255,255,0.35); }
                 select { cursor: pointer; }
@@ -785,41 +253,56 @@ export default function Home() {
                 @media (max-width: 480px) { .vendor-grid { grid-template-columns: repeat(2, 1fr); } }
                 @media (max-width: 700px) {
                     .hero-image-col { display: none !important; }
-                    .nav-links { display: none !important; }
-                    .nav-search { display: none !important; }
-                    .mobile-search { display: block !important; }
+                    .nav-links      { display: none !important; }
+                    .nav-search     { display: none !important; }
+                    .mobile-search  { display: block !important; }
                 }
             `}</style>
 
             <BG />
 
             <div style={{ position: "relative", zIndex: 1, minHeight: "100vh" }}>
-                {/* NAV */}
+
+                {/* ── Navbar ─────────────────────────────────────────────────── */}
                 <nav style={{ background: "rgba(20,42,20,0.96)", backdropFilter: "blur(20px)", padding: "0 28px", height: 68, display: "flex", alignItems: "center", justifyContent: "space-between", borderBottom: "1px solid rgba(255,255,255,0.07)", position: "sticky", top: 0, zIndex: 800, boxShadow: "0 2px 24px rgba(0,0,0,0.25)" }}>
+
                     <div style={{ display: "flex", alignItems: "center", gap: 10, flexShrink: 0 }}>
                         <img src={logo} alt="ChopSpot Logo" style={{ height: 40, width: "auto" }} />
                     </div>
 
                     <div style={{ display: "flex", alignItems: "center", gap: 6, position: "absolute", left: "50%", transform: "translateX(-50%)" }} className="nav-links">
-                        {[["Find Food","#"],["Vendors","#"],["About","#"]].map(([label, href]) => (
-                            <a key={label} href={href} style={{ color: "rgba(255,255,255,0.75)", textDecoration: "none", fontFamily: "'DM Sans',sans-serif", fontWeight: 600, fontSize: 14, padding: "8px 16px", borderRadius: 50, transition: "all 0.18s" }}
-                               onMouseEnter={e => { e.target.style.background="rgba(255,255,255,0.1)"; e.target.style.color="white"; }}
-                               onMouseLeave={e => { e.target.style.background="transparent"; e.target.style.color="rgba(255,255,255,0.75)"; }}
+                        {[["Find Food", "#"], ["Vendors", "#"], ["About", "#"]].map(([label, href]) => (
+                            <a key={label} href={href}
+                               style={{ color: "rgba(255,255,255,0.75)", textDecoration: "none", fontFamily: "'DM Sans',sans-serif", fontWeight: 600, fontSize: 14, padding: "8px 16px", borderRadius: 50, transition: "all 0.18s" }}
+                               onMouseEnter={e => { e.target.style.background = "rgba(255,255,255,0.1)"; e.target.style.color = "white"; }}
+                               onMouseLeave={e => { e.target.style.background = "transparent"; e.target.style.color = "rgba(255,255,255,0.75)"; }}
                             >{label}</a>
                         ))}
                     </div>
 
                     <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+
+                        {/* Search (desktop) */}
                         <div style={{ background: "rgba(255,255,255,0.09)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 50, display: "flex", alignItems: "center", padding: "6px 14px", gap: 8, width: 190 }} className="nav-search">
                             <svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="rgba(255,255,255,0.45)" strokeWidth="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
-                            <input value={search} onChange={e => setSearch(e.target.value)} placeholder="search" style={{ border: "none", background: "transparent", outline: "none", color: "white", fontFamily: "'DM Sans',sans-serif", fontSize: 13, width: "100%" }} />
-                            {search && <button onClick={() => setSearch("")} style={{ background: "none", border: "none", cursor: "pointer", color: "rgba(255,255,255,0.4)", fontSize: 16, lineHeight: 1, flexShrink: 0 }}>×</button>}
+                            <input
+                                value={search}
+                                onChange={e => setSearch(e.target.value)}
+                                placeholder="search"
+                                style={{ border: "none", background: "transparent", outline: "none", color: "white", fontFamily: "'DM Sans',sans-serif", fontSize: 13, width: "100%" }}
+                            />
+                            {search && (
+                                <button onClick={() => setSearch("")} style={{ background: "none", border: "none", cursor: "pointer", color: "rgba(255,255,255,0.4)", fontSize: 16, lineHeight: 1, flexShrink: 0 }}>×</button>
+                            )}
                         </div>
 
-                        {/* Cart icon in nav */}
-                        <button onClick={() => setShowCart(true)} title={cartSyncing ? "Syncing your cart…" : "View cart"} style={{ position: "relative", background: "rgba(255,255,255,0.09)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 50, width: 42, height: 42, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", transition: "all 0.18s" }}
-                                onMouseEnter={e => e.currentTarget.style.background="rgba(249,115,22,0.25)"}
-                                onMouseLeave={e => e.currentTarget.style.background="rgba(255,255,255,0.09)"}
+                        {/* Cart icon */}
+                        <button
+                            onClick={() => setShowCart(true)}
+                            title={cartSyncing ? "Syncing your cart…" : "View cart"}
+                            style={{ position: "relative", background: "rgba(255,255,255,0.09)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 50, width: 42, height: 42, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", transition: "all 0.18s" }}
+                            onMouseEnter={e => e.currentTarget.style.background = "rgba(249,115,22,0.25)"}
+                            onMouseLeave={e => e.currentTarget.style.background = "rgba(255,255,255,0.09)"}
                         >
                             {cartSyncing
                                 ? <svg width="18" height="18" viewBox="0 0 24 24" fill="none" style={{ animation: "spin 0.8s linear infinite" }}><circle cx="12" cy="12" r="10" stroke="rgba(255,255,255,0.25)" strokeWidth="3"/><path d="M12 2a10 10 0 0110 10" stroke="white" strokeWidth="3" strokeLinecap="round"/></svg>
@@ -832,18 +315,18 @@ export default function Home() {
                             )}
                         </button>
 
+                        {/* Profile avatar — now receives API profile, not old localStorage shape */}
                         <ProfileAvatar
-                            profile={savedProfile}
+                            profile={profile}
                             isLoggedIn={isLoggedIn}
                             onDashboard={() => setShowDashboard(true)}
-                            onClear={clearProfile}
                             onLogout={logout}
                             onLogin={handleLogin}
                         />
                     </div>
                 </nav>
 
-                {/* HERO */}
+                {/* ── Hero ───────────────────────────────────────────────────── */}
                 <div style={{ position: "relative", overflow: "hidden", minHeight: 420, display: "flex", alignItems: "center" }}>
                     <div style={{ position: "absolute", top: -80, right: -80, width: 400, height: 400, borderRadius: "50%", background: "rgba(249,115,22,0.10)", filter: "blur(60px)", pointerEvents: "none" }}/>
                     <div style={{ position: "absolute", bottom: -60, left: -60, width: 300, height: 300, borderRadius: "50%", background: "rgba(45,138,45,0.12)", filter: "blur(50px)", pointerEvents: "none" }}/>
@@ -856,8 +339,17 @@ export default function Home() {
                                 You. 🔥
                             </h1>
                             <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
-                                <button onClick={() => document.getElementById("restaurant-grid")?.scrollIntoView({ behavior: "smooth" })} style={{ background: "linear-gradient(135deg,#2d8a2d,#4caf50)", color: "white", border: "none", borderRadius: 50, padding: "14px 30px", fontFamily: "'Sora',sans-serif", fontWeight: 800, fontSize: 14, cursor: "pointer", boxShadow: "0 4px 20px rgba(45,138,45,0.38)", transition: "transform 0.18s" }} onMouseEnter={e => e.currentTarget.style.transform="scale(1.03)"} onMouseLeave={e => e.currentTarget.style.transform="scale(1)"}>Order Now →</button>
-                                <button style={{ background: "transparent", color: "#2d8a2d", border: "2px solid #2d8a2d", borderRadius: 50, padding: "14px 28px", fontFamily: "'Sora',sans-serif", fontWeight: 700, fontSize: 14, cursor: "pointer", transition: "all 0.18s" }} onMouseEnter={e => { e.currentTarget.style.background="#2d8a2d"; e.currentTarget.style.color="white"; }} onMouseLeave={e => { e.currentTarget.style.background="transparent"; e.currentTarget.style.color="#2d8a2d"; }}>See Menu</button>
+                                <button
+                                    onClick={() => document.getElementById("restaurant-grid")?.scrollIntoView({ behavior: "smooth" })}
+                                    style={{ background: "linear-gradient(135deg,#2d8a2d,#4caf50)", color: "white", border: "none", borderRadius: 50, padding: "14px 30px", fontFamily: "'Sora',sans-serif", fontWeight: 800, fontSize: 14, cursor: "pointer", boxShadow: "0 4px 20px rgba(45,138,45,0.38)", transition: "transform 0.18s" }}
+                                    onMouseEnter={e => e.currentTarget.style.transform = "scale(1.03)"}
+                                    onMouseLeave={e => e.currentTarget.style.transform = "scale(1)"}
+                                >Order Now →</button>
+                                <button
+                                    style={{ background: "transparent", color: "#2d8a2d", border: "2px solid #2d8a2d", borderRadius: 50, padding: "14px 28px", fontFamily: "'Sora',sans-serif", fontWeight: 700, fontSize: 14, cursor: "pointer", transition: "all 0.18s" }}
+                                    onMouseEnter={e => { e.currentTarget.style.background = "#2d8a2d"; e.currentTarget.style.color = "white"; }}
+                                    onMouseLeave={e => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "#2d8a2d"; }}
+                                >See Menu</button>
                             </div>
                         </div>
 
@@ -869,25 +361,36 @@ export default function Home() {
                             </div>
                             <div style={{ position: "absolute", top: "8%", left: "-5%", background: "white", borderRadius: 16, padding: "10px 16px", boxShadow: "0 8px 24px rgba(0,0,0,0.12)", display: "flex", alignItems: "center", gap: 8, zIndex: 3, animation: "floatA 3s ease-in-out infinite" }}>
                                 <span style={{ fontSize: 20 }}>🍔</span>
-                                <div><p style={{ margin: 0, fontFamily: "'Sora',sans-serif", fontWeight: 800, fontSize: 12, color: "#1a2e1a" }}>Burger King</p><p style={{ margin: 0, fontSize: 10, color: "#f97316", fontWeight: 600 }}>Ready in 15 min</p></div>
+                                <div>
+                                    <p style={{ margin: 0, fontFamily: "'Sora',sans-serif", fontWeight: 800, fontSize: 12, color: "#1a2e1a" }}>Burger King</p>
+                                    <p style={{ margin: 0, fontSize: 10, color: "#f97316", fontWeight: 600 }}>Ready in 15 min</p>
+                                </div>
                             </div>
                             <div style={{ position: "absolute", bottom: "10%", right: "-8%", background: "linear-gradient(135deg,#2d8a2d,#4caf50)", borderRadius: 16, padding: "10px 16px", boxShadow: "0 8px 24px rgba(45,138,45,0.35)", display: "flex", alignItems: "center", gap: 8, zIndex: 3, animation: "floatB 3.5s ease-in-out infinite" }}>
                                 <span style={{ fontSize: 18 }}>⭐</span>
-                                <div><p style={{ margin: 0, fontFamily: "'Sora',sans-serif", fontWeight: 800, fontSize: 12, color: "white" }}>Top Rated</p><p style={{ margin: 0, fontSize: 10, color: "rgba(255,255,255,0.8)", fontWeight: 600 }}>4.9 / 5.0</p></div>
+                                <div>
+                                    <p style={{ margin: 0, fontFamily: "'Sora',sans-serif", fontWeight: 800, fontSize: 12, color: "white" }}>Top Rated</p>
+                                    <p style={{ margin: 0, fontSize: 10, color: "rgba(255,255,255,0.8)", fontWeight: 600 }}>4.9 / 5.0</p>
+                                </div>
                             </div>
                         </div>
                     </div>
                 </div>
 
-                {/* Mobile search */}
+                {/* ── Mobile search ──────────────────────────────────────────── */}
                 <div style={{ padding: "0 16px 20px", display: "none" }} className="mobile-search">
                     <div style={{ width: "100%", background: "rgba(255,255,255,0.92)", backdropFilter: "blur(12px)", borderRadius: 50, boxShadow: "0 4px 20px rgba(20,80,20,0.11)", display: "flex", alignItems: "center", padding: "4px 16px", border: "1.5px solid rgba(45,138,45,0.18)" }}>
                         <svg width="17" height="17" fill="none" viewBox="0 0 24 24" stroke="#2d8a2d" strokeWidth="2" style={{ flexShrink: 0 }}><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
-                        <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search restaurants..." style={{ border: "none", flex: 1, padding: "9px 10px", fontSize: 14, fontFamily: "'DM Sans',sans-serif", background: "transparent", color: "#1a2e1a", outline: "none" }}/>
+                        <input
+                            value={search}
+                            onChange={e => setSearch(e.target.value)}
+                            placeholder="Search restaurants..."
+                            style={{ border: "none", flex: 1, padding: "9px 10px", fontSize: 14, fontFamily: "'DM Sans',sans-serif", background: "transparent", color: "#1a2e1a", outline: "none" }}
+                        />
                     </div>
                 </div>
 
-                {/* Vendor Grid */}
+                {/* ── Vendor grid ─────────────────────────────────────────────── */}
                 <div style={{ padding: "0 16px 80px", maxWidth: 1280, margin: "0 auto" }}>
                     <h2 id="restaurant-grid" style={{ fontFamily: "'Sora',sans-serif", fontWeight: 700, fontSize: 18, color: "#1a2e1a", marginBottom: 14, padding: "0 4px" }}>
                         {search ? `Results for "${search}"` : "All Restaurants"}
@@ -926,9 +429,12 @@ export default function Home() {
                     )}
                 </div>
 
-                {/* FAB Cart */}
+                {/* ── FAB cart button ──────────────────────────────────────────── */}
                 {(totalCartItems > 0 || cartSyncing) && (
-                    <div onClick={() => !cartSyncing && setShowCart(true)} style={{ position: "fixed", bottom: 28, right: 28, zIndex: 700, background: cartSyncing ? "linear-gradient(135deg,#94a3b8,#cbd5e1)" : "linear-gradient(135deg,#f97316,#fb923c)", borderRadius: 50, padding: "14px 22px", display: "flex", alignItems: "center", gap: 8, cursor: cartSyncing ? "default" : "pointer", boxShadow: cartSyncing ? "0 6px 24px rgba(0,0,0,0.15)" : "0 6px 24px rgba(249,115,22,0.45)", color: "white", fontWeight: 800, fontFamily: "'Sora',sans-serif", fontSize: 15, animation: "mIn 0.3s cubic-bezier(.34,1.56,.64,1)", transition: "background 0.3s" }}>
+                    <div
+                        onClick={() => !cartSyncing && setShowCart(true)}
+                        style={{ position: "fixed", bottom: 28, right: 28, zIndex: 700, background: cartSyncing ? "linear-gradient(135deg,#94a3b8,#cbd5e1)" : "linear-gradient(135deg,#f97316,#fb923c)", borderRadius: 50, padding: "14px 22px", display: "flex", alignItems: "center", gap: 8, cursor: cartSyncing ? "default" : "pointer", boxShadow: cartSyncing ? "0 6px 24px rgba(0,0,0,0.15)" : "0 6px 24px rgba(249,115,22,0.45)", color: "white", fontWeight: 800, fontFamily: "'Sora',sans-serif", fontSize: 15, animation: "mIn 0.3s cubic-bezier(.34,1.56,.64,1)", transition: "background 0.3s" }}
+                    >
                         {cartSyncing
                             ? <><svg width="16" height="16" viewBox="0 0 24 24" fill="none" style={{ animation: "spin 0.8s linear infinite" }}><circle cx="12" cy="12" r="10" stroke="rgba(255,255,255,0.3)" strokeWidth="3"/><path d="M12 2a10 10 0 0110 10" stroke="white" strokeWidth="3" strokeLinecap="round"/></svg> Syncing cart…</>
                             : <>🛒 View Cart · {totalCartItems}</>
@@ -936,17 +442,52 @@ export default function Home() {
                     </div>
                 )}
 
-                {/* WhatsApp */}
-                <div style={{ position: "fixed", bottom: 28, left: 28, zIndex: 700, background: "#25D366", borderRadius: 50, padding: "10px 18px", display: "flex", alignItems: "center", gap: 8, cursor: "pointer", boxShadow: "0 4px 16px rgba(37,211,102,0.35)", color: "white", fontWeight: 700, fontSize: 13, fontFamily: "'DM Sans',sans-serif" }}>
+                {/* ── WhatsApp support button ──────────────────────────────────── */}
+                <a
+                    href="https://wa.me/2348000000000"
+                    target="_blank"
+                    rel="noreferrer"
+                    style={{ position: "fixed", bottom: 28, left: 28, zIndex: 700, background: "#25D366", borderRadius: 50, padding: "10px 18px", display: "flex", alignItems: "center", gap: 8, boxShadow: "0 4px 16px rgba(37,211,102,0.35)", color: "white", fontWeight: 700, fontSize: 13, fontFamily: "'DM Sans',sans-serif", textDecoration: "none" }}
+                >
                     <svg width="18" height="18" fill="white" viewBox="0 0 24 24"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
                     Contact ChopSpot
-                </div>
+                </a>
             </div>
 
-            {selectedVendor && <VendorModal vendor={selectedVendor} onClose={() => setSelectedVendor(null)} onGoToCart={handleGoToCart} />}
-            {showCart && <CartModal cartGroups={cartGroups} onClose={() => setShowCart(false)} onCheckout={handleCheckout} onRemoveGroup={removeGroup} />}
-            {showCheckout && <CheckoutModal totalAmount={cartTotal} savedProfile={savedProfile} onClose={() => setShowCheckout(false)} onPay={handlePay} />}
-            {showPayment && <PaymentModal orderInfo={orderInfo} onClose={() => setShowPayment(false)} onConfirm={(method) => handleConfirm(method)} />}
+            {/* ── Modals ──────────────────────────────────────────────────────── */}
+            {selectedVendor && (
+                <VendorModal
+                    vendor={selectedVendor}
+                    onClose={() => setSelectedVendor(null)}
+                    onGoToCart={handleGoToCart}
+                />
+            )}
+            {showCart && (
+                <CartModal
+                    cartGroups={cartGroups}
+                    onClose={() => setShowCart(false)}
+                    onCheckout={handleCheckout}
+                    onRemoveGroup={removeGroup}
+                />
+            )}
+            {showCheckout && (
+                // FIX: passes API profile (from useUserProfile) not old localStorage shape.
+                // CheckoutModal handles both firstName+lastName and fullName gracefully.
+                <CheckoutModal
+                    totalAmount={cartTotal}
+                    profile={profile}
+                    onClose={() => setShowCheckout(false)}
+                    onPay={handlePay}
+                />
+            )}
+            {showPayment && (
+                <PaymentModal
+                    orderInfo={orderInfo}
+                    userEmail={user?.email}
+                    onClose={handlePaymentClose}
+                    onConfirm={handleConfirm}
+                />
+            )}
         </>
     );
 }
