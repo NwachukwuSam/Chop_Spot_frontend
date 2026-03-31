@@ -46,6 +46,22 @@ const buildHeaders = () => {
     };
 };
 
+// ─── 401 handler ──────────────────────────────────────────────────────────────
+// Called whenever any authenticated request gets a 401 (expired/invalid token).
+// Clears all auth keys from localStorage and fires a custom event so the app
+// can redirect to /login without this file needing to know about React Router.
+function handleUnauthorized() {
+    console.warn("🔐 Token expired or invalid — clearing session");
+    try {
+        localStorage.removeItem("chopspot_token");
+        localStorage.removeItem("adminToken");
+        localStorage.removeItem("token");
+        localStorage.removeItem("chopspot_user");
+    } catch (_) {}
+    // App.jsx listens for this event and calls navigate("/login")
+    window.dispatchEvent(new CustomEvent("chopspot:unauthorized"));
+}
+
 // ─── Core request helpers ─────────────────────────────────────────────────────
 
 // Authenticated request (requires a JWT in localStorage)
@@ -85,6 +101,12 @@ async function request(endpoint, options = {}) {
         data = await res.json();
     } catch {
         data = {};
+    }
+
+    // Token expired or invalid — clear session and redirect to login
+    if (res.status === 401) {
+        handleUnauthorized();
+        throw new Error("Your session has expired. Please sign in again.");
     }
 
     if (!res.ok) {
@@ -135,10 +157,7 @@ export const login = async (body) => {
         method: "POST",
         body: JSON.stringify(body),
     });
-    
     console.log("🔐 Login API response:", response);
-    
-    // The response should have accessToken, userId, roles, etc.
     return response;
 };
 
@@ -148,7 +167,6 @@ export const register = (body) =>
         body: JSON.stringify(body),
     });
 
-
 export const getMe = async () => {
     try {
         const response = await request("/api/auth/me");
@@ -156,7 +174,6 @@ export const getMe = async () => {
         return response;
     } catch (err) {
         console.error("Failed to fetch user data:", err);
-        // Fallback: try to get user data from localStorage
         const storedUser = localStorage.getItem("chopspot_user");
         if (storedUser) {
             console.log("Using stored user data as fallback");
@@ -206,27 +223,67 @@ export const publicApi = {
 
 
 // ─────────────────────────────────────────────────────────────────────────────
-// VENDOR  (requires VENDOR role JWT)
+// CART  (requires CUSTOMER JWT for all except mergeGuestCart which also needs it)
 //
-// POST  /api/vendor/register            → PUBLIC: creates UserProfile + VendorProfile,
-//                                          returns { accessToken, role, vendorProfile }
-// GET   /api/vendor/profile             → vendor's own profile
-// PUT   /api/vendor/profile             → update own profile
-// PATCH /api/vendor/profile/toggle-open → flip isOpen flag
-// GET   /api/vendor/menu                → all menu items for this vendor
-// POST  /api/vendor/menu                → add a menu item
-// PUT   /api/vendor/menu/{id}           → update a menu item
-// DELETE/api/vendor/menu/{id}           → delete a menu item
+// GET    /api/cart              → fetch logged-in user's server cart
+//                                 returns { groups: [...] }  (same shape as local cart)
+//
+// POST   /api/cart/add          → add a group to server cart
+//                                 body: { vendor, pack, items }
+//                                 returns updated { groups: [...] }
+//
+// DELETE /api/cart/:groupIndex  → remove one group from server cart by index
+//                                 returns updated { groups: [...] }
+//
+// POST   /api/cart/merge        → called ONCE on login; sends guest cart to server
+//                                 body: { groups: [...] }
+//                                 server merges with existing cart & returns { groups: [...] }
+//
+// DELETE /api/cart              → wipe the entire server cart (called after order placed)
+//                                 returns { groups: [] }
+// ─────────────────────────────────────────────────────────────────────────────
+export const cartApi = {
+    /** Fetch the logged-in user's cart from the server */
+    getCart: () =>
+        request("/api/cart"),
+
+    /** Add a cart group (vendor + pack + items) to the server cart */
+    addGroup: (group) =>
+        request("/api/cart/add", {
+            method: "POST",
+            body: JSON.stringify(group),
+        }),
+
+    /** Remove a group from the server cart by its index position */
+    removeGroup: (groupIndex) =>
+        request(`/api/cart/${groupIndex}`, { method: "DELETE" }),
+
+    /**
+     * Merge a guest cart into the server cart.
+     * Call this once immediately after login, passing the guest's localStorage cart.
+     * The server should union/append guest groups into the user's existing cart.
+     */
+    mergeGuestCart: (groups) =>
+        request("/api/cart/merge", {
+            method: "POST",
+            body: JSON.stringify({ groups }),
+        }),
+
+    /** Wipe the server cart entirely — call after a successful order */
+    clearCart: () =>
+        request("/api/cart", { method: "DELETE" }),
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// VENDOR  (requires VENDOR role JWT)
 // ─────────────────────────────────────────────────────────────────────────────
 export const vendorApi = {
-    // Registration — public, no token needed
     register: (dto) =>
         publicRequest("/api/vendor/register", {
             method: "POST",
             body: JSON.stringify(dto),
         }),
 
-    // Profile
     getProfile: () => request("/api/vendor/profile"),
 
     updateProfile: (dto) =>
@@ -238,7 +295,6 @@ export const vendorApi = {
     toggleOpen: () =>
         request("/api/vendor/profile/toggle-open", { method: "PATCH" }),
 
-    // Menu management
     getMenu: () => request("/api/vendor/menu"),
 
     addMenuItem: (item) =>
@@ -277,22 +333,14 @@ export const debugAuthAndVendor = async () => {
 };
 // ─────────────────────────────────────────────────────────────────────────────
 // RIDER  (requires RIDER role JWT)
-//
-// POST  /api/rider/register             → PUBLIC: creates UserProfile + RiderProfile,
-//                                          returns { accessToken, role, riderProfile }
-// GET   /api/rider/profile              → rider's own profile
-// PUT   /api/rider/profile              → update own profile
-// PATCH /api/rider/availability         → toggle ONLINE / OFFLINE
 // ─────────────────────────────────────────────────────────────────────────────
 export const riderApi = {
-    // Registration — public, no token needed
     register: (dto) =>
         publicRequest("/api/rider/register", {
             method: "POST",
             body: JSON.stringify(dto),
         }),
 
-    // Profile
     getProfile: () => request("/api/rider/profile"),
 
     updateProfile: (dto) =>
@@ -301,27 +349,14 @@ export const riderApi = {
             body: JSON.stringify(dto),
         }),
 
-    // availability: "ONLINE" | "OFFLINE"
-    updateAvailability: (availability) =>
-        request("/api/rider/availability", {
-            method: "PATCH",
-            body: JSON.stringify({ availability }),
-        }),
+    toggleAvailability: () =>
+        request("/api/rider/availability", { method: "PATCH" }),
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
 // ORDERS
-//
-// POST /api/orders                        → CUSTOMER: place order
-// GET  /api/orders/my-orders              → CUSTOMER: own order history
-// GET  /api/orders/vendor-orders          → VENDOR: incoming orders
-// GET  /api/orders/rider-orders           → RIDER: assigned orders
-// PUT  /api/orders/{id}/status?status=    → VENDOR/RIDER/ADMIN: update status
-// PUT  /api/orders/{id}/assign-rider      → ADMIN: assign rider
-// GET  /api/orders?status=                → ADMIN: all orders
 // ─────────────────────────────────────────────────────────────────────────────
 export const orderApi = {
-    // Customer
     createOrder: (dto) =>
         request("/api/orders", {
             method: "POST",
@@ -330,17 +365,13 @@ export const orderApi = {
 
     getMyOrders: () => request("/api/orders/my-orders"),
 
-    // Vendor
     getVendorOrders: () => request("/api/orders/vendor-orders"),
 
-    // Rider
     getRiderOrders: () => request("/api/orders/rider-orders"),
 
-    // Shared — status values: PENDING | PREPARING | PICKED_UP | DELIVERED | CANCELLED
     updateOrderStatus: (id, status) =>
         request(`/api/orders/${id}/status?status=${status}`, { method: "PUT" }),
 
-    // Admin
     getAllOrders: (status = null) =>
         request(status ? `/api/orders?status=${status}` : "/api/orders"),
 
@@ -353,55 +384,26 @@ export const orderApi = {
 
 // ─────────────────────────────────────────────────────────────────────────────
 // ADMIN  (requires ADMIN or SUPER_ADMIN role JWT)
-//
-// GET   /api/admin/overview
-// GET   /api/admin/customers
-// PATCH /api/admin/customers/{id}/suspend
-// PATCH /api/admin/customers/{id}/activate
-// GET   /api/admin/vendors
-// PATCH /api/admin/vendors/{id}/approve
-// PATCH /api/admin/vendors/{id}/reject
-// PATCH /api/admin/vendors/{id}/suspend
-// DELETE/api/admin/vendors/{id}
-// GET   /api/admin/riders
-// PATCH /api/admin/riders/{id}/approve
-// PATCH /api/admin/riders/{id}/reject
-// PATCH /api/admin/riders/{id}/suspend
-// DELETE/api/admin/riders/{id}
-// GET   /api/admin/orders?status=
-// PUT   /api/admin/orders/{id}/status?status=
-// PUT   /api/admin/orders/{id}/assign-rider?riderUserId=
-// --- Super Admin only ---
-// GET   /api/admin/admins
-// POST  /api/admin/admins
-// PATCH /api/admin/admins/{id}/suspend
-// PATCH /api/admin/admins/{id}/activate
-// DELETE/api/admin/admins/{id}
 // ─────────────────────────────────────────────────────────────────────────────
 export const adminApi = {
-    // Overview
     getOverview: () => request("/api/admin/overview"),
 
-    // Customers
     getCustomers: () => request("/api/admin/customers"),
     suspendCustomer:  (id) => request(`/api/admin/customers/${id}/suspend`,  { method: "PATCH" }),
     activateCustomer: (id) => request(`/api/admin/customers/${id}/activate`, { method: "PATCH" }),
 
-    // Vendors
     getVendors:    () => request("/api/admin/vendors"),
     approveVendor: (id) => request(`/api/admin/vendors/${id}/approve`, { method: "PATCH" }),
     rejectVendor:  (id) => request(`/api/admin/vendors/${id}/reject`,  { method: "PATCH" }),
     suspendVendor: (id) => request(`/api/admin/vendors/${id}/suspend`, { method: "PATCH" }),
     deleteVendor:  (id) => request(`/api/admin/vendors/${id}`,         { method: "DELETE" }),
 
-    // Riders
     getRiders:    () => request("/api/admin/riders"),
     approveRider: (id) => request(`/api/admin/riders/${id}/approve`, { method: "PATCH" }),
     rejectRider:  (id) => request(`/api/admin/riders/${id}/reject`,  { method: "PATCH" }),
     suspendRider: (id) => request(`/api/admin/riders/${id}/suspend`, { method: "PATCH" }),
     deleteRider:  (id) => request(`/api/admin/riders/${id}`,         { method: "DELETE" }),
 
-    // Orders (admin view — separate from OrderController's /api/orders)
     getOrders:         (status = null) =>
         request(status ? `/api/admin/orders?status=${status}` : "/api/admin/orders"),
     updateOrderStatus: (id, status) =>
@@ -409,7 +411,6 @@ export const adminApi = {
     assignRider:       (orderId, riderUserId) =>
         request(`/api/admin/orders/${orderId}/assign-rider?riderUserId=${riderUserId}`, { method: "PUT" }),
 
-    // Super Admin — admin user management
     getAdmins:     ()    => request("/api/admin/admins"),
     createAdmin:   (dto) => request("/api/admin/admins", { method: "POST", body: JSON.stringify(dto) }),
     suspendAdmin:  (id)  => request(`/api/admin/admins/${id}/suspend`,  { method: "PATCH" }),
@@ -419,20 +420,6 @@ export const adminApi = {
 
 // ─────────────────────────────────────────────────────────────────────────────
 // FINANCE  (requires ADMIN or SUPER_ADMIN role JWT)
-//
-// GET   /api/finance/overview
-// GET   /api/finance/sales?status=
-// GET   /api/finance/vendor-payouts?status=
-// POST  /api/finance/vendor-payouts
-// PATCH /api/finance/vendor-payouts/{id}/mark-paid
-// DELETE/api/finance/vendor-payouts/{id}
-// GET   /api/finance/rider-payouts?status=
-// POST  /api/finance/rider-payouts
-// PATCH /api/finance/rider-payouts/{id}/mark-paid
-// DELETE/api/finance/rider-payouts/{id}
-// GET   /api/finance/expenses?category=
-// POST  /api/finance/expenses
-// DELETE/api/finance/expenses/{id}
 // ─────────────────────────────────────────────────────────────────────────────
 export const financeApi = {
     getOverview: () => request("/api/finance/overview"),
@@ -440,19 +427,11 @@ export const financeApi = {
     getSales: (status = null) =>
         request(status ? `/api/finance/sales?status=${status}` : "/api/finance/sales"),
 
-    // Vendor payouts
     getVendorPayouts: (status = null) =>
-        request(
-            status
-                ? `/api/finance/vendor-payouts?status=${status}`
-                : "/api/finance/vendor-payouts"
-        ),
+        request(status ? `/api/finance/vendor-payouts?status=${status}` : "/api/finance/vendor-payouts"),
 
     createVendorPayout: (dto) =>
-        request("/api/finance/vendor-payouts", {
-            method: "POST",
-            body: JSON.stringify(dto),
-        }),
+        request("/api/finance/vendor-payouts", { method: "POST", body: JSON.stringify(dto) }),
 
     markVendorPaid: (id, paymentReference = "") =>
         request(`/api/finance/vendor-payouts/${id}/mark-paid`, {
@@ -463,19 +442,11 @@ export const financeApi = {
     deleteVendorPayout: (id) =>
         request(`/api/finance/vendor-payouts/${id}`, { method: "DELETE" }),
 
-    // Rider payouts
     getRiderPayouts: (status = null) =>
-        request(
-            status
-                ? `/api/finance/rider-payouts?status=${status}`
-                : "/api/finance/rider-payouts"
-        ),
+        request(status ? `/api/finance/rider-payouts?status=${status}` : "/api/finance/rider-payouts"),
 
     createRiderPayout: (dto) =>
-        request("/api/finance/rider-payouts", {
-            method: "POST",
-            body: JSON.stringify(dto),
-        }),
+        request("/api/finance/rider-payouts", { method: "POST", body: JSON.stringify(dto) }),
 
     markRiderPaid: (id, paymentReference = "") =>
         request(`/api/finance/rider-payouts/${id}/mark-paid`, {
@@ -486,27 +457,18 @@ export const financeApi = {
     deleteRiderPayout: (id) =>
         request(`/api/finance/rider-payouts/${id}`, { method: "DELETE" }),
 
-    // Expenses
     getExpenses: (category = null) =>
-        request(
-            category
-                ? `/api/finance/expenses?category=${encodeURIComponent(category)}`
-                : "/api/finance/expenses"
-        ),
+        request(category ? `/api/finance/expenses?category=${encodeURIComponent(category)}` : "/api/finance/expenses"),
 
     logExpense: (dto) =>
-        request("/api/finance/expenses", {
-            method: "POST",
-            body: JSON.stringify(dto),
-        }),
+        request("/api/finance/expenses", { method: "POST", body: JSON.stringify(dto) }),
 
     deleteExpense: (id) =>
         request(`/api/finance/expenses/${id}`, { method: "DELETE" }),
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Default export — lets files do: import * as API from "../utils/Api"
-// and call API.login(), API.vendorApi.register(), etc.
+// Default export
 // ─────────────────────────────────────────────────────────────────────────────
 export default {
     login,
@@ -516,6 +478,7 @@ export default {
     verifyOtp,
     resetPassword,
     publicApi,
+    cartApi,
     vendorApi,
     riderApi,
     orderApi,
