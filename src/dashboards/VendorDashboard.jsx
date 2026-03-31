@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { vendorApi, orderApi, publicApi } from "../utils/Api.js";
+import Logo from "../assets/tasty.jpg.jpeg";
 
 // ─── Brand tokens ─────────────────────────────────────────────────────────────
 const T = {
@@ -110,21 +111,13 @@ const useIsMobile = (bp = 768) => {
 
 // ─── Tastycart Logo SVG ───────────────────────────────────────────────────────
 const TastycartLogo = ({ size = 36 }) => (
-  <svg width={size} height={size} viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
-    <path d="M15 30 Q10 30 8 35 L20 35" stroke={T.green} strokeWidth="4" strokeLinecap="round" fill="none"/>
-    <path d="M6 38 L8 38 M4 42 L7 42" stroke={T.green} strokeWidth="3.5" strokeLinecap="round"/>
-    <path d="M20 35 Q22 20 55 20 L75 20 L80 35 L20 35Z" stroke={T.green} strokeWidth="3.5" fill="none"/>
-    <path d="M20 35 L80 35" stroke={T.green} strokeWidth="3.5"/>
-    <path d="M25 35 L30 58 L70 58 L75 35" stroke={T.green} strokeWidth="3.5" fill="none"/>
-    <path d="M46 22 Q50 14 54 22" stroke={T.orange} strokeWidth="3" fill="none"/>
-    <circle cx="50" cy="21" r="2.5" fill={T.green}/>
-    <path d="M47 16 Q49 10 50 8 Q51 10 52 16" stroke={T.orange} strokeWidth="2.5" fill="none"/>
-    <path d="M44 14 Q47 8 49 7" stroke={T.green} strokeWidth="2" fill="none"/>
-    <circle cx="35" cy="64" r="6" stroke={T.green} strokeWidth="3.5" fill="none"/>
-    <circle cx="65" cy="64" r="6" stroke={T.green} strokeWidth="3.5" fill="none"/>
-    <path d="M26 54 L74 54" stroke={T.orange} strokeWidth="3.5" strokeLinecap="round"/>
-    <path d="M28 58 L72 58" stroke={T.orange} strokeWidth="2.5" strokeLinecap="round"/>
-  </svg>
+  <img 
+    src={Logo} 
+    width={size} 
+    height={size} 
+    alt="Tastycart Logo"
+    style={{borderRadius : 7}}
+  />
 );
 
 // ─── Global CSS ───────────────────────────────────────────────────────────────
@@ -955,6 +948,13 @@ const TABS = [
 // ─── Desktop Sidebar ──────────────────────────────────────────────────────────
 const DesktopSidebar = ({ vendor, tab, setTab, onLogout, toggleOpen, pendingCount }) => {
   const initials = vendor?.name?.trim().split(" ").map(w=>w[0]).slice(0,2).join("").toUpperCase() || "V";
+  
+  const handleLogout = () => {
+    localStorage.removeItem("tastycart_vendor");
+    if (onLogout) onLogout();
+    else window.location.href = "/login";
+  };
+  
   return (
     <aside className="desktop-sidebar" style={{
       width:224, flexShrink:0, background:`linear-gradient(180deg, ${T.dark} 0%, #0d1f0d 100%)`,
@@ -1006,28 +1006,39 @@ const DesktopSidebar = ({ vendor, tab, setTab, onLogout, toggleOpen, pendingCoun
           </div>
         </div>
 
-        {onLogout && (
-          <button onClick={onLogout} className="btn-outline" style={{ width:"100%", padding:"8px", fontSize:12, borderColor:"rgba(255,255,255,.15)", color:"rgba(255,255,255,.4)", background:"transparent" }}>
-            ← Back to Home
-          </button>
-        )}
+        <button onClick={handleLogout} className="btn-outline" style={{ width:"100%", padding:"8px", fontSize:12, borderColor:"rgba(255,255,255,.15)", color:"rgba(255,255,255,.4)", background:"transparent" }}>
+          🚪 Logout
+        </button>
       </div>
     </aside>
   );
 };
 
 // ─── Bottom Nav (Mobile) ──────────────────────────────────────────────────────
-const BottomNav = ({ tab, setTab, pendingCount }) => (
-  <nav className="bottom-nav">
-    {TABS.map(t => (
-      <button key={t.id} onClick={() => setTab(t.id)} className={`bottom-nav-item${tab===t.id?" active":""}`}>
-        {t.id==="orders" && pendingCount>0 && <span className="bottom-nav-badge">{pendingCount}</span>}
-        <span className="nav-icon">{t.icon}</span>
-        <span>{t.label}</span>
+const BottomNav = ({ tab, setTab, pendingCount, onLogout }) => {
+  const handleLogout = () => {
+    localStorage.removeItem("tastycart_vendor");
+    if (onLogout) onLogout();
+    else window.location.href = "/login";
+  };
+  
+  return (
+    <nav className="bottom-nav">
+      {TABS.map(t => (
+        <button key={t.id} onClick={() => setTab(t.id)} className={`bottom-nav-item${tab===t.id?" active":""}`}>
+          {t.id==="orders" && pendingCount>0 && <span className="bottom-nav-badge">{pendingCount}</span>}
+          <span className="nav-icon">{t.icon}</span>
+          <span>{t.label}</span>
+        </button>
+      ))}
+      {/* Mobile Logout Button */}
+      <button onClick={handleLogout} className="bottom-nav-item">
+        <span className="nav-icon">🚪</span>
+        <span>Logout</span>
       </button>
-    ))}
-  </nav>
-);
+    </nav>
+  );
+};
 
 // ─── MAIN ─────────────────────────────────────────────────────────────────────
 export default function VendorDashboard({ onLogout }) {
@@ -1173,21 +1184,20 @@ export default function VendorDashboard({ onLogout }) {
             <div key={tab}>
               {tab==="overview" && <OverviewTab vendor={vendor} orders={orders} onViewOrder={setViewOrder} />}
               {tab==="orders"   && <OrdersTab orders={orders} onViewOrder={setViewOrder} onUpdateStatus={updateOrderStatus} />}
-              {/* {tab==="menu"     && <MenuTab vendor={vendor} onToast={showToast} />} */}
               {tab==="menu" && (
-  vendor.status !== "APPROVED"
-    ? <div className="card" style={{ padding:"40px 24px", textAlign:"center", color:T.muted }}>
-        <p style={{ fontSize:48 }}>🔒</p>
-        <h3 style={{ fontFamily:"'Fraunces',serif", fontWeight:800, fontSize:18, color:T.ink, margin:"12px 0 8px" }}>
-          Account Pending Approval
-        </h3>
-        <p style={{ fontSize:14, lineHeight:1.6 }}>
-          Your vendor account status is <strong>{vendor.status}</strong>.<br/>
-          Menu management is available once your account is approved.
-        </p>
-      </div>
-    : <MenuTab vendor={vendor} onToast={showToast} />
-)}
+                vendor.status !== "APPROVED"
+                  ? <div className="card" style={{ padding:"40px 24px", textAlign:"center", color:T.muted }}>
+                      <p style={{ fontSize:48 }}>🔒</p>
+                      <h3 style={{ fontFamily:"'Fraunces',serif", fontWeight:800, fontSize:18, color:T.ink, margin:"12px 0 8px" }}>
+                        Account Pending Approval
+                      </h3>
+                      <p style={{ fontSize:14, lineHeight:1.6 }}>
+                        Your vendor account status is <strong>{vendor.status}</strong>.<br/>
+                        Menu management is available once your account is approved.
+                      </p>
+                    </div>
+                  : <MenuTab vendor={vendor} onToast={showToast} />
+              )}
               {tab==="profile"  && <ProfileTab vendor={vendor} onUpdate={updateVendor} onToast={showToast} />}
             </div>
           </main>
@@ -1195,7 +1205,7 @@ export default function VendorDashboard({ onLogout }) {
       </div>
 
       {/* ── Mobile bottom nav ── */}
-      <BottomNav tab={tab} setTab={setTab} pendingCount={pendingCount} />
+      <BottomNav tab={tab} setTab={setTab} pendingCount={pendingCount} onLogout={onLogout} />
 
       {/* ── Order detail modal (bottom sheet) ── */}
       {viewOrder && (
