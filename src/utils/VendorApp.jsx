@@ -1,7 +1,9 @@
-import { useState, useEffect } from "react";
-import VendorRegister from "./VendorRegister";
-import VendorDashboard from "./VendorDashboard";
 
+import { useAuth } from "../hooks/useAuth";
+import {vendorApi} from "./Api.js";
+import { useState, useEffect } from "react";
+import VendorRegister from "../auth/VendoRegister.jsx";
+import VendorDashboard from "../dashboards/VendorDashboard.jsx";
 /**
  * VendorApp
  * Drop this anywhere in your React app.
@@ -10,38 +12,28 @@ import VendorDashboard from "./VendorDashboard";
  * Pass `onExitToHome` prop to add a "Back to Home" button.
  */
 export default function VendorApp({ onExitToHome }) {
-  const [vendor, setVendor] = useState(null);
-  const [loading, setLoading] = useState(true);
+    const { isLoggedIn, user } = useAuth();
+    const [vendor, setVendor] = useState(null);
+    const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    try {
-      const saved = localStorage.getItem("chopspot_vendor");
-      if (saved) setVendor(JSON.parse(saved));
-    } catch (_) {}
-    setLoading(false);
-  }, []);
+    useEffect(() => {
+        if (!isLoggedIn) { setLoading(false); return; }
+        vendorApi.getProfile()
+            .then(setVendor)
+            .catch(() => setVendor(null))
+            .finally(() => setLoading(false));
+    }, [isLoggedIn]);
 
-  if (loading) return (
-    <div style={{ minHeight:"100vh", display:"flex", alignItems:"center", justifyContent:"center", background:"linear-gradient(155deg,#ecf7ec,#cde8cd)" }}>
-      <div style={{ textAlign:"center" }}>
-        <div style={{ fontSize:48, marginBottom:12 }}>🍊</div>
-        <p style={{ fontFamily:"'Sora',sans-serif", fontWeight:700, color:"#2d8a2d" }}>Loading ChopSpot Vendor…</p>
-      </div>
-    </div>
-  );
+    if (loading) return <LoadingScreen />;
 
-  if (vendor) {
-    return (
-      <VendorDashboard
-        initialVendor={vendor}
-        onLogout={onExitToHome}
-      />
-    );
-  }
+    // Not logged in → send to login
+    if (!isLoggedIn) {
+        window.location.href = "/login";
+        return null;
+    }
 
-  return (
-    <VendorRegister
-      onSuccess={newVendor => setVendor(newVendor)}
-    />
-  );
+    // Logged in but no vendor profile → show registration
+    if (!vendor) return <VendorRegister onSuccess={setVendor} />;
+
+    return <VendorDashboard initialVendor={vendor} onLogout={onExitToHome} />;
 }
