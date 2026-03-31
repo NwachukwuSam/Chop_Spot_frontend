@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import * as API from "../utils/Api";
 import Dashboard from "../dashboards/CustomerDashboard";
-import logo from "../assets/logo.jpeg";
+import logo from "../assets/tasty.jpg.jpeg";
 import { useCart }        from "../hooks/useCart";
 import { useAuth }        from "../hooks/useAuth";
 import { useUserProfile } from "../hooks/useUserProfile";
@@ -267,7 +267,7 @@ export default function Home() {
                 <nav style={{ background: "rgba(20,42,20,0.96)", backdropFilter: "blur(20px)", padding: "0 28px", height: 68, display: "flex", alignItems: "center", justifyContent: "space-between", borderBottom: "1px solid rgba(255,255,255,0.07)", position: "sticky", top: 0, zIndex: 800, boxShadow: "0 2px 24px rgba(0,0,0,0.25)" }}>
 
                     <div style={{ display: "flex", alignItems: "center", gap: 10, flexShrink: 0 }}>
-                        <img src={logo} alt="ChopSpot Logo" style={{ height: 40, width: "auto" }} />
+                        <img src={logo} alt="ChopSpot Logo" style={{ height: 40, width: "auto", borderRadius: "15%" }} />
                     </div>
 
                     <div style={{ display: "flex", alignItems: "center", gap: 6, position: "absolute", left: "50%", transform: "translateX(-50%)" }} className="nav-links">
@@ -326,56 +326,142 @@ export default function Home() {
                     </div>
                 </nav>
 
-                {/* ── Hero ───────────────────────────────────────────────────── */}
-                <div style={{ position: "relative", overflow: "hidden", minHeight: 420, display: "flex", alignItems: "center" }}>
-                    <div style={{ position: "absolute", top: -80, right: -80, width: 400, height: 400, borderRadius: "50%", background: "rgba(249,115,22,0.10)", filter: "blur(60px)", pointerEvents: "none" }}/>
-                    <div style={{ position: "absolute", bottom: -60, left: -60, width: 300, height: 300, borderRadius: "50%", background: "rgba(45,138,45,0.12)", filter: "blur(50px)", pointerEvents: "none" }}/>
+                {/* ── Hero Section ── Simplified & Beautiful ── */}
+                    <div style={{ 
+                    position: "relative", 
+                    overflow: "hidden",
+                    padding: "28px 0 20px"
+                    }}>
+                    {/* Subtle glow elements that blend with BG component */}
+                    <div style={{ 
+                        position: "absolute", 
+                        top: -40, 
+                        right: -40, 
+                        width: 280, 
+                        height: 280, 
+                        borderRadius: "50%", 
+                        background: "rgba(249,115,22,0.08)", 
+                        filter: "blur(55px)", 
+                        pointerEvents: "none" 
+                    }}/>
+                    <div style={{ 
+                        position: "absolute", 
+                        bottom: -30, 
+                        left: -30, 
+                        width: 240, 
+                        height: 240, 
+                        borderRadius: "50%", 
+                        background: "rgba(45,138,45,0.08)", 
+                        filter: "blur(50px)", 
+                        pointerEvents: "none" 
+                    }}/>
 
-                    <div style={{ width: "100%", maxWidth: 1280, margin: "0 auto", padding: "40px 24px 36px", display: "flex", alignItems: "center", gap: 32, justifyContent: "space-between" }}>
-                        <div style={{ flex: "0 0 auto", maxWidth: 520, zIndex: 1 }}>
-                            <h1 style={{ fontFamily: "'Sora',sans-serif", fontWeight: 800, fontSize: "clamp(28px,4.5vw,52px)", color: "#1a2e1a", lineHeight: 1.12, margin: "0 0 16px", letterSpacing: -1 }}>
-                                Taste the Best<br />
-                                <span style={{ color: "#f97316", fontStyle: "italic" }}>That Surprises</span><br />
-                                You. 🔥
-                            </h1>
-                            <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
-                                <button
-                                    onClick={() => document.getElementById("restaurant-grid")?.scrollIntoView({ behavior: "smooth" })}
-                                    style={{ background: "linear-gradient(135deg,#2d8a2d,#4caf50)", color: "white", border: "none", borderRadius: 50, padding: "14px 30px", fontFamily: "'Sora',sans-serif", fontWeight: 800, fontSize: 14, cursor: "pointer", boxShadow: "0 4px 20px rgba(45,138,45,0.38)", transition: "transform 0.18s" }}
-                                    onMouseEnter={e => e.currentTarget.style.transform = "scale(1.03)"}
-                                    onMouseLeave={e => e.currentTarget.style.transform = "scale(1)"}
-                                >Order Now →</button>
-                                <button
-                                    style={{ background: "transparent", color: "#2d8a2d", border: "2px solid #2d8a2d", borderRadius: 50, padding: "14px 28px", fontFamily: "'Sora',sans-serif", fontWeight: 700, fontSize: 14, cursor: "pointer", transition: "all 0.18s" }}
-                                    onMouseEnter={e => { e.currentTarget.style.background = "#2d8a2d"; e.currentTarget.style.color = "white"; }}
-                                    onMouseLeave={e => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "#2d8a2d"; }}
-                                >See Menu</button>
-                            </div>
+                    <div style={{ 
+                        width: "100%", 
+                        maxWidth: 1280, 
+                        margin: "0 auto", 
+                        padding: "0 24px",
+                        display: "flex", 
+                        alignItems: "center", 
+                        justifyContent: "space-between",
+                        gap: 24
+                    }}>
+                        {/* Left side - Text */}
+                        <div style={{ flex: 1, zIndex: 1 }}>
+                        <div style={{ marginBottom: 2 }}>
+                        </div>
+                        <h1 style={{ 
+                            fontFamily: "'Sora',sans-serif", 
+                            fontWeight: 700, 
+                            fontSize: "clamp(28px, 4vw, 44px)", 
+                            color: "#1a2e1a", 
+                            lineHeight: 1.2, 
+                            margin: "8px 0 10px", 
+                            letterSpacing: "-0.01em"
+                        }}>
+                            Crave it.  {" "}
+                            <span style={{ color: "#f97316", position: "relative", display: "inline-block" }}>
+                            Click it.
+                            <svg style={{ position: "absolute", bottom: -4, left: 0, right: 0, width: "100%"}} viewBox="0 0 200 6" fill="none">
+                                <path d="M2 4.5C45 2 155 2 198 4.5" stroke="#f97316" strokeWidth="2.5" strokeLinecap="round" strokeDasharray="3 2"/>
+                            </svg>
+                            </span>{" "}
+                        Enjoy it 
+                        </h1>
+                        <p style={{
+                            fontSize: "clamp(13px, 2.8vw, 15px)",
+                            color: "#6b7a6b",
+                            maxWidth: 460,
+                            lineHeight: 1.5,
+                            fontFamily: "'DM Sans',sans-serif",
+                            marginBottom: 16
+                        }}>
+                            Experience a smarter way to enjoy meals from the best vendors around you
+                        </p>
                         </div>
 
-                        <div style={{ flex: "0 0 auto", position: "relative", zIndex: 1, display: "flex", alignItems: "center", justifyContent: "center" }} className="hero-image-col">
-                            <div style={{ position: "absolute", width: "clamp(260px,35vw,420px)", height: "clamp(260px,35vw,420px)", borderRadius: "50%", background: "linear-gradient(135deg,rgba(249,115,22,0.15),rgba(45,138,45,0.15))", filter: "blur(2px)" }}/>
-                            <div style={{ position: "absolute", width: "clamp(280px,37vw,440px)", height: "clamp(280px,37vw,440px)", borderRadius: "50%", border: "2px dashed rgba(45,138,45,0.20)" }}/>
-                            <div style={{ width: "clamp(220px,30vw,360px)", height: "clamp(220px,30vw,360px)", borderRadius: "50%", overflow: "hidden", boxShadow: "0 20px 60px rgba(0,0,0,0.18), 0 0 0 6px rgba(255,255,255,0.6)", position: "relative", zIndex: 2 }}>
-                                <img src="https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?w=600&q=80" alt="Delicious food" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                        {/* Right side - Clean image with minimal styling */}
+                        <div style={{ 
+                        flexShrink: 0, 
+                        position: "relative", 
+                        zIndex: 1,
+                        display: "flex", 
+                        alignItems: "center", 
+                        justifyContent: "center"
+                        }} className="hero-image-col">
+                        {/* Simple transparent ring - no solid background */}
+                        <div style={{ 
+                            position: "absolute", 
+                            width: "clamp(180px, 26vw, 260px)", 
+                            height: "clamp(180px, 26vw, 260px)", 
+                            borderRadius: "50%", 
+                            border: "1px solid rgba(249,115,22,0.2)",
+                            zIndex: 0
+                        }}/>
+                        
+                        {/* Main image */}
+                        <div style={{ 
+                            width: "clamp(160px, 24vw, 240px)", 
+                            height: "clamp(160px, 24vw, 240px)", 
+                            borderRadius: "50%", 
+                            overflow: "hidden", 
+                            boxShadow: "0 15px 30px -10px rgba(0,0,0,0.15)",
+                            position: "relative", 
+                            zIndex: 2,
+                            border: "3px solid rgba(255,255,255,0.9)"
+                        }}>
+                            <img 
+                            src="https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?w=500&q=80" 
+                            alt="Delicious food" 
+                            style={{ width: "100%", height: "100%", objectFit: "cover" }} 
+                            />
+                        </div>
+                        
+                        {/* Minimal floating badge - transparent background to let BG flow */}
+                        <div style={{ 
+                            position: "absolute", 
+                            bottom: "0%", 
+                            right: "-5%", 
+                            background: "rgba(255,255,255,0.85)",
+                            backdropFilter: "blur(8px)",
+                            borderRadius: 40, 
+                            padding: "6px 14px", 
+                            boxShadow: "0 8px 20px rgba(0,0,0,0.08)", 
+                            display: "flex", 
+                            alignItems: "center", 
+                            gap: 6, 
+                            zIndex: 3,
+                            border: "1px solid rgba(255,255,255,0.3)"
+                        }}>
+                            <span style={{ fontSize: 16 }}>⭐</span>
+                            <div>
+                            <p style={{ margin: 0, fontWeight: 700, fontSize: 12, color: "#1a2e1a" }}>4.9</p>
+                            <p style={{ margin: 0, fontSize: 9, color: "#f97316", fontWeight: 500 }}>2k+ reviews</p>
                             </div>
-                            <div style={{ position: "absolute", top: "8%", left: "-5%", background: "white", borderRadius: 16, padding: "10px 16px", boxShadow: "0 8px 24px rgba(0,0,0,0.12)", display: "flex", alignItems: "center", gap: 8, zIndex: 3, animation: "floatA 3s ease-in-out infinite" }}>
-                                <span style={{ fontSize: 20 }}>🍔</span>
-                                <div>
-                                    <p style={{ margin: 0, fontFamily: "'Sora',sans-serif", fontWeight: 800, fontSize: 12, color: "#1a2e1a" }}>Burger King</p>
-                                    <p style={{ margin: 0, fontSize: 10, color: "#f97316", fontWeight: 600 }}>Ready in 15 min</p>
-                                </div>
-                            </div>
-                            <div style={{ position: "absolute", bottom: "10%", right: "-8%", background: "linear-gradient(135deg,#2d8a2d,#4caf50)", borderRadius: 16, padding: "10px 16px", boxShadow: "0 8px 24px rgba(45,138,45,0.35)", display: "flex", alignItems: "center", gap: 8, zIndex: 3, animation: "floatB 3.5s ease-in-out infinite" }}>
-                                <span style={{ fontSize: 18 }}>⭐</span>
-                                <div>
-                                    <p style={{ margin: 0, fontFamily: "'Sora',sans-serif", fontWeight: 800, fontSize: 12, color: "white" }}>Top Rated</p>
-                                    <p style={{ margin: 0, fontSize: 10, color: "rgba(255,255,255,0.8)", fontWeight: 600 }}>4.9 / 5.0</p>
-                                </div>
-                            </div>
+                        </div>
                         </div>
                     </div>
-                </div>
+                    </div>
 
                 {/* ── Mobile search ──────────────────────────────────────────── */}
                 <div style={{ padding: "0 16px 20px", display: "none" }} className="mobile-search">

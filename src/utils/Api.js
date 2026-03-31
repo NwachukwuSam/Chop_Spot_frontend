@@ -6,15 +6,45 @@
 const BASE_URL = "https://delichops-backend-akuq.onrender.com";
 
 // ─── Token helpers ────────────────────────────────────────────────────────────
-const getToken = () =>
-    localStorage.getItem("chopspot_token") ||
-    localStorage.getItem("adminToken") ||
-    "";
+// const getToken = () =>
+//     localStorage.getItem("chopspot_token") ||
+//     localStorage.getItem("adminToken") ||
+//     "";
 
-const buildHeaders = () => ({
-    "Content-Type": "application/json",
-    Authorization: `Bearer ${getToken()}`,
-});
+// const buildHeaders = () => ({
+//     "Content-Type": "application/json",
+//     Authorization: `Bearer ${getToken()}`,
+// });
+
+// ─── Token helpers ────────────────────────────────────────────────────────────
+const TOKEN_KEYS = [
+    "chopspot_token",
+    "adminToken",
+    "accessToken",
+    "token",
+    "tastycart_token",
+    "authToken",
+    "jwt",
+];
+
+const getToken = () => {
+    for (const key of TOKEN_KEYS) {
+        const val = localStorage.getItem(key);
+        if (val) return val;
+    }
+    return "";
+};
+
+const buildHeaders = () => {
+    const token = getToken();
+    if (!token) {
+        console.warn("[API] ⚠️ No auth token found. Checked:", TOKEN_KEYS);
+    }
+    return {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+    };
+};
 
 // ─── 401 handler ──────────────────────────────────────────────────────────────
 function handleUnauthorized() {
@@ -46,7 +76,9 @@ async function request(endpoint, options = {}) {
     }
 
     if (!res.ok) {
-        const msg = data?.message || data?.error || `Request failed: ${res.status}`;
+        // Log the full server response so we can see the real reason
+        console.error(`[API] ${options.method || "GET"} ${endpoint} → ${res.status}`, data);
+        const msg = data?.message || data?.error || data?.detail || `Request failed: ${res.status}`;
         const err = new Error(msg);
         err.status = res.status;
         err.data   = data;
