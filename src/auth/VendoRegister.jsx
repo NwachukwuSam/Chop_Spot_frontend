@@ -1,9 +1,8 @@
 import { useState } from "react";
 import * as API from "../utils/Api";
 
-// ─── Cloudinary Config ────────────────────────────────────────────────────────
-const CLOUDINARY_CLOUD_NAME = "dwqxxunes";
-const CLOUDINARY_UPLOAD_PRESET = "sales_book";
+const CLOUDINARY_CLOUD_NAME    = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME;
+const CLOUDINARY_UPLOAD_PRESET = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET;
 
 const uploadToCloudinary = async (file) => {
     const uploadData = new FormData();
@@ -667,6 +666,8 @@ const Step5 = ({ data }) => {
 // ─── Validation ───────────────────────────────────────────────────────────────
 const canAdvance = (step, data) => {
     if (step === 0) {
+        const emailOk = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(data.email);
+        const pwOk = data.password?.length >= 8;
         const pwMatch = !data.password || !data.confirmPassword || data.password === data.confirmPassword;
         return !!(
             data.restaurantName?.trim() &&
@@ -675,7 +676,9 @@ const canAdvance = (step, data) => {
             data.restaurantPhone?.trim() &&
             data.email?.trim() &&
             data.password?.trim() &&
-            pwMatch
+            pwMatch &&
+            emailOk &&
+            pwOk
         );
     }
     if (step === 1) return !!(data.restaurantAddress?.trim() && (data.openDays || []).length && data.deliveryFromPrice);
