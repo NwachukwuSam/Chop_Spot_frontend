@@ -249,7 +249,12 @@ export const orderApi = {
     // Step 1: create order before payment (returns orderId)
     createOrder: (dto) =>
         request("/api/orders", { method: "POST", body: JSON.stringify(dto) }),
-
+// orderApi
+    setOrderReference: (orderId, paystackReference) =>
+        request(`/api/orders/${orderId}/reference`, {
+            method: "PATCH",
+            body: JSON.stringify({ paystackReference }),
+        }),
     // Step 2: confirm payment after Paystack succeeds
     confirmPayment: (orderId, dto) =>
         request(`/api/orders/${orderId}/confirm-payment`, {

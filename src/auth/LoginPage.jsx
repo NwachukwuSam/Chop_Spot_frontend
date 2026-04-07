@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { useAuth } from "../auth/AuthContext";  // ← AuthContext, not hooks/useAuth
 import { useNavigate, useLocation, Link } from "react-router-dom";
 import { useToast } from "../context/ToastContext";
 import * as API from "../utils/Api";
@@ -62,15 +63,18 @@ function Field({ label, type, value, onChange, placeholder, icon, error, autoCom
 }
 
 // ── route resolver — maps role(s) to the correct dashboard path ───────────────
-function resolveRedirect(roles = [], returnTo = null) {
-    const r = roles.map(s => s.toUpperCase().replace("ROLE_", ""));
-    // Non-customer roles always go to their specific dashboard
-    if (r.includes("ADMIN") || r.includes("SUPER_ADMIN")) return "/admin-dashboard";
-    if (r.includes("VENDOR"))   return "/vendor-dashboard";
-    if (r.includes("RIDER"))    return "/rider-dashboard";
-    // CUSTOMER: go back to wherever they came from (usually "/" to finish checkout)
+const resolveRedirect = (roles = [], returnTo = null) => {
+    const upperRoles = roles.map(r => String(r).toUpperCase().replace("ROLE_", ""));
+
+    if (upperRoles.some(r => ["ADMIN", "SUPER_ADMIN"].includes(r)))
+        return "/admin-dashboard";
+
+    if (upperRoles.includes("VENDOR")) return "/vendor-dashboard";
+    if (upperRoles.includes("RIDER"))  return "/rider-dashboard";
+
+    // Customer → go back to where they came from, or home
     return returnTo || "/";
-}
+};
 
 // ════════════════════════════════════════════════════════════
 // MAIN LOGIN PAGE
@@ -79,6 +83,7 @@ export default function LoginPage() {
     const navigate  = useNavigate();
     const location  = useLocation();
     const toast     = useToast();
+    const { login: authLogin } = useAuth();
 
     // ← returnTo is passed via navigate("/login", { state: { returnTo: "/", openCheckout: true } })
     const returnTo        = location.state?.returnTo       || null;
@@ -111,60 +116,60 @@ export default function LoginPage() {
 
     const handleSubmit = async (e) => {
         e.preventDefault();
-        setApiError(""); setFieldErrors({});
+        setApiError("");
+        setFieldErrors({});
 
         const errs = validate();
-        if (Object.keys(errs).length) { setFieldErrors(errs); triggerShake(); return; }
+        if (Object.keys(errs).length) {
+            setFieldErrors(errs);
+            triggerShake();
+            return;
+        }
 
         setLoading(true);
         try {
             const result = await API.login({ email: email.trim(), password });
-            console.log("🔐 Login response:", result);
 
-            // Store token
             const token = result.accessToken || result.token;
-            if (!token) throw new Error("No access token received from server.");
+            if (!token) throw new Error("No access token received.");
 
+            // Store tokens
             localStorage.setItem("chopspot_token", token);
-            localStorage.setItem("adminToken",    token);
-            localStorage.setItem("token",         token);
+            localStorage.setItem("token", token);
             if (result.refreshToken) localStorage.setItem("refreshToken", result.refreshToken);
 
-            // Store user data
-            const roles    = result.roles || (result.role ? [result.role] : []);
+            // Store user
+            const roles = result.roles || (result.role ? [result.role] : []);
             const userData = {
                 id:        result.userId,
                 email:     result.email,
-                username:  result.username,
                 firstName: result.firstName,
                 lastName:  result.lastName,
+                role:      roles[0] || "",
                 roles,
             };
+            authLogin(token, userData);
+
             localStorage.setItem("chopspot_user", JSON.stringify(userData));
-            console.log("✅ Stored user:", userData);
 
-            // Resolve redirect — customers go back to returnTo (e.g. "/" to open checkout)
-            const redirect = resolveRedirect(roles, returnTo);
-            setDestination(redirect);
+            // Resolve where to go
+            const redirectPath = resolveRedirect(roles, returnTo);
 
-            // Set label for success screen
-            const r = roles.map(s => s.toUpperCase().replace("ROLE_", ""));
-            const label = r.includes("ADMIN") || r.includes("SUPER_ADMIN") ? "Admin Console"
-                : r.includes("VENDOR") ? "Vendor Dashboard"
-                    : r.includes("RIDER")  ? "Rider Dashboard"
-                        : returnTo ? "ChopSpot — let's finish your order! 🛒" : "Home";
-            setRoleLabel(label);
+            // Show success screen
             setSuccess(true);
 
+            // **Important**: Use replace + small delay to avoid race conditions
             setTimeout(() => {
-                console.log("🚀 Redirecting to:", redirect);
-                // Pass openCheckout flag so Home.jsx can auto-open checkout after login
-                navigate(redirect, { state: { openCheckout } });
-            }, 1400);
+                console.log("🚀 Final redirect to:", redirectPath);
+                navigate(redirectPath, {
+                    replace: true,
+                    state: returnTo ? { openCheckout: true } : {}
+                });
+            }, 1200);
 
         } catch (err) {
-            console.error("❌ Login error:", err);
-            const msg = err.message || "Invalid email or password. Please try again.";
+            console.error("Login error:", err);
+            const msg = err.response?.data?.message || err.message || "Invalid email or password.";
             setApiError(msg);
             toast.error(msg);
             triggerShake();
@@ -276,7 +281,7 @@ export default function LoginPage() {
                                 <h2 style={{ fontFamily: "'Sora',sans-serif", fontWeight: 800, fontSize: 24, color: "#0f172a", marginBottom: 8 }}>Welcome back!</h2>
                                 <p style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 14, color: "#64748b" }}>
                                     {returnTo
-                                        ? "Signed in! Taking you back to finish your order…"
+                                        ? "Login successful. Taking you back to finish your order 🛒"
                                         : <>Login successful. Taking you to <strong>{roleLabel}</strong>…</>
                                     }
                                 </p>
