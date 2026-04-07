@@ -1,5 +1,5 @@
 
-import { useAuth } from "../hooks/useAuth";
+import {useAuth} from "../auth/AuthContext.jsx";
 import {vendorApi} from "./Api.js";
 import { useState, useEffect } from "react";
 import VendorRegister from "../auth/VendoRegister.jsx";

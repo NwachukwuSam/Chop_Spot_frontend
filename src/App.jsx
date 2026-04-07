@@ -1,9 +1,12 @@
 import { BrowserRouter, Routes, Route, useNavigate } from 'react-router-dom';
 import { ToastProvider } from './context/ToastContext';
+import { AuthProvider } from './auth/AuthContext';
 import { useEffect } from 'react';
+import ProtectedRoute from './auth/ProtectedRoute.jsx';
+
 import Home from './pages/Home';
 import CustomerDashboard from './dashboards/CustomerDashboard';
-import VendorRegister from './auth/VendoRegister';
+import VendorRegister from './auth/VendoRegister.jsx';
 import VendorDashboard from './dashboards/VendorDashboard';
 import RiderRegister from './auth/RiderRegister';
 import RiderDashboard from './dashboards/RiderDashboard';
@@ -13,63 +16,98 @@ import AccountingDashboard from './dashboards/AccountingDashboard';
 import LoginPage from './auth/LoginPage';
 import RegisterPage from './auth/RegisterPage';
 import ForgotPasswordPage from './auth/ForgotPasswordPage';
+import { useAuth } from './auth/AuthContext';
 
-/**
- * GlobalAuthGuard
- *
- * Listens for the "chopspot:unauthorized" custom event fired by Api.js
- * whenever any authenticated request receives a 401.
- *
- * When it fires, the user's token has expired or been invalidated.
- * We redirect to /login and preserve the current path as returnTo so
- * they land back where they were after re-authenticating.
- */
+export const ROLES = {
+    SUPER_ADMIN: 'SUPER_ADMIN',
+    ADMIN:       'ADMIN',
+    VENDOR:      'VENDOR',
+    RIDER:       'RIDER',
+    CUSTOMER:    'CUSTOMER',
+    ACCOUNTING:  'ACCOUNTING',
+};
+
+// ── Must be rendered INSIDE both BrowserRouter and AuthProvider ───────────────
 function GlobalAuthGuard() {
-    const navigate = useNavigate();
+    const navigate     = useNavigate();
+    const { logout }   = useAuth();
 
     useEffect(() => {
-        const handleUnauthorized = () => {
+        const handle = () => {
             console.warn("🔐 Session expired — redirecting to login");
+            logout();
             navigate("/login", {
-                state: {
-                    returnTo: window.location.pathname,
-                    sessionExpired: true,
-                },
+                state: { returnTo: window.location.pathname, sessionExpired: true },
                 replace: true,
             });
         };
-
-        window.addEventListener("chopspot:unauthorized", handleUnauthorized);
-        return () => window.removeEventListener("chopspot:unauthorized", handleUnauthorized);
-    }, [navigate]);
+        window.addEventListener("chopspot:unauthorized", handle);
+        return () => window.removeEventListener("chopspot:unauthorized", handle);
+    }, [navigate, logout]);
 
     return null;
 }
 
-function App() {
+// ── AppRoutes keeps the router tree clean ────────────────────────────────────
+function AppRoutes() {
     return (
-        <ToastProvider>
-            <BrowserRouter>
-                {/* Sits inside BrowserRouter so it has access to useNavigate */}
-                <GlobalAuthGuard />
+        <>
+            <GlobalAuthGuard />
+            <Routes>
+                {/* Public */}
+                <Route path="/"                    element={<Home />} />
+                <Route path="/login"               element={<LoginPage />} />
+                <Route path="/register"            element={<RegisterPage />} />
+                <Route path="/forgot-password"     element={<ForgotPasswordPage />} />
+                <Route path="/vendor-registration" element={<VendorRegister />} />
+                <Route path="/rider-registration"  element={<RiderRegister />} />
 
-                <Routes>
-                    <Route path="/"                       element={<Home />} />
-                    <Route path="/login"                  element={<LoginPage />} />
-                    <Route path="/register"               element={<RegisterPage />} />
-                    <Route path="/forgot-password"          element={<ForgotPasswordPage />} />
-                    <Route path="/customer-dashboard"     element={<CustomerDashboard />} />
-                    <Route path="/vendor-registration"    element={<VendorRegister />} />
-                    <Route path="/vendor-dashboard"       element={<VendorDashboard />} />
-                    <Route path="/rider-registration"     element={<RiderRegister />} />
-                    <Route path="/rider-dashboard"        element={<RiderDashboard />} />
-                    <Route path="/super-admin-dashboard"  element={<SuperAdminDashboard />} />
-                    <Route path="/admin-dashboard"        element={<AdminDashboard />} />
-                    <Route path="/accounting-dashboard"   element={<AccountingDashboard />} />
-                </Routes>
-            </BrowserRouter>
-        </ToastProvider>
+                {/* Customer */}
+                <Route path="/dashboard" element={
+                    <ProtectedRoute allowedRoles={[ROLES.CUSTOMER]}>
+                        <CustomerDashboard />
+                    </ProtectedRoute>
+                } />
+
+                {/* Staff / Admin */}
+                <Route path="/vendor-dashboard" element={
+                    <ProtectedRoute allowedRoles={[ROLES.VENDOR]}>
+                        <VendorDashboard />
+                    </ProtectedRoute>
+                } />
+                <Route path="/rider-dashboard" element={
+                    <ProtectedRoute allowedRoles={[ROLES.RIDER]}>
+                        <RiderDashboard />
+                    </ProtectedRoute>
+                } />
+                <Route path="/super-admin-dashboard" element={
+                    <ProtectedRoute allowedRoles={[ROLES.SUPER_ADMIN]}>
+                        <SuperAdminDashboard />
+                    </ProtectedRoute>
+                } />
+                <Route path="/admin-dashboard" element={
+                    <ProtectedRoute allowedRoles={[ROLES.ADMIN]}>
+                        <AdminDashboard />
+                    </ProtectedRoute>
+                } />
+                <Route path="/accounting-dashboard" element={
+                    <ProtectedRoute allowedRoles={[ROLES.ACCOUNTING]}>
+                        <AccountingDashboard />
+                    </ProtectedRoute>
+                } />
+            </Routes>
+        </>
     );
 }
 
-export default App;
+export default function App() {
+    return (
+        <ToastProvider>
+            <AuthProvider>
+                <BrowserRouter>
+                    <AppRoutes />
+                </BrowserRouter>
+            </AuthProvider>
+        </ToastProvider>
+    );
+}
