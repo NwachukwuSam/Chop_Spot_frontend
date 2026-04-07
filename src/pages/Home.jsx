@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import * as API from "../utils/Api";
 import Dashboard from "../dashboards/CustomerDashboard";
@@ -22,10 +22,10 @@ export default function Home() {
     const navigate = useNavigate();
     const location = useLocation();
 
-    // ── Auth ─────────────────────────────────────────────────────────────────
+    // ── Auth ──────────────────────────────────────────────────────────────────
     const { isLoggedIn, userId, user, logout, refresh } = useAuth();
 
-    // ── Cart ─────────────────────────────────────────────────────────────────
+    // ── Cart ──────────────────────────────────────────────────────────────────
     const {
         cartGroups,
         cartLoading: cartSyncing,
@@ -39,13 +39,9 @@ export default function Home() {
     const toast = useToast();
 
     // ── User profile (API-backed) ─────────────────────────────────────────────
-    // FIX: Home.jsx previously never called useUserProfile, so the profile
-    // was always the old localStorage shape. Now we fetch the real UserProfile
-    // from GET /api/users/profile on login and pass it to CheckoutModal and
-    // ProfileAvatar so pre-fill works correctly.
     const { profile, saveProfile } = useUserProfile({ isLoggedIn });
 
-    // ── UI state ─────────────────────────────────────────────────────────────
+    // ── UI state ──────────────────────────────────────────────────────────────
     const [vendors,        setVendors]        = useState([]);
     const [loading,        setLoading]        = useState(true);
     const [error,          setError]          = useState(null);
@@ -55,7 +51,12 @@ export default function Home() {
     const [showCheckout,   setShowCheckout]   = useState(false);
     const [showPayment,    setShowPayment]    = useState(false);
     const [orderInfo,      setOrderInfo]      = useState(null);
+    const [orderReady,     setOrderReady]     = useState(false);  // ← NEW
     const [showDashboard,  setShowDashboard]  = useState(false);
+
+    // Set to true once Paystack onSuccess fires — stops handlePaymentClose
+    // from trying to cancel an already-completed order
+    const paymentConfirmedRef = useRef(false);
 
     // ── After returning from login ────────────────────────────────────────────
     useEffect(() => {
@@ -130,98 +131,148 @@ export default function Home() {
         setShowCheckout(true);
     };
 
-    const handlePay = async (info) => {
+    /**
+     * handlePay — called when user submits the checkout form.
+     *
+     * THE KEY FIX:
+     * Previously this awaited createOrder() BEFORE showing PaymentModal.
+     * That meant PaymentModal mounted after an async gap, breaking Chrome's
+     * user-gesture chain and silently blocking Paystack's openIframe().
+     *
+     * New flow:
+     *   1. Compute order totals synchronously
+     *   2. Open PaymentModal IMMEDIATELY (synchronous setState)
+     *      → PaymentModal shows with Pay button disabled ("Preparing order…")
+     *   3. Create order in background (async, doesn't block the modal)
+     *   4. On success: set orderInfo.orderId + flip orderReady=true
+     *      → Pay button becomes enabled
+     *   5. User clicks Pay → openIframe() fires in the same gesture chain
+     *      as their click → browser allows it
+     */
+    const handlePay = (info) => {
         if (info.saveDetails) {
             saveProfile({
-                whatsapp: info.whatsapp,
-                hostel: info.hostel,
-                room: info.room,
+                whatsapp:                info.whatsapp,
+                hostel:                  info.hostel,
+                room:                    info.room,
                 defaultDeliveryLocation: info.location?.value,
             });
         }
 
-        // ── Step 1: Create the order NOW (before payment) ──────────────
-        const loadingId = toast.loading("Creating your order…");
-        try {
-            const firstGroup   = cartGroups[0] || {};
-            const packagePrice = firstGroup.pack?.price || 0;
-            const packageName  = firstGroup.pack?.name  || null;
-            const itemsSubtotal = cartGroups.reduce(
-                (s, g) => s + g.items.reduce((a, i) => a + i.price * i.qty, 0), 0
-            );
-            const subtotal    = itemsSubtotal + packagePrice;
-            const deliveryFee = info.location?.fee || DELIVERY_FEE;
-            const totalAmount = subtotal + deliveryFee;
+        // Compute totals synchronously
+        const firstGroup    = cartGroups[0] || {};
+        const packagePrice  = firstGroup.pack?.price || 0;
+        const packageName   = firstGroup.pack?.name  || null;
+        const itemsSubtotal = cartGroups.reduce(
+            (s, g) => s + g.items.reduce((a, i) => a + i.price * i.qty, 0), 0
+        );
+        const subtotal    = itemsSubtotal + packagePrice;
+        const deliveryFee = info.location?.fee || DELIVERY_FEE;
+        const totalAmount = subtotal + deliveryFee;
 
-            const orderPayload = {
-                vendorId:        firstGroup.vendor?.id || null,
-                items: cartGroups.flatMap(g =>
-                    g.items.map(i => ({
-                        menuItemId: i.id,
-                        name:       i.name,
-                        price:      i.price,
-                        quantity:   i.qty,
-                    }))
-                ),
-                packageName,
-                packagePrice,
-                subtotal,
-                deliveryFee,
-                totalAmount,
-                deliveryLocation: info.location?.label || "",
-                hostel:           info.hostel           || "",
-                room:             info.room             || "",
-                whatsappNumber:   info.whatsapp         || "",
-                paymentMethod:    "CARD",
-            };
+        // ── STEP 1: Open PaymentModal immediately (synchronous) ───────────────
+        // orderReady=false → Pay button shows "Preparing order…" and is disabled
+        paymentConfirmedRef.current = false;
+        setOrderInfo({ ...info, orderTotal: totalAmount, orderId: null });
+        setOrderReady(false);
+        setShowCheckout(false);
+        setShowPayment(true);  // ← synchronous, no await before this line
 
-            const createdOrder = await API.orderApi.createOrder(orderPayload);
-            toast.dismiss(loadingId);
+        // ── STEP 2: Create order in background ───────────────────────────────
+        const orderPayload = {
+            vendorId: firstGroup.vendor?.id || null,
+            items: cartGroups.flatMap(g =>
+                g.items.map(i => ({
+                    menuItemId: i.id,
+                    name:       i.name,
+                    price:      i.price,
+                    quantity:   i.qty,
+                }))
+            ),
+            packageName,
+            packagePrice,
+            subtotal,
+            deliveryFee,
+            totalAmount,
+            deliveryLocation: info.location?.label || "",
+            hostel:           info.hostel           || "",
+            room:             info.room             || "",
+            whatsappNumber:   info.whatsapp         || "",
+            paymentMethod:    "CARD",
+        };
 
-            // Pass orderId + orderInfo into payment modal
-            setOrderInfo({ ...info, orderId: createdOrder.id, orderTotal: totalAmount });
-            setShowCheckout(false);
-            setShowPayment(true);
-        } catch (err) {
-            toast.dismiss(loadingId);
-            toast.error(err.message || "Could not create order. Please try again.");
-        }
+        API.orderApi.createOrder(orderPayload)
+            .then(createdOrder => {
+                // Order created — update orderId and enable Pay button
+                setOrderInfo(prev => ({ ...prev, orderId: createdOrder.id }));
+                setOrderReady(true);
+            })
+            .catch(err => {
+                // Order creation failed — close modal and show error
+                setShowPayment(false);
+                setOrderInfo(null);
+                setOrderReady(false);
+                toast.error(err.message || "Could not prepare order. Please try again.");
+            });
     };
 
+    /**
+     * handleConfirm — called by PaymentModal immediately after Paystack onSuccess.
+     * Fire-and-forget from PaymentModal's perspective.
+     */
     const handleConfirm = async (paystackReference, paymentMethod = "CARD") => {
-        const loadingId = toast.loading("Confirming your payment…");
+        console.log("🔥 handleConfirm called");
+        // Mark confirmed synchronously so handlePaymentClose doesn't cancel the order
+        paymentConfirmedRef.current = true;
+
+        // Clear cart + close modal optimistically
+        clearCart();
+        toast.success("Order confirmed! 🎉 We'll WhatsApp you when it's ready.", 7000);
+
+        // Confirm with backend in background
         try {
-            await API.orderApi.confirmPayment(orderInfo.orderId, {
+            await API.orderApi.confirmPayment(orderInfo?.orderId, {
                 paystackReference,
                 paymentMethod,
             });
-            await clearCart();
-            toast.dismiss(loadingId);
-            toast.success("Order confirmed! 🎉 We'll WhatsApp you when it's ready.", 7000);
         } catch (err) {
-            toast.dismiss(loadingId);
-            toast.error(
-                err.message ||
-                "Payment received but confirmation failed. Contact support with your reference."
-            );
+            console.error("confirmPayment failed:", err);
+            if (!err.message?.includes("already paid")) {
+                toast.error("Payment received but confirmation had an issue. Contact support if your order doesn't appear.");
+            }
+        } finally {
+            setOrderInfo(null);
+            setOrderReady(false);
+            paymentConfirmedRef.current = false;
         }
     };
 
     const handlePaymentClose = async () => {
         setShowPayment(false);
-        // Cancel the pending order if user backs out
-        if (orderInfo?.orderId) {
+
+        if (paymentConfirmedRef.current) {
+            setOrderInfo(null);
+            setOrderReady(false);
+            paymentConfirmedRef.current = false;
+            return;
+        }
+
+        // User closed without paying — cancel the pending order if it was created
+        const orderId = orderInfo?.orderId;
+        setOrderInfo(null);
+        setOrderReady(false);
+
+        if (orderId) {
             try {
-                await API.orderApi.cancelOrder(orderInfo.orderId);
+                await API.orderApi.cancelOrder(orderId);
                 toast.info("Order cancelled. Your cart is still saved.");
-            } catch (_) {
-                // silent — order stays as PENDING_PAYMENT, will expire/be cleaned up
+            } catch (err) {
+                console.warn("Could not cancel order on close:", err.message);
             }
         }
-        setOrderInfo(null);
     };
 
-    const handleLogin  = () => navigate("/login", { state: { returnTo: "/" } });
+    const handleLogin = () => navigate("/login", { state: { returnTo: "/" } });
 
     // ── Dashboard full-screen takeover ────────────────────────────────────────
     if (showDashboard) {
@@ -263,7 +314,7 @@ export default function Home() {
 
             <div style={{ position: "relative", zIndex: 1, minHeight: "100vh" }}>
 
-                {/* ── Navbar ─────────────────────────────────────────────────── */}
+                {/* ── Navbar ───────────────────────────────────────────────────── */}
                 <nav style={{ background: "rgba(20,42,20,0.96)", backdropFilter: "blur(20px)", padding: "0 28px", height: 68, display: "flex", alignItems: "center", justifyContent: "space-between", borderBottom: "1px solid rgba(255,255,255,0.07)", position: "sticky", top: 0, zIndex: 800, boxShadow: "0 2px 24px rgba(0,0,0,0.25)" }}>
 
                     <div style={{ display: "flex", alignItems: "center", gap: 10, flexShrink: 0 }}>
@@ -281,22 +332,12 @@ export default function Home() {
                     </div>
 
                     <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-
-                        {/* Search (desktop) */}
                         <div style={{ background: "rgba(255,255,255,0.09)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 50, display: "flex", alignItems: "center", padding: "6px 14px", gap: 8, width: 190 }} className="nav-search">
                             <svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="rgba(255,255,255,0.45)" strokeWidth="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
-                            <input
-                                value={search}
-                                onChange={e => setSearch(e.target.value)}
-                                placeholder="search"
-                                style={{ border: "none", background: "transparent", outline: "none", color: "white", fontFamily: "'DM Sans',sans-serif", fontSize: 13, width: "100%" }}
-                            />
-                            {search && (
-                                <button onClick={() => setSearch("")} style={{ background: "none", border: "none", cursor: "pointer", color: "rgba(255,255,255,0.4)", fontSize: 16, lineHeight: 1, flexShrink: 0 }}>×</button>
-                            )}
+                            <input value={search} onChange={e => setSearch(e.target.value)} placeholder="search" style={{ border: "none", background: "transparent", outline: "none", color: "white", fontFamily: "'DM Sans',sans-serif", fontSize: 13, width: "100%" }} />
+                            {search && <button onClick={() => setSearch("")} style={{ background: "none", border: "none", cursor: "pointer", color: "rgba(255,255,255,0.4)", fontSize: 16, lineHeight: 1, flexShrink: 0 }}>×</button>}
                         </div>
 
-                        {/* Cart icon */}
                         <button
                             onClick={() => setShowCart(true)}
                             title={cartSyncing ? "Syncing your cart…" : "View cart"}
@@ -315,7 +356,6 @@ export default function Home() {
                             )}
                         </button>
 
-                        {/* Profile avatar — now receives API profile, not old localStorage shape */}
                         <ProfileAvatar
                             profile={profile}
                             isLoggedIn={isLoggedIn}
@@ -326,7 +366,7 @@ export default function Home() {
                     </div>
                 </nav>
 
-                {/* ── Hero ───────────────────────────────────────────────────── */}
+                {/* ── Hero ─────────────────────────────────────────────────────── */}
                 <div style={{ position: "relative", overflow: "hidden", minHeight: 420, display: "flex", alignItems: "center" }}>
                     <div style={{ position: "absolute", top: -80, right: -80, width: 400, height: 400, borderRadius: "50%", background: "rgba(249,115,22,0.10)", filter: "blur(60px)", pointerEvents: "none" }}/>
                     <div style={{ position: "absolute", bottom: -60, left: -60, width: 300, height: 300, borderRadius: "50%", background: "rgba(45,138,45,0.12)", filter: "blur(50px)", pointerEvents: "none" }}/>
@@ -339,58 +379,22 @@ export default function Home() {
                                 You. 🔥
                             </h1>
                             <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
-                                <button
-                                    onClick={() => document.getElementById("restaurant-grid")?.scrollIntoView({ behavior: "smooth" })}
-                                    style={{ background: "linear-gradient(135deg,#2d8a2d,#4caf50)", color: "white", border: "none", borderRadius: 50, padding: "14px 30px", fontFamily: "'Sora',sans-serif", fontWeight: 800, fontSize: 14, cursor: "pointer", boxShadow: "0 4px 20px rgba(45,138,45,0.38)", transition: "transform 0.18s" }}
-                                    onMouseEnter={e => e.currentTarget.style.transform = "scale(1.03)"}
-                                    onMouseLeave={e => e.currentTarget.style.transform = "scale(1)"}
-                                >Order Now →</button>
-                                <button
-                                    style={{ background: "transparent", color: "#2d8a2d", border: "2px solid #2d8a2d", borderRadius: 50, padding: "14px 28px", fontFamily: "'Sora',sans-serif", fontWeight: 700, fontSize: 14, cursor: "pointer", transition: "all 0.18s" }}
-                                    onMouseEnter={e => { e.currentTarget.style.background = "#2d8a2d"; e.currentTarget.style.color = "white"; }}
-                                    onMouseLeave={e => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "#2d8a2d"; }}
-                                >See Menu</button>
-                            </div>
-                        </div>
-
-                        <div style={{ flex: "0 0 auto", position: "relative", zIndex: 1, display: "flex", alignItems: "center", justifyContent: "center" }} className="hero-image-col">
-                            <div style={{ position: "absolute", width: "clamp(260px,35vw,420px)", height: "clamp(260px,35vw,420px)", borderRadius: "50%", background: "linear-gradient(135deg,rgba(249,115,22,0.15),rgba(45,138,45,0.15))", filter: "blur(2px)" }}/>
-                            <div style={{ position: "absolute", width: "clamp(280px,37vw,440px)", height: "clamp(280px,37vw,440px)", borderRadius: "50%", border: "2px dashed rgba(45,138,45,0.20)" }}/>
-                            <div style={{ width: "clamp(220px,30vw,360px)", height: "clamp(220px,30vw,360px)", borderRadius: "50%", overflow: "hidden", boxShadow: "0 20px 60px rgba(0,0,0,0.18), 0 0 0 6px rgba(255,255,255,0.6)", position: "relative", zIndex: 2 }}>
-                                <img src="https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?w=600&q=80" alt="Delicious food" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-                            </div>
-                            <div style={{ position: "absolute", top: "8%", left: "-5%", background: "white", borderRadius: 16, padding: "10px 16px", boxShadow: "0 8px 24px rgba(0,0,0,0.12)", display: "flex", alignItems: "center", gap: 8, zIndex: 3, animation: "floatA 3s ease-in-out infinite" }}>
-                                <span style={{ fontSize: 20 }}>🍔</span>
-                                <div>
-                                    <p style={{ margin: 0, fontFamily: "'Sora',sans-serif", fontWeight: 800, fontSize: 12, color: "#1a2e1a" }}>Burger King</p>
-                                    <p style={{ margin: 0, fontSize: 10, color: "#f97316", fontWeight: 600 }}>Ready in 15 min</p>
-                                </div>
-                            </div>
-                            <div style={{ position: "absolute", bottom: "10%", right: "-8%", background: "linear-gradient(135deg,#2d8a2d,#4caf50)", borderRadius: 16, padding: "10px 16px", boxShadow: "0 8px 24px rgba(45,138,45,0.35)", display: "flex", alignItems: "center", gap: 8, zIndex: 3, animation: "floatB 3.5s ease-in-out infinite" }}>
-                                <span style={{ fontSize: 18 }}>⭐</span>
-                                <div>
-                                    <p style={{ margin: 0, fontFamily: "'Sora',sans-serif", fontWeight: 800, fontSize: 12, color: "white" }}>Top Rated</p>
-                                    <p style={{ margin: 0, fontSize: 10, color: "rgba(255,255,255,0.8)", fontWeight: 600 }}>4.9 / 5.0</p>
-                                </div>
+                                <button onClick={() => document.getElementById("restaurant-grid")?.scrollIntoView({ behavior: "smooth" })} style={{ background: "linear-gradient(135deg,#2d8a2d,#4caf50)", color: "white", border: "none", borderRadius: 50, padding: "14px 30px", fontFamily: "'Sora',sans-serif", fontWeight: 800, fontSize: 14, cursor: "pointer", boxShadow: "0 4px 20px rgba(45,138,45,0.38)", transition: "transform 0.18s" }} onMouseEnter={e => e.currentTarget.style.transform = "scale(1.03)"} onMouseLeave={e => e.currentTarget.style.transform = "scale(1)"}>Order Now →</button>
+                                <button onClick={handleLogin} style={{ background: "rgba(255,255,255,0.08)", color: "#1a2e1a", border: "1.5px solid rgba(45,138,45,0.2)", borderRadius: 50, padding: "14px 28px", fontFamily: "'Sora',sans-serif", fontWeight: 700, fontSize: 14, cursor: "pointer", transition: "all 0.18s" }} onMouseEnter={e => e.currentTarget.style.background = "rgba(45,138,45,0.08)"} onMouseLeave={e => e.currentTarget.style.background = "rgba(255,255,255,0.08)"}>Sign In</button>
                             </div>
                         </div>
                     </div>
                 </div>
 
-                {/* ── Mobile search ──────────────────────────────────────────── */}
+                {/* ── Mobile search ────────────────────────────────────────────── */}
                 <div style={{ padding: "0 16px 20px", display: "none" }} className="mobile-search">
                     <div style={{ width: "100%", background: "rgba(255,255,255,0.92)", backdropFilter: "blur(12px)", borderRadius: 50, boxShadow: "0 4px 20px rgba(20,80,20,0.11)", display: "flex", alignItems: "center", padding: "4px 16px", border: "1.5px solid rgba(45,138,45,0.18)" }}>
                         <svg width="17" height="17" fill="none" viewBox="0 0 24 24" stroke="#2d8a2d" strokeWidth="2" style={{ flexShrink: 0 }}><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
-                        <input
-                            value={search}
-                            onChange={e => setSearch(e.target.value)}
-                            placeholder="Search restaurants..."
-                            style={{ border: "none", flex: 1, padding: "9px 10px", fontSize: 14, fontFamily: "'DM Sans',sans-serif", background: "transparent", color: "#1a2e1a", outline: "none" }}
-                        />
+                        <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search restaurants..." style={{ border: "none", flex: 1, padding: "9px 10px", fontSize: 14, fontFamily: "'DM Sans',sans-serif", background: "transparent", color: "#1a2e1a", outline: "none" }} />
                     </div>
                 </div>
 
-                {/* ── Vendor grid ─────────────────────────────────────────────── */}
+                {/* ── Vendor grid ──────────────────────────────────────────────── */}
                 <div style={{ padding: "0 16px 80px", maxWidth: 1280, margin: "0 auto" }}>
                     <h2 id="restaurant-grid" style={{ fontFamily: "'Sora',sans-serif", fontWeight: 700, fontSize: 18, color: "#1a2e1a", marginBottom: 14, padding: "0 4px" }}>
                         {search ? `Results for "${search}"` : "All Restaurants"}
@@ -419,22 +423,15 @@ export default function Home() {
                     ) : (
                         <div style={{ display: "grid", gap: 14 }} className="vendor-grid">
                             {filtered.map(v => (
-                                <VendorCard
-                                    key={v.id || v._id}
-                                    vendor={v}
-                                    onClick={handleVendorClick}
-                                />
+                                <VendorCard key={v.id || v._id} vendor={v} onClick={handleVendorClick} />
                             ))}
                         </div>
                     )}
                 </div>
 
-                {/* ── FAB cart button ──────────────────────────────────────────── */}
+                {/* ── FAB cart ─────────────────────────────────────────────────── */}
                 {(totalCartItems > 0 || cartSyncing) && (
-                    <div
-                        onClick={() => !cartSyncing && setShowCart(true)}
-                        style={{ position: "fixed", bottom: 28, right: 28, zIndex: 700, background: cartSyncing ? "linear-gradient(135deg,#94a3b8,#cbd5e1)" : "linear-gradient(135deg,#f97316,#fb923c)", borderRadius: 50, padding: "14px 22px", display: "flex", alignItems: "center", gap: 8, cursor: cartSyncing ? "default" : "pointer", boxShadow: cartSyncing ? "0 6px 24px rgba(0,0,0,0.15)" : "0 6px 24px rgba(249,115,22,0.45)", color: "white", fontWeight: 800, fontFamily: "'Sora',sans-serif", fontSize: 15, animation: "mIn 0.3s cubic-bezier(.34,1.56,.64,1)", transition: "background 0.3s" }}
-                    >
+                    <div onClick={() => !cartSyncing && setShowCart(true)} style={{ position: "fixed", bottom: 28, right: 28, zIndex: 700, background: cartSyncing ? "linear-gradient(135deg,#94a3b8,#cbd5e1)" : "linear-gradient(135deg,#f97316,#fb923c)", borderRadius: 50, padding: "14px 22px", display: "flex", alignItems: "center", gap: 8, cursor: cartSyncing ? "default" : "pointer", boxShadow: cartSyncing ? "0 6px 24px rgba(0,0,0,0.15)" : "0 6px 24px rgba(249,115,22,0.45)", color: "white", fontWeight: 800, fontFamily: "'Sora',sans-serif", fontSize: 15, animation: "mIn 0.3s cubic-bezier(.34,1.56,.64,1)", transition: "background 0.3s" }}>
                         {cartSyncing
                             ? <><svg width="16" height="16" viewBox="0 0 24 24" fill="none" style={{ animation: "spin 0.8s linear infinite" }}><circle cx="12" cy="12" r="10" stroke="rgba(255,255,255,0.3)" strokeWidth="3"/><path d="M12 2a10 10 0 0110 10" stroke="white" strokeWidth="3" strokeLinecap="round"/></svg> Syncing cart…</>
                             : <>🛒 View Cart · {totalCartItems}</>
@@ -442,47 +439,27 @@ export default function Home() {
                     </div>
                 )}
 
-                {/* ── WhatsApp support button ──────────────────────────────────── */}
-                <a
-                    href="https://wa.me/2348000000000"
-                    target="_blank"
-                    rel="noreferrer"
-                    style={{ position: "fixed", bottom: 28, left: 28, zIndex: 700, background: "#25D366", borderRadius: 50, padding: "10px 18px", display: "flex", alignItems: "center", gap: 8, boxShadow: "0 4px 16px rgba(37,211,102,0.35)", color: "white", fontWeight: 700, fontSize: 13, fontFamily: "'DM Sans',sans-serif", textDecoration: "none" }}
-                >
+                {/* ── WhatsApp ─────────────────────────────────────────────────── */}
+                <a href="https://wa.me/2348000000000" target="_blank" rel="noreferrer" style={{ position: "fixed", bottom: 28, left: 28, zIndex: 700, background: "#25D366", borderRadius: 50, padding: "10px 18px", display: "flex", alignItems: "center", gap: 8, boxShadow: "0 4px 16px rgba(37,211,102,0.35)", color: "white", fontWeight: 700, fontSize: 13, fontFamily: "'DM Sans',sans-serif", textDecoration: "none" }}>
                     <svg width="18" height="18" fill="white" viewBox="0 0 24 24"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
                     Contact ChopSpot
                 </a>
             </div>
 
-            {/* ── Modals ──────────────────────────────────────────────────────── */}
+            {/* ── Modals ───────────────────────────────────────────────────────── */}
             {selectedVendor && (
-                <VendorModal
-                    vendor={selectedVendor}
-                    onClose={() => setSelectedVendor(null)}
-                    onGoToCart={handleGoToCart}
-                />
+                <VendorModal vendor={selectedVendor} onClose={() => setSelectedVendor(null)} onGoToCart={handleGoToCart} />
             )}
             {showCart && (
-                <CartModal
-                    cartGroups={cartGroups}
-                    onClose={() => setShowCart(false)}
-                    onCheckout={handleCheckout}
-                    onRemoveGroup={removeGroup}
-                />
+                <CartModal cartGroups={cartGroups} onClose={() => setShowCart(false)} onCheckout={handleCheckout} onRemoveGroup={removeGroup} />
             )}
             {showCheckout && (
-                // FIX: passes API profile (from useUserProfile) not old localStorage shape.
-                // CheckoutModal handles both firstName+lastName and fullName gracefully.
-                <CheckoutModal
-                    totalAmount={cartTotal}
-                    profile={profile}
-                    onClose={() => setShowCheckout(false)}
-                    onPay={handlePay}
-                />
+                <CheckoutModal totalAmount={cartTotal} profile={profile} onClose={() => setShowCheckout(false)} onPay={handlePay} />
             )}
             {showPayment && (
                 <PaymentModal
                     orderInfo={orderInfo}
+                    orderReady={orderReady}
                     userEmail={user?.email}
                     onClose={handlePaymentClose}
                     onConfirm={handleConfirm}
