@@ -222,7 +222,7 @@ export default function LoginPage() {
                     <div style={{ position: "relative", zIndex: 10 }}>
                         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                             <div style={{ width: 40, height: 40, borderRadius: 12, background: "linear-gradient(135deg,#2d8a2d,#4caf50)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20, boxShadow: "0 4px 16px rgba(45,138,45,0.4)" }}>🍽️</div>
-                            <span style={{ fontFamily: "'Sora',sans-serif", fontWeight: 800, fontSize: 20, color: "white", letterSpacing: -0.5 }}>ChopSpot</span>
+                            <span style={{ fontFamily: "'Sora',sans-serif", fontWeight: 800, fontSize: 20, color: "white", letterSpacing: -0.5 }}>TastyCart</span>
                         </div>
                     </div>
 
@@ -290,7 +290,7 @@ export default function LoginPage() {
                             <>
                                 <div style={{ marginBottom: 36 }}>
                                     <h2 style={{ fontFamily: "'Sora',sans-serif", fontWeight: 800, fontSize: "clamp(1.6rem,3vw,2.1rem)", color: "#0f172a", lineHeight: 1.15, marginBottom: 8 }}>
-                                        Sign in to ChopSpot
+                                        Sign in to TastyCart
                                     </h2>
                                     <p style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 14, color: "#64748b", lineHeight: 1.6 }}>
                                         {returnTo

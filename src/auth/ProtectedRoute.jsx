@@ -57,11 +57,37 @@ const ProtectedRoute = ({ children, allowedRoles = [] }) => {
         );
     }
 
+    // Check role permissions
+    if (allowedRoles && !allowedRoles.includes(user.role)) {
+      // Redirect based on user's actual role
+      switch (user.role) {
+        case "super_admin":
+          navigate("/super-admin-dashboard", { replace: true });
+          break;
+        case "admin":
+          navigate("/admin-dashboard", { replace: true });
+          break;
+        case "vendor":
+          navigate("/vendor-dashboard", { replace: true });
+          break;
+        case "RIDER":
+          navigate("/rider-dashboard", { replace: true });
+          break;
+        case "customer":
+          navigate("/customer-dashboard", { replace: true });
+          break;
+        case "accounting":
+          navigate("/accounting-dashboard", { replace: true });
+          break;
+        default:
+          navigate("/", { replace: true });
+      }
+      return;
     // Not authenticated
     if (!user && !isAuthenticated) {
         return null;
     }
-
+  }
     return children;
 };
 
