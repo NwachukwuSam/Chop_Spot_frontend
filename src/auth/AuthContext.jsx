@@ -16,30 +16,32 @@ export const AuthProvider = ({ children }) => {
   const [error, setError] = useState(null);
 
   useEffect(() => {
-    const loadUser = async () => {
-      try {
-        const token = localStorage.getItem('token');
-        const userRole = localStorage.getItem('userRole');
-        const userData = localStorage.getItem('userData');
+      const loadUser = async () => {
+          try {
+              // Read from either key name — LoginPage writes both
+              const token    = localStorage.getItem('token') || localStorage.getItem('chopspot_token');
+              const userRole = localStorage.getItem('userRole');
+              const userData = localStorage.getItem('userData') || localStorage.getItem('chopspot_user');
 
-        if (token && userRole && userData) {
-          setUser({
-            token,
-            role: userRole,
-            ...JSON.parse(userData)
-          });
-        }
-      } catch (err) {
-        console.error('Error loading user data:', err);
-        setError('Failed to load user data');
-        // Clear invalid data
-        localStorage.removeItem('token');
-        localStorage.removeItem('userRole');
-        localStorage.removeItem('userData');
-      } finally {
-        setLoading(false);
-      }
-    };
+              if (token && userData) {
+                  const parsed = JSON.parse(userData);
+                  setUser({
+                      token,
+                      role: userRole || parsed.role || (parsed.roles?.[0] ?? ""),
+                      ...parsed,
+                  });
+              }
+          } catch (err) {
+              console.error('Error loading user data:', err);
+              localStorage.removeItem('token');
+              localStorage.removeItem('chopspot_token');
+              localStorage.removeItem('userRole');
+              localStorage.removeItem('userData');
+              localStorage.removeItem('chopspot_user');
+          } finally {
+              setLoading(false);
+          }
+      };
 
     loadUser();
   }, []);
@@ -59,21 +61,20 @@ export const AuthProvider = ({ children }) => {
     }
   }, []);
 
-  const logout = useCallback(() => {
-    try {
-      localStorage.removeItem('token');
-      localStorage.removeItem('userRole');
-      localStorage.removeItem('userData');
-      setUser(null);
-      setError(null);
-      // Optionally dispatch event for any cleanup
-      window.dispatchEvent(new CustomEvent('chopspot:logout'));
-      return true;
-    } catch (err) {
-      console.error('Logout error:', err);
-      return false;
-    }
-  }, []);
+    const logout = useCallback(() => {
+        try {
+            // Clear all variants so both auth systems are wiped
+            ['token', 'chopspot_token', 'userRole', 'userData', 'chopspot_user',
+                'refreshToken', 'adminToken'].forEach(k => localStorage.removeItem(k));
+            setUser(null);
+            setError(null);
+            window.dispatchEvent(new CustomEvent('chopspot:logout'));
+            return true;
+        } catch (err) {
+            console.error('Logout error:', err);
+            return false;
+        }
+    }, []);
 
   const updateUser = useCallback((updatedData) => {
     if (user) {
