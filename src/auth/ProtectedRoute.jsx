@@ -35,7 +35,7 @@ const ProtectedRoute = ({ children, allowedRoles }) => {
         case "vendor":
           navigate("/vendor-dashboard", { replace: true });
           break;
-        case "rider":
+        case "RIDER":
           navigate("/rider-dashboard", { replace: true });
           break;
         case "customer":
