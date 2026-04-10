@@ -1,39 +1,48 @@
-
-import {useAuth} from "../auth/AuthContext.jsx";
+import { useAuth } from "../auth/AuthContext.jsx";
 import {vendorApi} from "./Api.js";
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import VendorRegister from "../auth/VendoRegister.jsx";
 import VendorDashboard from "../dashboards/VendorDashboard.jsx";
+
 /**
  * VendorApp
- * Drop this anywhere in your React app.
- * It reads `chopspot_vendor` from localStorage.
- * If found → show Dashboard. Otherwise → show Registration.
- * Pass `onExitToHome` prop to add a "Back to Home" button.
+ * Rendered at /vendor-dashboard via ProtectedRoute.
+ * On mount: fetches the vendor profile for the logged-in user.
+ *   - If profile exists → show Dashboard
+ *   - If not → show Registration (first-time setup)
  */
-export default function VendorApp({ onExitToHome }) {
-    const { isLoggedIn, user } = useAuth();
-    const [vendor, setVendor] = useState(null);
-    const [loading, setLoading] = useState(true);
+export default function VendorApp() {
+    const auth       = useAuth();
+    // Normalise across both hook shapes (isLoggedIn vs isAuthenticated)
+    const isLoggedIn = auth.isLoggedIn ?? auth.isAuthenticated ?? false;
+    const logout     = auth.logout;
+
+    const navigate   = useNavigate();
+    const [vendor,   setVendor]  = useState(null);
+    const [loading,  setLoading] = useState(true);
 
     useEffect(() => {
-        if (!isLoggedIn) { setLoading(false); return; }
+        if (!isLoggedIn) {
+            navigate("/login", { replace: true });
+            return;
+        }
         vendorApi.getProfile()
-            .then(setVendor)
-            .catch(() => setVendor(null))
+            .then(raw => setVendor(raw))
+            .catch(() => setVendor(null))   // 404 = no profile yet → show registration
             .finally(() => setLoading(false));
-    }, [isLoggedIn]);
+    }, [isLoggedIn, navigate]);
 
-    if (loading) return <LoadingScreen />;
+    if (loading) return (
+        <div style={{ minHeight:"100vh", display:"flex", alignItems:"center", justifyContent:"center", flexDirection:"column", gap:16, background:"#f8fdf8" }}>
+            <div style={{ width:52, height:52, borderRadius:"50%", border:"3px solid #d6ebd6", borderTopColor:"#2d8a2d", animation:"spin .7s linear infinite" }} />
+            <p style={{ fontFamily:"'DM Sans',sans-serif", fontWeight:700, color:"#2d8a2d", fontSize:15 }}>Loading…</p>
+            <style>{`@keyframes spin { to { transform:rotate(360deg) } }`}</style>
+        </div>
+    );
 
-    // Not logged in → send to login
-    if (!isLoggedIn) {
-        window.location.href = "/login";
-        return null;
-    }
-
-    // Logged in but no vendor profile → show registration
+    // No vendor profile yet → first-time registration
     if (!vendor) return <VendorRegister onSuccess={setVendor} />;
 
-    return <VendorDashboard initialVendor={vendor} onLogout={onExitToHome} />;
+    return <VendorDashboard initialVendor={vendor} onLogout={logout} />;
 }
