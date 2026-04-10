@@ -7,9 +7,9 @@ import ProtectedRoute from './auth/ProtectedRoute.jsx';
 import Home from './pages/Home';
 import CustomerDashboard from './dashboards/CustomerDashboard';
 import VendorRegister from './auth/VendoRegister.jsx';
-import VendorDashboard from './dashboards/VendorDashboard';
+import VendorApp from "./utils/VendorApp.jsx";
 import RiderRegister from './auth/RiderRegister';
-import RiderDashboard from './dashboards/RiderDashboard';
+import RiderApp  from './utils/RiderApp';
 import SuperAdminDashboard from './dashboards/SuperAdminDashboard';
 import AdminDashboard from './dashboards/AdminDashboard';
 import AccountingDashboard from './dashboards/AccountingDashboard';
@@ -72,12 +72,12 @@ function AppRoutes() {
                 {/* Staff / Admin */}
                 <Route path="/vendor-dashboard" element={
                     <ProtectedRoute allowedRoles={[ROLES.VENDOR]}>
-                        <VendorDashboard />
+                        <VendorApp />
                     </ProtectedRoute>
                 } />
                 <Route path="/rider-dashboard" element={
                     <ProtectedRoute allowedRoles={[ROLES.RIDER]}>
-                        <RiderDashboard />
+                        <RiderApp />
                     </ProtectedRoute>
                 } />
                 <Route path="/super-admin-dashboard" element={

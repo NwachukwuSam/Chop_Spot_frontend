@@ -241,6 +241,13 @@ export const riderApi = {
             method: "PATCH",
             body: JSON.stringify({ availability }),
         }),
+
+    // Alias — RiderDashboard uses this name
+    updateAvailability: (availability) =>
+        request("/api/rider/availability", {
+            method: "PATCH",
+            body: JSON.stringify({ availability }),
+        }),
 };
 
 // ─── ORDERS ───────────────────────────────────────────────────────────────────
@@ -279,6 +286,11 @@ export const orderApi = {
     // (the /api/orders GET is now ADMIN-only — this alias keeps dashboards working)
     getAllOrders: (status = null) =>
         request(status ? `/api/admin/orders?status=${status}` : "/api/admin/orders"),
+
+    // Fetch orders that are ready for a rider to pick up.
+    // GET /api/orders?status=READY_FOR_PICKUP — requires RIDER role (set in SecurityConfig).
+    getAllReadyForPickupOrders: () =>
+        request("/api/orders?status=READY_FOR_PICKUP"),
 
     assignRider: (orderId, riderUserId) =>
         request(`/api/orders/${orderId}/assign-rider?riderUserId=${riderUserId}`, { method: "PUT" }),
