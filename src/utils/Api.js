@@ -5,18 +5,6 @@
 
 const BASE_URL = "https://delichops-backend-akuq.onrender.com";
 
-// ─── Token helpers ────────────────────────────────────────────────────────────
-// const getToken = () =>
-//     localStorage.getItem("chopspot_token") ||
-//     localStorage.getItem("adminToken") ||
-//     "";
-
-// const buildHeaders = () => ({
-//     "Content-Type": "application/json",
-//     Authorization: `Bearer ${getToken()}`,
-// });
-
-// ─── Token helpers ────────────────────────────────────────────────────────────
 const TOKEN_KEYS = [
     "chopspot_token",
     "adminToken",
