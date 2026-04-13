@@ -48,31 +48,74 @@ function handleUnauthorized() {
 
 // ─── Core request helpers ─────────────────────────────────────────────────────
 
+/**
+ * Core request function - handles auth, errors, and network issues
+ */
 async function request(endpoint, options = {}) {
     const url = `${BASE_URL}${endpoint}`;
-    const res = await fetch(url, {
-        ...options,
-        headers: buildHeaders(),
-    });
 
-    let data;
-    try { data = await res.json(); } catch { data = {}; }
+    try {
+        const res = await fetch(url, {
+            ...options,
+            headers: buildHeaders(),
+        });
 
-    if (res.status === 401) {
-        handleUnauthorized();
-        throw new Error("Your session has expired. Please sign in again.");
-    }
+        let data;
+        try {
+            data = await res.json();
+        } catch {
+            data = {};
+        }
 
-    if (!res.ok) {
-        // Log the full server response so we can see the real reason
-        console.error(`[API] ${options.method || "GET"} ${endpoint} → ${res.status}`, data);
-        const msg = data?.message || data?.error || data?.detail || `Request failed: ${res.status}`;
-        const err = new Error(msg);
-        err.status = res.status;
-        err.data   = data;
+        // Handle 401 Unauthorized
+        if (res.status === 401) {
+            handleUnauthorized();
+            throw new Error("Your session has expired. Please sign in again.");
+        }
+
+        // Handle other HTTP errors (400, 403, 500, etc.)
+        if (!res.ok) {
+            console.error(`[API] ${options.method || "GET"} ${endpoint} → ${res.status}`, data);
+
+            const msg = data?.message ||
+                data?.error ||
+                data?.detail ||
+                `Request failed with status ${res.status}`;
+
+            const err = new Error(msg);
+            err.status = res.status;
+            err.data = data;
+            throw err;
+        }
+
+        return data;
+
+    } catch (err) {
+        // ── Network / Connectivity Error Detection ──
+        const isNetworkError =
+            !navigator.onLine ||
+            err.name === 'TypeError' ||
+            err.message?.toLowerCase().includes('fetch') ||
+            err.message?.toLowerCase().includes('network') ||
+            err.message?.toLowerCase().includes('failed to fetch');
+
+        if (isNetworkError) {
+            console.warn(`[API] Network error detected on ${endpoint}`);
+
+            const currentPath = window.location.pathname + window.location.search;
+
+            // Redirect to offline page while preserving return path
+            window.location.href = `/offline?returnTo=${encodeURIComponent(currentPath)}`;
+
+            // Still throw so the calling code can handle it if needed
+            const networkErr = new Error("No internet connection. Please check your network.");
+            networkErr.isNetworkError = true;
+            throw networkErr;
+        }
+
+        // Re-throw other errors (like 401, 400, etc.)
         throw err;
     }
-    return data;
 }
 
 async function publicRequest(endpoint, options = {}) {
