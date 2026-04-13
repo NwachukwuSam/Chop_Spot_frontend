@@ -17,6 +17,8 @@ import LoginPage from './auth/LoginPage';
 import RegisterPage from './auth/RegisterPage';
 import ForgotPasswordPage from './auth/ForgotPasswordPage';
 import { useAuth } from './auth/AuthContext';
+import {NetworkProvider} from "./context/NetworkContext.jsx";
+import OfflinePage from "./pages/OfflinePage.jsx";
 
 export const ROLES = {
     SUPER_ADMIN: 'SUPER_ADMIN',
@@ -55,6 +57,7 @@ function AppRoutes() {
             <GlobalAuthGuard />
             <Routes>
                 {/* Public */}
+                <Route path="/offline" element={<OfflinePage />} />
                 <Route path="/"                    element={<Home />} />
                 <Route path="/login"               element={<LoginPage />} />
                 <Route path="/register"            element={<RegisterPage />} />
@@ -104,9 +107,11 @@ export default function App() {
     return (
         <ToastProvider>
             <AuthProvider>
+                <NetworkProvider>
                 <BrowserRouter>
                     <AppRoutes />
                 </BrowserRouter>
+                </NetworkProvider>
             </AuthProvider>
         </ToastProvider>
     );
