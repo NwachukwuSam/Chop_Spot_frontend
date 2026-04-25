@@ -1,576 +1,596 @@
 // SuperAdminDashboard.jsx
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
+import { useNavigate } from "react-router-dom";
 import { adminApi } from "../utils/Api";
+import SettlementsTab from "./SettlementsTab.jsx";
 
 const fmt = (n) => `₦${Number(n || 0).toLocaleString()}`;
 
 const NAV_ITEMS = [
-    { id: "overview", icon: "◉", label: "Overview" },
-    { id: "vendors", icon: "🏪", label: "Vendors" },
-    { id: "riders", icon: "🏍️", label: "Riders" },
-    { id: "admins", icon: "🛡️", label: "Admins" },
-    { id: "users", icon: "👥", label: "All Users" },
-    { id: "reports", icon: "📊", label: "Reports" },
+    { id: "overview",    icon: "◉",  label: "Overview"     },
+    { id: "admins",      icon: "🛡️", label: "Admin Users"  },
+    { id: "vendors",     icon: "🏪", label: "Vendors"      },
+    { id: "riders",      icon: "🏍️", label: "Riders"       },
+    { id: "users",       icon: "👥", label: "All Users"    },
+    { id: "settlements", icon: "💳", label: "Settlements"  },
+    { id: "reports",     icon: "📊", label: "Reports"      },
 ];
 
-// ──────────────────────────────────────────────
-// Overview Tab
-// ──────────────────────────────────────────────
-const OverviewTab = ({ overview }) => {
-    return (
-        <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 16 }}>
-                {[
-                    { label: "Total Customers", value: overview.totalCustomers || 0, color: "#3b82f6", icon: "👤" },
-                    { label: "Total Vendors", value: overview.totalVendors || 0, color: "#10b981", icon: "🏪" },
-                    { label: "Total Riders", value: overview.totalRiders || 0, color: "#f59e0b", icon: "🏍️" },
-                    { label: "Total Orders", value: overview.totalOrders || 0, color: "#8b5cf6", icon: "📦" },
-                    { label: "Pending Orders", value: overview.pendingOrders || 0, color: "#f97316", icon: "⏳" },
-                    { label: "Delivered Orders", value: overview.deliveredOrders || 0, color: "#22c55e", icon: "✅" },
-                    { label: "Online Riders", value: overview.onlineRiders || 0, color: "#eab308", icon: "🌐" },
-                    { label: "Total Revenue", value: fmt(overview.totalRevenue || 0), color: "#ef4444", icon: "💰" },
-                ].map((stat, i) => (
-                    <div key={i} style={{ background: "white", borderRadius: 18, padding: 20, border: "1.5px solid #e2e8f0", boxShadow: "0 2px 12px rgba(0,0,0,0.05)" }}>
-                        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                            <div style={{ fontSize: 28 }}>{stat.icon}</div>
-                            <div style={{ flex: 1 }}>
-                                <p style={{ fontSize: 13, color: "#64748b", margin: 0 }}>{stat.label}</p>
-                                <p style={{ fontFamily: "'Sora', sans-serif", fontWeight: 800, fontSize: 32, margin: "4px 0 0", color: stat.color }}>
-                                    {stat.value}
-                                </p>
-                            </div>
-                        </div>
-                    </div>
-                ))}
-            </div>
-        </div>
-    );
+// ── Design tokens ─────────────────────────────────────────────────────────────
+const C = {
+    bg:      "#0b1120",
+    bgAlt:   "#111827",
+    border:  "rgba(255,255,255,0.07)",
+    accent:  "#6366f1",
+    accentL: "rgba(99,102,241,0.15)",
+    gold:    "#f59e0b",
+    green:   "#10b981",
+    red:     "#ef4444",
+    muted:   "#64748b",
+    text:    "#f1f5f9",
+    textSub: "#94a3b8",
 };
 
-// ──────────────────────────────────────────────
-// Vendors Tab - Full rich table
-// ──────────────────────────────────────────────
-const VendorsTab = () => {
-    const [vendors, setVendors] = useState([]);
-    const [loading, setLoading] = useState(true);
+// ── Shared atoms ──────────────────────────────────────────────────────────────
+const s = { padding:"14px 20px", fontSize:13, color:"#334155", verticalAlign:"middle" };
 
-    const loadVendors = async () => {
-        try {
-            setLoading(true);
-            const data = await adminApi.getVendors();
-            setVendors(Array.isArray(data) ? data : data?.data || data?.results || []);
-        } catch (err) {
-            console.error("Failed to load vendors:", err);
-        } finally {
-            setLoading(false);
-        }
+const Badge = ({ status }) => {
+    const map = {
+        APPROVED:   { bg:"#d1fae5", c:"#059669" },
+        ACTIVE:     { bg:"#d1fae5", c:"#059669" },
+        CUSTOMER:   { bg:"#dbeafe", c:"#1d4ed8" },
+        VENDOR:     { bg:"#d1fae5", c:"#059669" },
+        RIDER:      { bg:"#fef3c7", c:"#b45309" },
+        ADMIN:      { bg:"#ede9fe", c:"#7c3aed" },
+        SUPER_ADMIN:{ bg:"#fce7f3", c:"#9d174d" },
+        ACCOUNTING: { bg:"#e0f2fe", c:"#0369a1" },
+        PENDING:    { bg:"#fef3c7", c:"#b45309" },
+        SUSPENDED:  { bg:"#fee2e2", c:"#b91c1c" },
+        REJECTED:   { bg:"#fee2e2", c:"#b91c1c" },
     };
-
-    useEffect(() => {
-        loadVendors();
-    }, []);
-
-    const handleApprove = async (id) => {
-        try {
-            await fetch(`/api/admin/vendors/${id}/approve`, {
-                method: "PATCH",
-                headers: { Authorization: `Bearer ${localStorage.getItem("adminToken") || ""}` },
-            });
-            loadVendors();
-            alert("Vendor approved successfully");
-        } catch (e) {
-            alert("Failed to approve vendor");
-        }
-    };
-
-    const handleSuspend = async (id) => {
-        try {
-            await fetch(`/api/admin/vendors/${id}/suspend`, {
-                method: "PATCH",
-                headers: { Authorization: `Bearer ${localStorage.getItem("adminToken") || ""}` },
-            });
-            loadVendors();
-            alert("Vendor suspended");
-        } catch (e) {
-            alert("Failed to suspend vendor");
-        }
-    };
-
-    if (loading) return <div style={{ padding: 80, textAlign: "center", color: "#64748b" }}>Loading vendors...</div>;
-
-    return (
-        <div style={{ background: "white", borderRadius: 20, overflow: "hidden", border: "1.5px solid #e2e8f0" }}>
-            <table style={{ width: "100%", borderCollapse: "collapse" }}>
-                <thead>
-                <tr style={{ background: "#f8fafc" }}>
-                    <th style={{ padding: "16px 20px", textAlign: "left" }}>Restaurant</th>
-                    <th style={{ padding: "16px 20px", textAlign: "left" }}>Owner</th>
-                    <th style={{ padding: "16px 20px", textAlign: "left" }}>Category</th>
-                    <th style={{ padding: "16px 20px", textAlign: "left" }}>Joined</th>
-                    <th style={{ padding: "16px 20px", textAlign: "center" }}>Status</th>
-                    <th style={{ padding: "16px 20px", textAlign: "center" }}>Actions</th>
-                </tr>
-                </thead>
-                <tbody>
-                {vendors.map((v, i) => (
-                    <tr key={v.id || i} style={{ borderTop: i > 0 ? "1px solid #f1f5f9" : "none" }}>
-                        <td style={{ padding: "16px 20px", fontWeight: 600 }}>{v.restaurantName || v.name}</td>
-                        <td style={{ padding: "16px 20px" }}>{v.ownerName || v.owner || "—"}</td>
-                        <td style={{ padding: "16px 20px" }}>{v.category || "—"}</td>
-                        <td style={{ padding: "16px 20px" }}>{v.joined || "—"}</td>
-                        <td style={{ padding: "16px 20px", textAlign: "center" }}>
-                <span
-                    style={{
-                        padding: "6px 14px",
-                        borderRadius: 20,
-                        fontSize: 12,
-                        fontWeight: 700,
-                        background: (v.status === "APPROVED" || v.status === "Active") ? "#d1fae5" : "#fef3c7",
-                        color: (v.status === "APPROVED" || v.status === "Active") ? "#10b981" : "#d97706",
-                    }}
-                >
-                  {v.status || "Pending"}
-                </span>
-                        </td>
-                        <td style={{ padding: "16px 20px", textAlign: "center" }}>
-                            {v.status !== "APPROVED" && (
-                                <button
-                                    onClick={() => handleApprove(v.id)}
-                                    style={{
-                                        marginRight: 8,
-                                        padding: "6px 14px",
-                                        background: "#10b981",
-                                        color: "white",
-                                        border: "none",
-                                        borderRadius: 8,
-                                        cursor: "pointer",
-                                        fontSize: 13,
-                                    }}
-                                >
-                                    Approve
-                                </button>
-                            )}
-                            <button
-                                onClick={() => handleSuspend(v.id)}
-                                style={{
-                                    padding: "6px 14px",
-                                    background: "#ef4444",
-                                    color: "white",
-                                    border: "none",
-                                    borderRadius: 8,
-                                    cursor: "pointer",
-                                    fontSize: 13,
-                                }}
-                            >
-                                Suspend
-                            </button>
-                        </td>
-                    </tr>
-                ))}
-                </tbody>
-            </table>
-        </div>
-    );
+    const m = map[(status||"").toUpperCase()] || map.PENDING;
+    return <span style={{ display:"inline-flex", alignItems:"center", gap:5, padding:"4px 12px", borderRadius:20, fontSize:11, fontWeight:700, background:m.bg, color:m.c }}>{status || "—"}</span>;
 };
 
-// ──────────────────────────────────────────────
-// Riders Tab - Full rich table
-// ──────────────────────────────────────────────
-const RidersTab = () => {
-    const [riders, setRiders] = useState([]);
-    const [loading, setLoading] = useState(true);
+const Btn = ({ label, color="#6366f1", onClick, disabled }) => (
+    <button onClick={onClick} disabled={disabled} style={{ padding:"6px 14px", borderRadius:8, border:"none", cursor:disabled?"not-allowed":"pointer", background:disabled?"#e2e8f0":color, color:disabled?"#94a3b8":"white", fontWeight:700, fontSize:11, fontFamily:"'DM Sans',sans-serif", opacity:disabled?0.6:1, transition:"opacity 0.15s, transform 0.15s", boxShadow:disabled?"none":`0 2px 8px ${color}55` }}
+            onMouseEnter={e => { if(!disabled){ e.currentTarget.style.opacity="0.82"; e.currentTarget.style.transform="translateY(-1px)"; }}}
+            onMouseLeave={e => { e.currentTarget.style.opacity="1"; e.currentTarget.style.transform="none"; }}
+    >{label}</button>
+);
 
-    const loadRiders = async () => {
-        try {
-            setLoading(true);
-            const data = await adminApi.getRiders();
-            setRiders(Array.isArray(data) ? data : data?.data || data?.results || []);
-        } catch (err) {
-            console.error("Failed to load riders:", err);
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    useEffect(() => {
-        loadRiders();
-    }, []);
-
-    const handleApprove = async (id) => {
-        try {
-            await fetch(`/api/admin/riders/${id}/approve`, {
-                method: "PATCH",
-                headers: { Authorization: `Bearer ${localStorage.getItem("adminToken") || ""}` },
-            });
-            loadRiders();
-            alert("Rider approved");
-        } catch (e) {
-            alert("Failed to approve");
-        }
-    };
-
-    const handleSuspend = async (id) => {
-        try {
-            await fetch(`/api/admin/riders/${id}/suspend`, {
-                method: "PATCH",
-                headers: { Authorization: `Bearer ${localStorage.getItem("adminToken") || ""}` },
-            });
-            loadRiders();
-            alert("Rider suspended");
-        } catch (e) {
-            alert("Failed to suspend");
-        }
-    };
-
-    if (loading) return <div style={{ padding: 80, textAlign: "center", color: "#64748b" }}>Loading riders...</div>;
-
-    return (
-        <div style={{ background: "white", borderRadius: 20, overflow: "hidden", border: "1.5px solid #e2e8f0" }}>
-            <table style={{ width: "100%", borderCollapse: "collapse" }}>
-                <thead>
-                <tr style={{ background: "#f8fafc" }}>
-                    <th style={{ padding: "16px 20px", textAlign: "left" }}>Rider Name</th>
-                    <th style={{ padding: "16px 20px", textAlign: "left" }}>Vehicle</th>
-                    <th style={{ padding: "16px 20px", textAlign: "left" }}>Zone</th>
-                    <th style={{ padding: "16px 20px", textAlign: "left" }}>Joined</th>
-                    <th style={{ padding: "16px 20px", textAlign: "center" }}>Status</th>
-                    <th style={{ padding: "16px 20px", textAlign: "center" }}>Actions</th>
-                </tr>
-                </thead>
-                <tbody>
-                {riders.map((r, i) => (
-                    <tr key={r.id || i} style={{ borderTop: i > 0 ? "1px solid #f1f5f9" : "none" }}>
-                        <td style={{ padding: "16px 20px", fontWeight: 600 }}>{r.riderName || r.name}</td>
-                        <td style={{ padding: "16px 20px" }}>{r.vehicleType || r.vehicle || "—"}</td>
-                        <td style={{ padding: "16px 20px" }}>{r.deliveryZone || r.zone || "—"}</td>
-                        <td style={{ padding: "16px 20px" }}>{r.joined || "—"}</td>
-                        <td style={{ padding: "16px 20px", textAlign: "center" }}>
-                <span
-                    style={{
-                        padding: "6px 14px",
-                        borderRadius: 20,
-                        fontSize: 12,
-                        fontWeight: 700,
-                        background: (r.status === "APPROVED" || r.status === "Online") ? "#d1fae5" : "#fef3c7",
-                        color: (r.status === "APPROVED" || r.status === "Online") ? "#10b981" : "#d97706",
-                    }}
-                >
-                  {r.status || "Pending"}
-                </span>
-                        </td>
-                        <td style={{ padding: "16px 20px", textAlign: "center" }}>
-                            {r.status !== "APPROVED" && (
-                                <button
-                                    onClick={() => handleApprove(r.id)}
-                                    style={{
-                                        marginRight: 8,
-                                        padding: "6px 14px",
-                                        background: "#10b981",
-                                        color: "white",
-                                        border: "none",
-                                        borderRadius: 8,
-                                        cursor: "pointer",
-                                        fontSize: 13,
-                                    }}
-                                >
-                                    Approve
-                                </button>
-                            )}
-                            <button
-                                onClick={() => handleSuspend(r.id)}
-                                style={{
-                                    padding: "6px 14px",
-                                    background: "#ef4444",
-                                    color: "white",
-                                    border: "none",
-                                    borderRadius: 8,
-                                    cursor: "pointer",
-                                    fontSize: 13,
-                                }}
-                            >
-                                Suspend
-                            </button>
-                        </td>
-                    </tr>
-                ))}
-                </tbody>
-            </table>
-        </div>
-    );
-};
-
-// ──────────────────────────────────────────────
-// Admins Tab
-// ──────────────────────────────────────────────
-const AdminsTab = () => {
-    const [admins, setAdmins] = useState([]);
-    const [loading, setLoading] = useState(true);
-
-    useEffect(() => {
-        const loadAdmins = async () => {
-            try {
-                setLoading(true);
-                // Extend Api.js with getAdmins() when you add the endpoint
-                setAdmins([]);
-            } catch (err) {
-                console.error(err);
-            } finally {
-                setLoading(false);
-            }
-        };
-        loadAdmins();
-    }, []);
-
-    if (loading) return <div style={{ padding: 80, textAlign: "center", color: "#64748b" }}>Loading admins...</div>;
-
-    return (
-        <div style={{ background: "white", borderRadius: 20, padding: 40, textAlign: "center", border: "1.5px solid #e2e8f0" }}>
-            <p style={{ fontSize: 48, marginBottom: 16 }}>🛡️</p>
-            <h3 style={{ fontFamily: "'Sora',sans-serif", fontWeight: 800 }}>Admin Management</h3>
-            <p style={{ color: "#64748b", marginTop: 12 }}>Create, suspend, and delete other admins here (Super Admin only).</p>
-        </div>
-    );
-};
-
-// ──────────────────────────────────────────────
-// All Users Tab
-// ──────────────────────────────────────────────
-const UsersTab = () => {
-    const [users, setUsers] = useState([]);
-    const [loading, setLoading] = useState(true);
-
-    useEffect(() => {
-        const loadUsers = async () => {
-            try {
-                setLoading(true);
-                // Extend with real /api/admin/users endpoint when available
-                setUsers([]);
-            } catch (err) {
-                console.error(err);
-            } finally {
-                setLoading(false);
-            }
-        };
-        loadUsers();
-    }, []);
-
-    if (loading) return <div style={{ padding: 80, textAlign: "center", color: "#64748b" }}>Loading users...</div>;
-
-    return (
-        <div style={{ background: "white", borderRadius: 20, padding: 40, textAlign: "center", border: "1.5px solid #e2e8f0" }}>
-            <p style={{ fontSize: 48, marginBottom: 16 }}>👥</p>
-            <h3 style={{ fontFamily: "'Sora',sans-serif", fontWeight: 800 }}>All Platform Users</h3>
-            <p style={{ color: "#64748b", marginTop: 12 }}>Full user list and management will be available here.</p>
-        </div>
-    );
-};
-
-// ──────────────────────────────────────────────
-// Reports Tab
-// ──────────────────────────────────────────────
-const ReportsTab = () => (
-    <div style={{ background: "white", borderRadius: 20, padding: 40, textAlign: "center", border: "1.5px solid #e2e8f0" }}>
-        <p style={{ fontSize: 48, marginBottom: 16 }}>📊</p>
-        <h3 style={{ fontFamily: "'Sora',sans-serif", fontWeight: 800 }}>Super Admin Reports</h3>
-        <p style={{ color: "#64748b", marginTop: 12 }}>Platform-wide analytics, revenue reports, and user growth will be available here.</p>
+const Input = ({ label, value, onChange, type="text", placeholder, required }) => (
+    <div>
+        <label style={{ fontSize:11, fontWeight:700, color:C.textSub, textTransform:"uppercase", letterSpacing:0.8, display:"block", marginBottom:6 }}>
+            {label}{required && <span style={{ color:C.red }}> *</span>}
+        </label>
+        <input type={type} value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder||label}
+               style={{ width:"100%", padding:"10px 14px", borderRadius:10, border:"1.5px solid #e2e8f0", fontSize:13, color:"#334155", fontFamily:"'DM Sans',sans-serif", outline:"none", boxSizing:"border-box" }}
+               onFocus={e => e.target.style.borderColor="#6366f1"}
+               onBlur={e => e.target.style.borderColor="#e2e8f0"}
+        />
     </div>
 );
 
-// ──────────────────────────────────────────────
-// MAIN SUPER ADMIN DASHBOARD
-// ──────────────────────────────────────────────
-export default function SuperAdminDashboard({ adminName = "Super Admin", onExit }) {
-    const [tab, setTab] = useState("overview");
-    const [overview, setOverview] = useState({});
+const DataTable = ({ cols, children, empty }) => (
+    <div style={{ background:"white", borderRadius:18, overflow:"hidden", border:"1.5px solid #e2e8f0", boxShadow:"0 2px 16px rgba(0,0,0,0.04)" }}>
+        <div style={{ overflowX:"auto" }}>
+            <table style={{ width:"100%", borderCollapse:"collapse" }}>
+                <thead>
+                <tr style={{ background:"linear-gradient(135deg,#f8fafc,#f1f5f9)" }}>
+                    {cols.map(c => <th key={c} style={{ padding:"13px 20px", textAlign:"left", fontSize:11, fontWeight:800, color:"#64748b", letterSpacing:0.7, textTransform:"uppercase", whiteSpace:"nowrap" }}>{c}</th>)}
+                </tr>
+                </thead>
+                <tbody>
+                {!children || (Array.isArray(children) && children.length === 0)
+                    ? <tr><td colSpan={cols.length}>{empty || <div style={{ padding:"50px", textAlign:"center", color:"#94a3b8" }}>No data</div>}</td></tr>
+                    : children}
+                </tbody>
+            </table>
+        </div>
+    </div>
+);
+
+const Skeleton = () => (
+    <div style={{ background:"white", borderRadius:18, padding:24, border:"1.5px solid #e2e8f0" }}>
+        {[...Array(5)].map((_,i) => (
+            <div key={i} style={{ display:"flex", gap:16, marginBottom:16, opacity:1-i*0.15 }}>
+                {[...Array(5)].map((_,j) => <div key={j} style={{ height:14, borderRadius:7, background:"#f1f5f9", flex:j===0?2:1, animation:"pulse 1.4s ease-in-out infinite" }} />)}
+            </div>
+        ))}
+    </div>
+);
+
+const Toast = ({ msg, type, onClose }) => {
+    useEffect(() => { const t = setTimeout(onClose, 3500); return () => clearTimeout(t); }, [onClose]);
+    const colors = { success:"#10b981", error:"#ef4444", info:"#6366f1" };
+    return (
+        <div style={{ position:"fixed", top:80, right:24, zIndex:9999, background:"white", border:`1.5px solid ${colors[type]||colors.info}`, borderRadius:14, padding:"14px 18px", boxShadow:"0 8px 28px rgba(0,0,0,0.14)", display:"flex", alignItems:"center", gap:12, minWidth:280, animation:"slideUp 0.3s ease" }}>
+            <span style={{ fontSize:18 }}>{type==="success"?"✅":type==="error"?"❌":"ℹ️"}</span>
+            <p style={{ margin:0, fontSize:13, fontWeight:600, color:"#334155", flex:1 }}>{msg}</p>
+            <button onClick={onClose} style={{ background:"none", border:"none", cursor:"pointer", color:"#94a3b8", fontSize:16 }}>×</button>
+        </div>
+    );
+};
+
+// ════════════════════════════════════════════════════════════
+// Overview Tab
+// ════════════════════════════════════════════════════════════
+const OverviewTab = ({ overview }) => {
+    const stats = [
+        { label:"Customers",    value:overview.totalCustomers  || 0, color:"#3b82f6", icon:"👤" },
+        { label:"Vendors",      value:overview.totalVendors    || 0, color:"#10b981", icon:"🏪" },
+        { label:"Riders",       value:overview.totalRiders     || 0, color:"#f59e0b", icon:"🏍️" },
+        { label:"Total Orders", value:overview.totalOrders     || 0, color:"#8b5cf6", icon:"📦" },
+        { label:"Pending",      value:overview.pendingOrders   || 0, color:"#f97316", icon:"⏳" },
+        { label:"Delivered",    value:overview.deliveredOrders || 0, color:"#22c55e", icon:"✅" },
+        { label:"Online Riders",value:overview.onlineRiders    || 0, color:"#eab308", icon:"🌐" },
+        { label:"Revenue",      value:fmt(overview.totalRevenue|| 0), color:"#ef4444", icon:"💰" },
+    ];
+    return (
+        <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(200px,1fr))", gap:14 }}>
+            {stats.map((s,i) => (
+                <div key={i} style={{ background:"white", borderRadius:18, padding:"18px 20px", border:"1.5px solid #f1f5f9", boxShadow:"0 2px 14px rgba(0,0,0,0.04)", display:"flex", alignItems:"center", gap:14 }}>
+                    <div style={{ width:46, height:46, borderRadius:13, background:`${s.color}18`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:22, flexShrink:0 }}>{s.icon}</div>
+                    <div>
+                        <p style={{ fontSize:11, color:"#94a3b8", margin:0, fontWeight:600 }}>{s.label}</p>
+                        <p style={{ fontFamily:"'Sora',sans-serif", fontWeight:800, fontSize:24, margin:"3px 0 0", color:s.color, lineHeight:1 }}>{s.value}</p>
+                    </div>
+                </div>
+            ))}
+        </div>
+    );
+};
+
+// ════════════════════════════════════════════════════════════
+// Admin Users Tab (CRUD — Super Admin only)
+// ════════════════════════════════════════════════════════════
+const AdminsTab = ({ toast }) => {
+    const [admins,  setAdmins]  = useState([]);
     const [loading, setLoading] = useState(true);
-    const [sidebarOpen, setSidebarOpen] = useState(false);
+    const [showForm, setShowForm] = useState(false);
+    const [form, setForm] = useState({ email:"", password:"", firstName:"", lastName:"", adminRole:"Operations Manager" });
+    const [saving, setSaving] = useState(false);
+
+    const ROLES = ["Operations Manager","Finance Manager","Support Manager","Marketing Manager","General Admin"];
+
+    const load = useCallback(async () => {
+        setLoading(true);
+        try {
+            const data = await adminApi.getAdmins();
+            setAdmins(Array.isArray(data) ? data : []);
+        } catch (err) { toast("Failed to load admins: " + err.message, "error"); }
+        finally { setLoading(false); }
+    }, [toast]);
+
+    useEffect(() => { load(); }, [load]);
+
+    const setF = (k,v) => setForm(f => ({ ...f, [k]:v }));
+
+    const createAdmin = async () => {
+        if (!form.email || !form.password || !form.firstName) {
+            toast("Email, password, and first name are required.", "error"); return;
+        }
+        setSaving(true);
+        try {
+            await adminApi.createAdmin({ ...form, userType:"ADMIN" });
+            toast("Admin created successfully!", "success");
+            setShowForm(false);
+            setForm({ email:"", password:"", firstName:"", lastName:"", adminRole:"Operations Manager" });
+            load();
+        } catch (err) { toast("Failed to create admin: " + err.message, "error"); }
+        finally { setSaving(false); }
+    };
+
+    const toggle = async (id, active) => {
+        try {
+            active ? await adminApi.activateAdmin(id) : await adminApi.suspendAdmin(id);
+            toast(`Admin ${active ? "activated" : "suspended"}!`, "success");
+            load();
+        } catch (err) { toast(err.message, "error"); }
+    };
+
+    const remove = async (id) => {
+        if (!window.confirm("Permanently delete this admin?")) return;
+        try {
+            await adminApi.deleteAdmin(id);
+            toast("Admin deleted.", "success");
+            load();
+        } catch (err) { toast(err.message, "error"); }
+    };
+
+    const getName = a => [a.firstName, a.lastName].filter(Boolean).join(" ") || a.username || a.email;
+
+    return (
+        <div style={{ display:"flex", flexDirection:"column", gap:16 }}>
+            <div style={{ display:"flex", justifyContent:"flex-end" }}>
+                <button onClick={() => setShowForm(!showForm)} style={{ padding:"10px 22px", borderRadius:50, border:"none", background:showForm?"#f1f5f9":"linear-gradient(135deg,#6366f1,#818cf8)", color:showForm?"#64748b":"white", fontWeight:700, fontSize:13, cursor:"pointer", fontFamily:"'DM Sans',sans-serif" }}>
+                    {showForm ? "✕ Cancel" : "+ Add Admin"}
+                </button>
+            </div>
+
+            {showForm && (
+                <div style={{ background:"white", borderRadius:20, padding:"24px 28px", border:"2px solid #c7d2fe", boxShadow:"0 4px 20px rgba(99,102,241,0.1)" }}>
+                    <h3 style={{ fontFamily:"'Sora',sans-serif", fontWeight:800, fontSize:16, color:"#0f172a", margin:"0 0 20px" }}>🛡️ Create New Admin</h3>
+                    <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:14 }}>
+                        <Input label="First Name" value={form.firstName} onChange={v => setF("firstName",v)} required />
+                        <Input label="Last Name"  value={form.lastName}  onChange={v => setF("lastName",v)} />
+                        <Input label="Email"      value={form.email}     onChange={v => setF("email",v)} type="email" required />
+                        <Input label="Password"   value={form.password}  onChange={v => setF("password",v)} type="password" required />
+                        <div style={{ gridColumn:"1/-1" }}>
+                            <label style={{ fontSize:11, fontWeight:700, color:C.textSub, textTransform:"uppercase", letterSpacing:0.8, display:"block", marginBottom:6 }}>Admin Role</label>
+                            <select value={form.adminRole} onChange={e => setF("adminRole", e.target.value)} style={{ width:"100%", padding:"10px 14px", borderRadius:10, border:"1.5px solid #e2e8f0", fontSize:13, color:"#334155", fontFamily:"'DM Sans',sans-serif", outline:"none" }}>
+                                {ROLES.map(r => <option key={r}>{r}</option>)}
+                            </select>
+                        </div>
+                    </div>
+                    <button onClick={createAdmin} disabled={saving} style={{ marginTop:20, padding:"12px 32px", borderRadius:50, border:"none", background:saving?"#e2e8f0":"linear-gradient(135deg,#6366f1,#818cf8)", color:saving?"#94a3b8":"white", fontWeight:800, fontSize:14, cursor:saving?"not-allowed":"pointer", fontFamily:"'Sora',sans-serif" }}>
+                        {saving ? "Creating…" : "✓ Create Admin"}
+                    </button>
+                </div>
+            )}
+
+            {loading ? <Skeleton /> : (
+                <DataTable cols={["Name","Email","Role","Status","Actions"]}>
+                    {admins.map((a,i) => (
+                        <tr key={a.id||i} style={{ borderTop:"1px solid #f1f5f9" }}>
+                            <td style={s}>
+                                <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+                                    <div style={{ width:34, height:34, borderRadius:"50%", background:"linear-gradient(135deg,#6366f1,#818cf8)", display:"flex", alignItems:"center", justifyContent:"center", color:"white", fontWeight:800, fontSize:13 }}>
+                                        {getName(a)[0]?.toUpperCase()||"A"}
+                                    </div>
+                                    <span style={{ fontWeight:700 }}>{getName(a)}</span>
+                                </div>
+                            </td>
+                            <td style={{ ...s, color:"#64748b" }}>{a.email}</td>
+                            <td style={s}><span style={{ background:"#ede9fe", color:"#7c3aed", padding:"3px 10px", borderRadius:20, fontSize:11, fontWeight:700 }}>{a.adminRole || a.userType || "ADMIN"}</span></td>
+                            <td style={{ ...s, textAlign:"center" }}><Badge status={a.active ? "ACTIVE" : "SUSPENDED"} /></td>
+                            <td style={{ ...s, textAlign:"center" }}>
+                                <div style={{ display:"flex", gap:6, justifyContent:"center" }}>
+                                    {a.active
+                                        ? <Btn label="Suspend" color="#f59e0b" onClick={() => toggle(a.id, false)} />
+                                        : <Btn label="Activate" color="#10b981" onClick={() => toggle(a.id, true)} />
+                                    }
+                                    <Btn label="Delete" color="#ef4444" onClick={() => remove(a.id)} />
+                                </div>
+                            </td>
+                        </tr>
+                    ))}
+                </DataTable>
+            )}
+        </div>
+    );
+};
+
+// ════════════════════════════════════════════════════════════
+// Vendors Tab
+// ════════════════════════════════════════════════════════════
+const VendorsTab = ({ toast }) => {
+    const [vendors, setVendors] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [search, setSearch] = useState("");
+
+    const load = useCallback(async () => {
+        setLoading(true);
+        try { const d = await adminApi.getVendors(); setVendors(Array.isArray(d) ? d : []); }
+        catch (err) { toast(err.message, "error"); }
+        finally { setLoading(false); }
+    }, [toast]);
+
+    useEffect(() => { load(); }, [load]);
+
+    const action = async (id, type) => {
+        try {
+            if (type==="approve")  await adminApi.approveVendor(id);
+            if (type==="suspend")  await adminApi.suspendVendor(id);
+            if (type==="reject")   await adminApi.rejectVendor(id);
+            if (type==="delete") { if(!window.confirm("Delete vendor?")) return; await adminApi.deleteVendor(id); }
+            toast(`Vendor ${type}d!`, "success"); load();
+        } catch (err) { toast(err.message, "error"); }
+    };
+
+    const filtered = vendors.filter(v =>
+        (v.restaurantName||"").toLowerCase().includes(search.toLowerCase()) ||
+        (v.ownerName||"").toLowerCase().includes(search.toLowerCase())
+    );
+
+    return (
+        <div style={{ display:"flex", flexDirection:"column", gap:16 }}>
+            <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search vendors…"
+                   style={{ padding:"10px 16px", borderRadius:50, border:"1.5px solid #e2e8f0", fontSize:13, width:280, outline:"none", fontFamily:"'DM Sans',sans-serif" }} />
+            {loading ? <Skeleton /> : (
+                <DataTable cols={["Restaurant","Owner","Category","Status","Actions"]}>
+                    {filtered.map((v,i) => (
+                        <tr key={v.id||i} style={{ borderTop:"1px solid #f1f5f9" }}>
+                            <td style={s}><span style={{ fontWeight:700 }}>{v.restaurantName||"—"}</span></td>
+                            <td style={s}>{v.ownerName||"—"}</td>
+                            <td style={s}><span style={{ background:"#f1f5f9", borderRadius:6, padding:"3px 8px", fontSize:11 }}>{v.category||"—"}</span></td>
+                            <td style={{ ...s, textAlign:"center" }}><Badge status={v.status} /></td>
+                            <td style={{ ...s, textAlign:"center" }}>
+                                <div style={{ display:"flex", gap:5, justifyContent:"center", flexWrap:"wrap" }}>
+                                    {v.status !== "APPROVED"  && <Btn label="Approve" color="#10b981" onClick={() => action(v.id,"approve")} />}
+                                    {v.status !== "SUSPENDED" && <Btn label="Suspend" color="#f59e0b" onClick={() => action(v.id,"suspend")} />}
+                                    <Btn label="Delete" color="#ef4444" onClick={() => action(v.id,"delete")} />
+                                </div>
+                            </td>
+                        </tr>
+                    ))}
+                </DataTable>
+            )}
+        </div>
+    );
+};
+
+// ════════════════════════════════════════════════════════════
+// Riders Tab
+// ════════════════════════════════════════════════════════════
+const RidersTab = ({ toast }) => {
+    const [riders, setRiders] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [search, setSearch] = useState("");
+
+    const load = useCallback(async () => {
+        setLoading(true);
+        try { const d = await adminApi.getRiders(); setRiders(Array.isArray(d) ? d : []); }
+        catch (err) { toast(err.message, "error"); }
+        finally { setLoading(false); }
+    }, [toast]);
+
+    useEffect(() => { load(); }, [load]);
+
+    const action = async (id, type) => {
+        try {
+            if (type==="approve") await adminApi.approveRider(id);
+            if (type==="suspend") await adminApi.suspendRider(id);
+            if (type==="reject")  await adminApi.rejectRider(id);
+            if (type==="delete")  { if(!window.confirm("Delete rider?")) return; await adminApi.deleteRider(id); }
+            toast(`Rider ${type}d!`, "success"); load();
+        } catch (err) { toast(err.message, "error"); }
+    };
+
+    const getName = r => [r.firstName, r.lastName].filter(Boolean).join(" ") || "—";
+    const filtered = riders.filter(r => getName(r).toLowerCase().includes(search.toLowerCase()));
+
+    return (
+        <div style={{ display:"flex", flexDirection:"column", gap:16 }}>
+            <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search riders…"
+                   style={{ padding:"10px 16px", borderRadius:50, border:"1.5px solid #e2e8f0", fontSize:13, width:280, outline:"none", fontFamily:"'DM Sans',sans-serif" }} />
+            {loading ? <Skeleton /> : (
+                <DataTable cols={["Name","Vehicle","Zone","Status","Actions"]}>
+                    {filtered.map((r,i) => (
+                        <tr key={r.id||i} style={{ borderTop:"1px solid #f1f5f9" }}>
+                            <td style={s}>
+                                <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+                                    <div style={{ width:32, height:32, borderRadius:"50%", background:"linear-gradient(135deg,#fef3c7,#fde68a)", display:"flex", alignItems:"center", justifyContent:"center", fontWeight:800, fontSize:13, color:"#92400e" }}>
+                                        {getName(r)[0]?.toUpperCase()||"R"}
+                                    </div>
+                                    <span style={{ fontWeight:700 }}>{getName(r)}</span>
+                                </div>
+                            </td>
+                            <td style={s}>{r.vehicleType||"—"}</td>
+                            <td style={s}>{r.deliveryZone||"—"}</td>
+                            <td style={{ ...s, textAlign:"center" }}><Badge status={r.status} /></td>
+                            <td style={{ ...s, textAlign:"center" }}>
+                                <div style={{ display:"flex", gap:5, justifyContent:"center", flexWrap:"wrap" }}>
+                                    {r.status !== "APPROVED"  && <Btn label="Approve" color="#10b981" onClick={() => action(r.id,"approve")} />}
+                                    {r.status !== "SUSPENDED" && <Btn label="Suspend" color="#f59e0b" onClick={() => action(r.id,"suspend")} />}
+                                    <Btn label="Delete" color="#ef4444" onClick={() => action(r.id,"delete")} />
+                                </div>
+                            </td>
+                        </tr>
+                    ))}
+                </DataTable>
+            )}
+        </div>
+    );
+};
+
+// ════════════════════════════════════════════════════════════
+// All Users Tab
+// ════════════════════════════════════════════════════════════
+const UsersTab = ({ toast }) => {
+    const [users,   setUsers]   = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [search,  setSearch]  = useState("");
+    const [filter,  setFilter]  = useState("ALL");
+
+    const load = useCallback(async () => {
+        setLoading(true);
+        try { const d = await adminApi.getAllUsers(); setUsers(Array.isArray(d) ? d : []); }
+        catch (err) { toast(err.message, "error"); }
+        finally { setLoading(false); }
+    }, [toast]);
+
+    useEffect(() => { load(); }, [load]);
+
+    const TYPE_COLOR = { CUSTOMER:"#3b82f6", VENDOR:"#10b981", RIDER:"#f59e0b" };
+    const getName = u => [u.firstName, u.lastName].filter(Boolean).join(" ") || u.restaurantName || u.username || "—";
+
+    const counts = { ALL:users.length };
+    users.forEach(u => { counts[u._userType] = (counts[u._userType]||0)+1; });
+
+    const filtered = users
+        .filter(u => filter==="ALL" || u._userType===filter)
+        .filter(u => getName(u).toLowerCase().includes(search.toLowerCase()) || (u.email||"").toLowerCase().includes(search.toLowerCase()));
+
+    return (
+        <div style={{ display:"flex", flexDirection:"column", gap:16 }}>
+            <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
+                {["ALL","CUSTOMER","VENDOR","RIDER"].map(t => (
+                    <button key={t} onClick={() => setFilter(t)} style={{ padding:"8px 18px", borderRadius:50, border:`2px solid ${filter===t?(TYPE_COLOR[t]||"#6366f1"):"#e2e8f0"}`, background:filter===t?(TYPE_COLOR[t]||"#6366f1"):"white", color:filter===t?"white":"#64748b", fontWeight:700, fontSize:12, cursor:"pointer", fontFamily:"'DM Sans',sans-serif" }}>
+                        {t} ({counts[t]||0})
+                    </button>
+                ))}
+            </div>
+            <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search by name or email…"
+                   style={{ padding:"10px 16px", borderRadius:50, border:"1.5px solid #e2e8f0", fontSize:13, width:300, outline:"none", fontFamily:"'DM Sans',sans-serif" }} />
+            {loading ? <Skeleton /> : (
+                <DataTable cols={["Name","Email","Type","Status"]}>
+                    {filtered.map((u,i) => (
+                        <tr key={u.id||i} style={{ borderTop:"1px solid #f1f5f9" }}>
+                            <td style={s}>
+                                <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+                                    <div style={{ width:32, height:32, borderRadius:"50%", background:`${TYPE_COLOR[u._userType]||"#94a3b8"}20`, display:"flex", alignItems:"center", justifyContent:"center", fontWeight:800, fontSize:13, color:TYPE_COLOR[u._userType]||"#64748b" }}>
+                                        {getName(u)[0]?.toUpperCase()||"?"}
+                                    </div>
+                                    <span style={{ fontWeight:600 }}>{getName(u)}</span>
+                                </div>
+                            </td>
+                            <td style={{ ...s, color:"#64748b" }}>{u.email||"—"}</td>
+                            <td style={{ ...s, textAlign:"center" }}><Badge status={u._userType} /></td>
+                            <td style={{ ...s, textAlign:"center" }}><Badge status={u.active||u.status==="APPROVED" ? "ACTIVE" : "SUSPENDED"} /></td>
+                        </tr>
+                    ))}
+                </DataTable>
+            )}
+            <p style={{ fontSize:12, color:"#94a3b8", textAlign:"center", margin:0 }}>Showing {filtered.length} of {users.length} users</p>
+        </div>
+    );
+};
+
+// ════════════════════════════════════════════════════════════
+// MAIN SUPER ADMIN DASHBOARD
+// ════════════════════════════════════════════════════════════
+export default function SuperAdminDashboard({ onExit }) {
+    const [tab,      setTab]      = useState("overview");
+    const [overview, setOverview] = useState({});
+    const [loading,  setLoading]  = useState(true);
+    const [sidebar,  setSidebar]  = useState(false);
+    const [toastMsg, setToastMsg] = useState(null);
+    const navigate = useNavigate();
 
     const isMobile = typeof window !== "undefined" && window.innerWidth < 768;
 
-    useEffect(() => {
-        const loadData = async () => {
-            setLoading(true);
-            try {
-                const data = await adminApi.getOverview();
-                setOverview(data);
-            } catch (err) {
-                console.error("Failed to load super admin overview:", err);
-            } finally {
-                setLoading(false);
-            }
-        };
+    // ── Toast helper passed down to tabs ──────────────────────────────────────
+    const toast = useCallback((msg, type="info") => {
+        setToastMsg({ msg, type, key: Date.now() });
+    }, []);
 
-        loadData();
-    }, [tab]);
+    // ── Auth guard ────────────────────────────────────────────────────────────
+    useEffect(() => {
+        const token = localStorage.getItem("chopspot_token") || localStorage.getItem("adminToken");
+        if (!token) { navigate("/login"); return; }
+        const raw = localStorage.getItem("chopspot_user");
+        if (raw) {
+            try {
+                const u = JSON.parse(raw);
+                if (!u.roles?.includes("SUPER_ADMIN")) {
+                    navigate("/login");
+                }
+            } catch (_) {}
+        }
+    }, [navigate]);
+
+    // ── Load overview ─────────────────────────────────────────────────────────
+    useEffect(() => {
+        const fetch = async () => {
+            setLoading(true);
+            try { setOverview(await adminApi.getOverview()); }
+            catch (err) {
+                if (err.status === 401 || err.message?.includes("expired")) navigate("/login");
+                else toast(err.message, "error");
+            } finally { setLoading(false); }
+        };
+        fetch();
+    }, [navigate, toast]);
+
+    // ── Get adminName from localStorage ───────────────────────────────────────
+    let adminName = "Super Admin";
+    try {
+        const u = JSON.parse(localStorage.getItem("chopspot_user")||"{}");
+        adminName = [u.firstName, u.lastName].filter(Boolean).join(" ") || u.username || "Super Admin";
+    } catch (_) {}
+
+    const tabProps = { toast };
 
     return (
         <>
             <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700;800&family=DM+Sans:wght@400;500;600;700&display=swap');
-        * { box-sizing: border-box; }
-        @keyframes acIn { from { opacity:0; transform:translateY(14px) scale(0.97); } to { opacity:1; transform:translateY(0) scale(1); } }
-      `}</style>
+                @import url('https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700;800&family=DM+Sans:wght@400;500;600;700&display=swap');
+                * { box-sizing:border-box; }
+                @keyframes acIn  { from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)} }
+                @keyframes pulse { 0%,100%{opacity:1}50%{opacity:0.45} }
+                @keyframes slideUp { from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)} }
+                ::-webkit-scrollbar{width:4px;height:4px}
+                ::-webkit-scrollbar-thumb{background:#d1d5db;border-radius:10px}
+            `}</style>
 
-            <div style={{ display: "flex", minHeight: "100vh", background: "#f8fafc", fontFamily: "'DM Sans',sans-serif" }}>
-                {/* Mobile overlay */}
-                {sidebarOpen && <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 199 }} onClick={() => setSidebarOpen(false)} />}
+            {toastMsg && <Toast key={toastMsg.key} msg={toastMsg.msg} type={toastMsg.type} onClose={() => setToastMsg(null)} />}
+
+            <div style={{ display:"flex", minHeight:"100vh", background:"#f0f4f8", fontFamily:"'DM Sans',sans-serif" }}>
+                {sidebar && <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.45)", zIndex:199 }} onClick={() => setSidebar(false)} />}
 
                 {/* Sidebar */}
-                <aside
-                    style={{
-                        width: 248,
-                        background: "#0f172a",
-                        display: "flex",
-                        flexDirection: "column",
-                        flexShrink: 0,
-                        position: isMobile ? "fixed" : "sticky",
-                        top: 0,
-                        height: "100vh",
-                        overflowY: "auto",
-                        left: isMobile ? (sidebarOpen ? 0 : -248) : 0,
-                        transition: isMobile ? "left 0.28s cubic-bezier(.34,1.2,.64,1)" : "none",
-                        zIndex: isMobile ? 200 : "auto",
-                    }}
-                >
-                    <div style={{ padding: "24px 20px 20px", borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
-                        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
-                            <div style={{ width: 38, height: 38, borderRadius: 10, background: "linear-gradient(135deg,#7c3aed,#a855f7)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20 }}>🛡️</div>
+                <aside style={{ width:256, background:"linear-gradient(180deg,#0b1120,#0f1a2e)", display:"flex", flexDirection:"column", flexShrink:0, position:isMobile?"fixed":"sticky", top:0, height:"100vh", overflowY:"auto", left:isMobile?(sidebar?0:-256):0, transition:isMobile?"left 0.3s":"none", zIndex:isMobile?200:"auto", borderRight:"1px solid rgba(255,255,255,0.06)" }}>
+                    <div style={{ padding:"22px 20px 18px", borderBottom:"1px solid rgba(255,255,255,0.06)" }}>
+                        <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+                            <div style={{ width:40, height:40, borderRadius:12, background:"linear-gradient(135deg,#6366f1,#818cf8)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:22, boxShadow:"0 4px 14px rgba(99,102,241,0.5)" }}>👑</div>
                             <div>
-                                <span style={{ fontFamily: "'Sora',sans-serif", fontWeight: 800, fontSize: 17, color: "white" }}>Chop<span style={{ color: "#a855f7" }}>Spot</span></span>
-                                <p style={{ margin: 0, fontSize: 10, color: "#64748b", letterSpacing: 1, fontWeight: 700, textTransform: "uppercase" }}>Super Admin Console</p>
+                                <div style={{ fontFamily:"'Sora',sans-serif", fontWeight:800, fontSize:17, color:"white" }}>Tasty<span style={{ color:"#6366f1" }}>cart</span></div>
+                                <div style={{ fontSize:9, color:"#475569", letterSpacing:1.5, fontWeight:700, textTransform:"uppercase" }}>Super Admin</div>
                             </div>
                         </div>
                     </div>
 
-                    <nav style={{ flex: 1, padding: "14px 12px" }}>
-                        <p style={{ fontSize: 10, fontWeight: 800, letterSpacing: 1.5, color: "#475569", textTransform: "uppercase", padding: "0 8px", margin: "0 0 8px" }}>Navigation</p>
-                        {NAV_ITEMS.map((item) => {
-                            const active = tab === item.id;
+                    <nav style={{ flex:1, padding:"16px 12px" }}>
+                        {NAV_ITEMS.map(item => {
+                            const active = tab===item.id;
                             return (
-                                <button
-                                    key={item.id}
-                                    onClick={() => {
-                                        setTab(item.id);
-                                        setSidebarOpen(false);
-                                    }}
-                                    style={{
-                                        width: "100%",
-                                        display: "flex",
-                                        alignItems: "center",
-                                        gap: 10,
-                                        padding: "10px 12px",
-                                        borderRadius: 12,
-                                        border: "none",
-                                        background: active ? "rgba(167,139,250,0.15)" : "transparent",
-                                        color: active ? "#c4b5fd" : "#94a3b8",
-                                        cursor: "pointer",
-                                        fontFamily: "'DM Sans',sans-serif",
-                                        fontWeight: active ? 700 : 500,
-                                        fontSize: 14,
-                                        marginBottom: 2,
-                                        transition: "all 0.18s",
-                                        textAlign: "left",
-                                    }}
-                                >
-                                    <span style={{ fontSize: 16, width: 20, textAlign: "center" }}>{item.icon}</span>
-                                    <span style={{ flex: 1 }}>{item.label}</span>
-                                    {active && <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#c4b5fd" }} />}
+                                <button key={item.id} onClick={() => { setTab(item.id); setSidebar(false); }} style={{ width:"100%", display:"flex", alignItems:"center", gap:10, padding:"10px 12px", borderRadius:12, border:"none", background:active?"linear-gradient(135deg,rgba(99,102,241,0.2),rgba(99,102,241,0.1))":"transparent", color:active?"#818cf8":"#64748b", cursor:"pointer", fontFamily:"'DM Sans',sans-serif", fontWeight:active?700:500, fontSize:13.5, marginBottom:2, transition:"all 0.18s", textAlign:"left", borderLeft:active?"3px solid #6366f1":"3px solid transparent" }}>
+                                    <span style={{ fontSize:16, width:22, textAlign:"center" }}>{item.icon}</span>
+                                    <span style={{ flex:1 }}>{item.label}</span>
                                 </button>
                             );
                         })}
                     </nav>
 
-                    <div style={{ padding: "14px 16px 20px", borderTop: "1px solid rgba(255,255,255,0.06)" }}>
-                        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                            <div
-                                style={{
-                                    width: 34,
-                                    height: 34,
-                                    borderRadius: "50%",
-                                    background: "linear-gradient(135deg,#7c3aed,#a855f7)",
-                                    color: "white",
-                                    display: "flex",
-                                    alignItems: "center",
-                                    justifyContent: "center",
-                                    fontWeight: 800,
-                                }}
-                            >
-                                SA
+                    <div style={{ padding:"14px 16px 22px", borderTop:"1px solid rgba(255,255,255,0.06)" }}>
+                        <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:12 }}>
+                            <div style={{ width:36, height:36, borderRadius:"50%", background:"linear-gradient(135deg,#6366f1,#f59e0b)", color:"white", display:"flex", alignItems:"center", justifyContent:"center", fontWeight:800, fontSize:14 }}>
+                                {adminName[0]?.toUpperCase()||"S"}
                             </div>
                             <div>
-                                <p style={{ margin: 0, fontWeight: 700, fontSize: 13, color: "white" }}>{adminName}</p>
-                                <p style={{ margin: 0, fontSize: 10, color: "#64748b" }}>Super Administrator</p>
+                                <p style={{ margin:0, fontWeight:700, fontSize:13, color:"white" }}>{adminName}</p>
+                                <p style={{ margin:0, fontSize:10, color:"#475569" }}>Super Administrator</p>
                             </div>
                         </div>
-                        {onExit && (
-                            <button
-                                onClick={onExit}
-                                style={{
-                                    marginTop: 16,
-                                    width: "100%",
-                                    padding: "9px",
-                                    borderRadius: 10,
-                                    border: "1px solid rgba(255,255,255,0.08)",
-                                    background: "rgba(255,255,255,0.04)",
-                                    color: "#94a3b8",
-                                    fontWeight: 600,
-                                    fontSize: 12,
-                                    cursor: "pointer",
-                                }}
-                            >
-                                ← Back to App
-                            </button>
-                        )}
+                        {onExit && <button onClick={onExit} style={{ width:"100%", padding:"9px", borderRadius:10, border:"1px solid rgba(255,255,255,0.08)", background:"rgba(255,255,255,0.04)", color:"#64748b", fontWeight:600, fontSize:12, cursor:"pointer", fontFamily:"'DM Sans',sans-serif" }}>← Back to App</button>}
                     </div>
                 </aside>
 
-                {/* Main Content */}
-                <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0 }}>
-                    <header
-                        style={{
-                            background: "white",
-                            borderBottom: "1.5px solid #e2e8f0",
-                            padding: "0 24px",
-                            height: 64,
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "space-between",
-                            position: "sticky",
-                            top: 0,
-                            zIndex: 100,
-                        }}
-                    >
-                        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                            <button
-                                onClick={() => setSidebarOpen((o) => !o)}
-                                style={{ display: isMobile ? "flex" : "none", background: "none", border: "none", cursor: "pointer" }}
-                            >
-                                <svg width="22" height="22" fill="none" viewBox="0 0 24 24" stroke="#374151" strokeWidth="2">
-                                    <line x1="3" y1="6" x2="21" y2="6" />
-                                    <line x1="3" y1="12" x2="21" y2="12" />
-                                    <line x1="3" y1="18" x2="21" y2="18" />
-                                </svg>
-                            </button>
-                            <h1 style={{ fontFamily: "'Sora',sans-serif", fontWeight: 800, fontSize: 17, color: "#0f172a", margin: 0 }}>
-                                {NAV_ITEMS.find((n) => n.id === tab)?.label || "Super Admin"}
-                            </h1>
+                {/* Main */}
+                <div style={{ flex:1, display:"flex", flexDirection:"column", minWidth:0 }}>
+                    <header style={{ background:"white", borderBottom:"1.5px solid #e8edf2", padding:"0 28px", height:64, display:"flex", alignItems:"center", justifyContent:"space-between", position:"sticky", top:0, zIndex:100, boxShadow:"0 2px 12px rgba(0,0,0,0.04)" }}>
+                        <div style={{ display:"flex", alignItems:"center", gap:14 }}>
+                            {isMobile && <button onClick={() => setSidebar(o => !o)} style={{ background:"none", border:"none", cursor:"pointer", padding:4 }}><svg width="22" height="22" fill="none" viewBox="0 0 24 24" stroke="#374151" strokeWidth="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg></button>}
+                            <div>
+                                <h1 style={{ fontFamily:"'Sora',sans-serif", fontWeight:800, fontSize:17, color:"#0f172a", margin:0 }}>
+                                    {NAV_ITEMS.find(n => n.id===tab)?.icon} {NAV_ITEMS.find(n => n.id===tab)?.label}
+                                </h1>
+                                <p style={{ margin:0, fontSize:11, color:"#94a3b8" }}>{new Date().toLocaleDateString("en-NG",{weekday:"long",day:"numeric",month:"long",year:"numeric"})}</p>
+                            </div>
                         </div>
-                        <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 12, color: "#94a3b8" }}>
-                            {new Date().toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}
+                        <div style={{ display:"inline-flex", alignItems:"center", gap:6, background:"#ede9fe", borderRadius:50, padding:"5px 14px" }}>
+                            <span style={{ width:7, height:7, borderRadius:"50%", background:"#6366f1", display:"inline-block" }} />
+                            <span style={{ fontWeight:700, fontSize:11, color:"#6366f1" }}>Super Admin</span>
                         </div>
                     </header>
 
-                    <main style={{ flex: 1, padding: "28px 24px 48px", overflowY: "auto", animation: "acIn 0.3s ease both" }} key={tab}>
+                    <main style={{ flex:1, padding:"28px 28px 56px", overflowY:"auto", animation:"acIn 0.3s ease both" }} key={tab}>
                         {loading ? (
-                            <div style={{ textAlign: "center", padding: "100px 20px", color: "#64748b" }}>Loading Super Admin Console...</div>
+                            <div style={{ textAlign:"center", padding:"100px 20px", color:"#64748b" }}>
+                                <div style={{ fontSize:32, marginBottom:12 }}>👑</div>
+                                <p style={{ fontFamily:"'Sora',sans-serif", fontWeight:700 }}>Loading Super Admin Console…</p>
+                            </div>
                         ) : (
                             <>
-                                {tab === "overview" && <OverviewTab overview={overview} />}
-                                {tab === "vendors" && <VendorsTab />}
-                                {tab === "riders" && <RidersTab />}
-                                {tab === "admins" && <AdminsTab />}
-                                {tab === "users" && <UsersTab />}
-                                {tab === "reports" && <ReportsTab />}
+                                {tab==="overview"    && <OverviewTab overview={overview} />}
+                                {tab==="admins"      && <AdminsTab {...tabProps} />}
+                                {tab==="vendors"     && <VendorsTab {...tabProps} />}
+                                {tab==="riders"      && <RidersTab {...tabProps} />}
+                                {tab==="users"       && <UsersTab {...tabProps} />}
+                                {tab==="settlements" && <SettlementsTab {...tabProps} />}
+                                {tab==="reports"     && <div style={{ background:"white", borderRadius:20, padding:"60px 40px", textAlign:"center", border:"1.5px solid #e2e8f0" }}><div style={{ fontSize:52, marginBottom:16 }}>📊</div><h3 style={{ fontFamily:"'Sora',sans-serif", fontWeight:800 }}>Reports coming soon</h3></div>}
                             </>
                         )}
                     </main>

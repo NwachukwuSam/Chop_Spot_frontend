@@ -68,7 +68,7 @@ async function request(endpoint, options = {}) {
         }
 
         // Handle 401 Unauthorized
-        if (res.status === 401) {
+        if (res.status === 401 || res.status === 403) {
             handleUnauthorized();
             throw new Error("Your session has expired. Please sign in again.");
         }
@@ -270,7 +270,7 @@ export const orderApi = {
     createOrder: (dto) =>
         request("/api/orders", { method: "POST", body: JSON.stringify(dto) }),
 
-    setPaystackReference: (orderId, paystackReference) =>
+    setOrderReference: (orderId, paystackReference) =>
         request(`/api/orders/${orderId}/reference`, {
             method: "PATCH",
             body: JSON.stringify({ paystackReference }),
@@ -301,7 +301,7 @@ export const orderApi = {
         request(status ? `/api/admin/orders?status=${status}` : "/api/admin/orders"),
 
     // Fetch orders that are ready for a rider to pick up.
-    getAvailableOrders: () =>
+    getAllReadyForPickupOrders: () =>
         request("/api/orders?status=READY_FOR_PICKUP"),
 
     assignRider: (orderId, riderUserId) =>
@@ -364,17 +364,35 @@ export const adminApi = {
     deleteAdmin:   (id)  => request(`/api/admin/admins/${id}`,          { method: "DELETE" }),
 
     // ── Manual Settlements ─────────────────────────────────────────────────────
-    // Endpoint 1: Fetch DELIVERED orders grouped by vendor/rider for a date
+
+    /**
+     * Fetch DELIVERED orders grouped by vendor/rider for a given date.
+     * Response includes paymentStatus, totalPaid, balance per group.
+     * @param {string} date   - ISO date string yyyy-MM-dd
+     * @param {string|null} type - "VENDOR" | "RIDER" | null (both)
+     */
     getSettlementOrders: (date, type = null) =>
-        request(type
-            ? `/api/admin/settlements/orders?date=${date}&type=${type}`
-            : `/api/admin/settlements/orders?date=${date}`),
+        request(
+            type
+                ? `/api/admin/settlements/orders?date=${date}&type=${type}`
+                : `/api/admin/settlements/orders?date=${date}`
+        ),
 
-    // Endpoint 2: Create a manual settlement record after bank transfer
+    /**
+     * Create a manual settlement record after a bank transfer.
+     * @param {Object} dto - ManualSettlementDTO shape
+     */
     createSettlement: (dto) =>
-        request("/api/admin/settlements", { method: "POST", body: JSON.stringify(dto) }),
+        request("/api/admin/settlements", {
+            method: "POST",
+            body: JSON.stringify(dto),
+        }),
 
-    // Endpoint 3: Retrieve settlement records with optional filters
+    /**
+     * Retrieve settlement records with optional date and type filters.
+     * @param {string|null} date - ISO date yyyy-MM-dd
+     * @param {string|null} type - "VENDOR" | "RIDER"
+     */
     getSettlements: (date = null, type = null) => {
         const params = new URLSearchParams();
         if (date) params.append("date", date);
@@ -382,6 +400,13 @@ export const adminApi = {
         const qs = params.toString();
         return request(qs ? `/api/admin/settlements?${qs}` : "/api/admin/settlements");
     },
+
+    /**
+     * All settlements for a specific recipient (vendor or rider profile ID).
+     * Useful for the record-payment form to check prior payments.
+     */
+    getSettlementsForRecipient: (recipientId) =>
+        request(`/api/admin/settlements?recipientId=${recipientId}`),
 };
 
 // ─── FINANCE ──────────────────────────────────────────────────────────────────
