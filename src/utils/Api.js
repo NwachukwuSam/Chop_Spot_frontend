@@ -209,19 +209,8 @@ export const cartApi = {
 };
 
 // ─── USER PROFILE ─────────────────────────────────────────────────────────────
-// FIX: userProfileApi was imported by useUserProfile.js but never defined here,
-// causing a runtime crash ("userProfileApi is not defined") on every profile fetch.
 export const userProfileApi = {
-    /**
-     * GET /api/users/profile
-     * Returns the logged-in user's UserProfile (whatsapp, hostel, room, etc.).
-     */
     getProfile: () => request("/api/users/profile"),
-
-    /**
-     * PUT /api/users/profile
-     * Updates delivery fields (whatsapp, hostel, room, defaultDeliveryLocation).
-     */
     updateProfile: (dto) =>
         request("/api/users/profile", { method: "PUT", body: JSON.stringify(dto) }),
 };
@@ -261,19 +250,12 @@ export const riderApi = {
     updateProfile: (dto) =>
         request("/api/rider/profile", { method: "PUT", body: JSON.stringify(dto) }),
 
-    /**
-     * FIX: The original call used method: "PATCH" with no body.
-     * RiderProfileController.updateAvailability() expects:
-     *   PATCH /api/rider/availability  body: { "availability": "ONLINE" | "OFFLINE" }
-     * The body was missing — the server always got null and threw a 400.
-     */
     setAvailability: (availability) =>
         request("/api/rider/availability", {
             method: "PATCH",
             body: JSON.stringify({ availability }),
         }),
 
-    // Alias — RiderDashboard uses this name
     updateAvailability: (availability) =>
         request("/api/rider/availability", {
             method: "PATCH",
@@ -287,20 +269,21 @@ export const orderApi = {
     // Step 1: create order before payment (returns orderId)
     createOrder: (dto) =>
         request("/api/orders", { method: "POST", body: JSON.stringify(dto) }),
-// orderApi
-    setOrderReference: (orderId, paystackReference) =>
+
+    setPaystackReference: (orderId, paystackReference) =>
         request(`/api/orders/${orderId}/reference`, {
             method: "PATCH",
             body: JSON.stringify({ paystackReference }),
         }),
-    // Step 2: confirm payment after Paystack succeeds
+
+    // Step 2: confirm payment after Paystack callback
     confirmPayment: (orderId, dto) =>
         request(`/api/orders/${orderId}/confirm-payment`, {
             method: "POST",
             body: JSON.stringify(dto),
         }),
 
-    // Cancel a pending order
+    // Cancel an unpaid order (closed payment modal without paying)
     cancelOrder: (orderId) =>
         request(`/api/orders/${orderId}`, { method: "DELETE" }),
 
@@ -314,13 +297,11 @@ export const orderApi = {
         request(`/api/orders/${id}/status?status=${status}`, { method: "PUT" }),
 
     // NOTE: getAllOrders on the frontend now routes through /api/admin/orders
-    // (the /api/orders GET is now ADMIN-only — this alias keeps dashboards working)
     getAllOrders: (status = null) =>
         request(status ? `/api/admin/orders?status=${status}` : "/api/admin/orders"),
 
     // Fetch orders that are ready for a rider to pick up.
-    // GET /api/orders?status=READY_FOR_PICKUP — requires RIDER role (set in SecurityConfig).
-    getAllReadyForPickupOrders: () =>
+    getAvailableOrders: () =>
         request("/api/orders?status=READY_FOR_PICKUP"),
 
     assignRider: (orderId, riderUserId) =>
@@ -331,22 +312,26 @@ export const orderApi = {
 export const adminApi = {
     getOverview: () => request("/api/admin/overview"),
 
+    // ── Customers ──────────────────────────────────────────────────────────────
     getCustomers:     ()    => request("/api/admin/customers"),
     suspendCustomer:  (id)  => request(`/api/admin/customers/${id}/suspend`,  { method: "PATCH" }),
     activateCustomer: (id)  => request(`/api/admin/customers/${id}/activate`, { method: "PATCH" }),
 
+    // ── Vendors ────────────────────────────────────────────────────────────────
     getVendors:    ()    => request("/api/admin/vendors"),
     approveVendor: (id)  => request(`/api/admin/vendors/${id}/approve`, { method: "PATCH" }),
     rejectVendor:  (id)  => request(`/api/admin/vendors/${id}/reject`,  { method: "PATCH" }),
     suspendVendor: (id)  => request(`/api/admin/vendors/${id}/suspend`, { method: "PATCH" }),
     deleteVendor:  (id)  => request(`/api/admin/vendors/${id}`,         { method: "DELETE" }),
 
+    // ── Riders ─────────────────────────────────────────────────────────────────
     getRiders:    ()    => request("/api/admin/riders"),
     approveRider: (id)  => request(`/api/admin/riders/${id}/approve`, { method: "PATCH" }),
     rejectRider:  (id)  => request(`/api/admin/riders/${id}/reject`,  { method: "PATCH" }),
     suspendRider: (id)  => request(`/api/admin/riders/${id}/suspend`, { method: "PATCH" }),
     deleteRider:  (id)  => request(`/api/admin/riders/${id}`,         { method: "DELETE" }),
 
+    // ── Orders ─────────────────────────────────────────────────────────────────
     getOrders:         (status = null) =>
         request(status ? `/api/admin/orders?status=${status}` : "/api/admin/orders"),
     updateOrderStatus: (id, status) =>
@@ -354,11 +339,49 @@ export const adminApi = {
     assignRider:       (orderId, riderUserId) =>
         request(`/api/admin/orders/${orderId}/assign-rider?riderUserId=${riderUserId}`, { method: "PUT" }),
 
+    // ── All Users (customers + vendors + riders combined) ──────────────────────
+    // FIX: Was a stub "coming soon" UI — now wired to real endpoints.
+    // Fetches all three user types in parallel and merges them client-side.
+    getAllUsers: async () => {
+        const [customers, vendors, riders] = await Promise.all([
+            request("/api/admin/customers"),
+            request("/api/admin/vendors"),
+            request("/api/admin/riders"),
+        ]);
+        const tag = (arr, type) => (arr || []).map(u => ({ ...u, _userType: type }));
+        return [
+            ...tag(customers, "CUSTOMER"),
+            ...tag(vendors,   "VENDOR"),
+            ...tag(riders,    "RIDER"),
+        ];
+    },
+
+    // ── Admin management (Super Admin only) ────────────────────────────────────
     getAdmins:     ()    => request("/api/admin/admins"),
     createAdmin:   (dto) => request("/api/admin/admins", { method: "POST", body: JSON.stringify(dto) }),
     suspendAdmin:  (id)  => request(`/api/admin/admins/${id}/suspend`,  { method: "PATCH" }),
     activateAdmin: (id)  => request(`/api/admin/admins/${id}/activate`, { method: "PATCH" }),
     deleteAdmin:   (id)  => request(`/api/admin/admins/${id}`,          { method: "DELETE" }),
+
+    // ── Manual Settlements ─────────────────────────────────────────────────────
+    // Endpoint 1: Fetch DELIVERED orders grouped by vendor/rider for a date
+    getSettlementOrders: (date, type = null) =>
+        request(type
+            ? `/api/admin/settlements/orders?date=${date}&type=${type}`
+            : `/api/admin/settlements/orders?date=${date}`),
+
+    // Endpoint 2: Create a manual settlement record after bank transfer
+    createSettlement: (dto) =>
+        request("/api/admin/settlements", { method: "POST", body: JSON.stringify(dto) }),
+
+    // Endpoint 3: Retrieve settlement records with optional filters
+    getSettlements: (date = null, type = null) => {
+        const params = new URLSearchParams();
+        if (date) params.append("date", date);
+        if (type) params.append("type", type);
+        const qs = params.toString();
+        return request(qs ? `/api/admin/settlements?${qs}` : "/api/admin/settlements");
+    },
 };
 
 // ─── FINANCE ──────────────────────────────────────────────────────────────────
