@@ -1,28 +1,20 @@
 /**
  * CheckoutModal.jsx
  *
- * Checkout form with an integrated live delivery map.
+ * Checkout form with integrated live delivery map + 20% service charge.
  *
- * Map behaviour:
- *  • On open: geocodes the vendor's address (restaurant pin) and the
- *    initially selected delivery location label (customer pin).
- *  • When the user changes delivery location: geocodes the new label.
- *  • User can drag the green pin to fine-tune their exact spot.
- *  • All geocoding goes through useGeocoder → Nominatim (free, no key).
- *  • Set VITE_CAMPUS_HINT in .env to anchor ambiguous labels like
- *    "Hall 1" to your campus.  e.g.:
- *      VITE_CAMPUS_HINT=Babcock University, Ilishan-Remo, Ogun State
- *
- * Nothing is hardcoded — coordinates are always resolved from text.
- * If the backend later stores lat/lng on restaurant records, those
- * are used directly and geocoding is skipped.
+ * Pricing:
+ *  subtotal      = items + package
+ *  serviceCharge = subtotal × 20%
+ *  orderTotal    = subtotal + deliveryFee + serviceCharge
  */
 
 import { useState, useEffect, useRef } from "react";
 import {DeliveryMap} from "./DeliveryMap.jsx";
 import {useGeocoder} from "../../hooks/useGeocoder.js";
 
-const DELIVERY_FEE = 350;
+const SERVICE_CHARGE_RATE = 0.20; // 20%
+const DEFAULT_DELIVERY_FEE = 350;
 
 const DELIVERY_LOCATIONS = [
     { label: "Porter's Lodge (₦300)", value: "porters", fee: 300 },
@@ -35,6 +27,13 @@ const DELIVERY_LOCATIONS = [
 export const CheckoutModal = ({ totalAmount, profile, onClose, onPay, vendor }) => {
     const { geocode } = useGeocoder();
 
+    // totalAmount coming in is the cart subtotal (items + package, no delivery fee yet)
+    // We strip the old flat delivery fee that may have been added upstream and recompute cleanly.
+    // Assumption: totalAmount = subtotal (items + pack) as computed in useCart / CartModal.
+    const subtotal = totalAmount - DEFAULT_DELIVERY_FEE > 0
+        ? totalAmount - DEFAULT_DELIVERY_FEE
+        : totalAmount; // guard against already-clean values
+
     const [form, setForm] = useState({
         fullName: profile?.firstName && profile?.lastName
             ? `${profile.firstName} ${profile.lastName}`
@@ -44,30 +43,29 @@ export const CheckoutModal = ({ totalAmount, profile, onClose, onPay, vendor }) 
         hostel:          profile?.hostel || "",
         room:            profile?.room   || "",
         saveDetails:     false,
-        customPinCoords: null, // set when user drags the map pin
+        customPinCoords: null,
     });
 
-    // Geocoded coords — resolved from text, never hardcoded
     const [restaurantCoords, setRestaurantCoords] = useState(null);
     const [deliveryCoords,   setDeliveryCoords]   = useState(null);
-
-    // Per-session label → coords cache so we don't re-geocode the same label
-    const labelCacheRef      = useRef({});
-    const restaurantGeoRef   = useRef(false);
+    const labelCacheRef    = useRef({});
+    const restaurantGeoRef = useRef(false);
 
     const set = (k, v) => setForm(p => ({ ...p, [k]: v }));
 
-    const selectedLoc = DELIVERY_LOCATIONS.find(l => l.value === form.location);
-    const orderTotal  = totalAmount - DELIVERY_FEE + (selectedLoc?.fee || DELIVERY_FEE);
-    const isValid     = form.fullName.trim() && form.whatsapp.trim();
-    const preFilled   = Boolean(profile?.whatsapp || profile?.hostel);
+    const selectedLoc  = DELIVERY_LOCATIONS.find(l => l.value === form.location);
+    const deliveryFee  = selectedLoc?.fee ?? DEFAULT_DELIVERY_FEE;
+    const serviceCharge = Math.round(subtotal * SERVICE_CHARGE_RATE);
+    const orderTotal    = subtotal + deliveryFee + serviceCharge;
 
-    // ── Geocode vendor / restaurant address (once per open) ──────────────────
+    const isValid   = form.fullName.trim() && form.whatsapp.trim();
+    const preFilled = Boolean(profile?.whatsapp || profile?.hostel);
+
+    // ── Geocode vendor address (once per open) ──────────────────────────────
     useEffect(() => {
         if (restaurantGeoRef.current) return;
         restaurantGeoRef.current = true;
 
-        // Prefer stored lat/lng on the vendor object (fastest path)
         if (vendor?.latitude && vendor?.longitude) {
             setRestaurantCoords({ lat: parseFloat(vendor.latitude), lng: parseFloat(vendor.longitude) });
             return;
@@ -77,7 +75,6 @@ export const CheckoutModal = ({ totalAmount, profile, onClose, onPay, vendor }) 
             return;
         }
 
-        // Fallback: geocode from text address
         const address = vendor?.address
             || vendor?.restaurantAddress
             || vendor?.businessAddress
@@ -92,22 +89,19 @@ export const CheckoutModal = ({ totalAmount, profile, onClose, onPay, vendor }) 
         }
     }, [vendor, geocode]);
 
-    // ── Geocode delivery location label whenever selection changes ────────────
+    // ── Geocode delivery location ────────────────────────────────────────────
     useEffect(() => {
         const label = selectedLoc?.label;
         if (!label) return;
-
-        // Reset custom pin when location changes
         set("customPinCoords", null);
 
-        // Already geocoded this label this session
         if (labelCacheRef.current[label] !== undefined) {
             setDeliveryCoords(labelCacheRef.current[label]);
             return;
         }
 
         geocode(label).then(coords => {
-            labelCacheRef.current[label] = coords; // cache for this session
+            labelCacheRef.current[label] = coords;
             setDeliveryCoords(coords);
         });
     }, [form.location, geocode]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -124,7 +118,6 @@ export const CheckoutModal = ({ totalAmount, profile, onClose, onPay, vendor }) 
         textTransform: "uppercase", display: "block", marginBottom: 7,
     };
 
-    // Effective customer pin: custom-dragged position takes priority
     const customerCoords = form.customPinCoords || deliveryCoords;
 
     return (
@@ -196,9 +189,7 @@ export const CheckoutModal = ({ totalAmount, profile, onClose, onPay, vendor }) 
                         <DeliveryMap
                             mode="checkout"
                             restaurantCoords={restaurantCoords}
-                            restaurantName={
-                                vendor?.restaurantName || vendor?.businessName || vendor?.name || "Restaurant"
-                            }
+                            restaurantName={vendor?.restaurantName || vendor?.businessName || vendor?.name || "Restaurant"}
                             customerCoords={customerCoords}
                             onPinMoved={coords => set("customPinCoords", coords)}
                             height={220}
@@ -230,7 +221,7 @@ export const CheckoutModal = ({ totalAmount, profile, onClose, onPay, vendor }) 
                     </div>
 
                     {/* Save details toggle */}
-                    <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 20 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16 }}>
                         <div
                             onClick={() => set("saveDetails", !form.saveDetails)}
                             style={{ width: 20, height: 20, borderRadius: 4, border: `2px solid ${form.saveDetails ? "#2d8a2d" : "#bcd5bc"}`, background: form.saveDetails ? "#2d8a2d" : "white", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", transition: "all 0.18s", flexShrink: 0 }}
@@ -243,6 +234,25 @@ export const CheckoutModal = ({ totalAmount, profile, onClose, onPay, vendor }) 
                         </div>
                         <span style={{ fontSize: 14, color: "#5a7a5a" }}>Update my delivery details for next time</span>
                     </div>
+
+                    {/* ── Price Breakdown ──────────────────────────────────────── */}
+                    <div style={{ background: "#f4f8f4", borderRadius: 16, padding: "14px 18px", marginBottom: 4, border: "1.5px solid #d8eed8" }}>
+                        <p style={{ margin: "0 0 10px", fontFamily: "'Sora',sans-serif", fontWeight: 700, fontSize: 13, color: "#1a2e1a" }}>Order Summary</p>
+                        {[
+                            ["Subtotal",        `₦${subtotal.toLocaleString()}`],
+                            ["Delivery Fee",    `₦${deliveryFee.toLocaleString()}`],
+                            [`Service Charge (${(SERVICE_CHARGE_RATE * 100).toFixed(0)}%)`, `₦${serviceCharge.toLocaleString()}`],
+                        ].map(([label, val]) => (
+                            <div key={label} style={{ display: "flex", justifyContent: "space-between", marginBottom: 6, fontSize: 13, color: "#5a7a5a" }}>
+                                <span>{label}</span>
+                                <span style={{ fontWeight: 600, color: "#1a2e1a" }}>{val}</span>
+                            </div>
+                        ))}
+                        <div style={{ borderTop: "1.5px solid #d8eed8", marginTop: 8, paddingTop: 8, display: "flex", justifyContent: "space-between", fontSize: 15, fontWeight: 800, color: "#1a2e1a" }}>
+                            <span>Total</span>
+                            <span style={{ color: "#f97316" }}>₦{orderTotal.toLocaleString()}</span>
+                        </div>
+                    </div>
                 </div>
 
                 {/* CTA */}
@@ -250,9 +260,11 @@ export const CheckoutModal = ({ totalAmount, profile, onClose, onPay, vendor }) 
                     <button
                         onClick={isValid ? () => onPay({
                             ...form,
-                            location:   selectedLoc,
+                            location:      selectedLoc,
+                            subtotal,
+                            deliveryFee,
+                            serviceCharge,
                             orderTotal,
-                            // Pass resolved pin coords so the backend can store them
                             pinLat: customerCoords?.lat ?? null,
                             pinLng: customerCoords?.lng ?? null,
                         }) : undefined}
