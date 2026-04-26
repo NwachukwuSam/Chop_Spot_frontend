@@ -2,6 +2,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { adminApi, orderApi } from "../utils/Api";
+import SettlementsTab from "./SettlementsTab.jsx"; // ← replaces the old inline component
 
 const fmt = (n) => `₦${Number(n || 0).toLocaleString()}`;
 
@@ -322,7 +323,7 @@ const RidersTab = ({ navigate }) => {
     if (authErr) return <AuthNotice code={authErr} />;
     if (loading)  return <TableSkeleton />;
 
-    const getName   = r => [r.firstName, r.lastName].filter(Boolean).join(" ") || r.riderName || r.name || r.email?.split("@")[0] || "—";
+    const getName    = r => [r.firstName, r.lastName].filter(Boolean).join(" ") || r.riderName || r.name || r.email?.split("@")[0] || "—";
     const getVehicle = r => r.vehicleType || "—";
     const getZone    = r => r.deliveryZone || "—";
     const getStatus  = r => r.status || "PENDING";
@@ -427,7 +428,7 @@ const OrdersTab = () => {
 };
 
 // ════════════════════════════════════════════════════════════
-// All Users Tab  (FIX: was a stub — now fetches real data)
+// All Users Tab
 // ════════════════════════════════════════════════════════════
 const UsersTab = () => {
     const [users, setUsers] = useState([]);
@@ -443,7 +444,6 @@ const UsersTab = () => {
     const load = useCallback(async () => {
         setLoading(true); setAuthErr(null);
         try {
-            // getAllUsers() fetches customers, vendors, riders in parallel and merges them
             const data = await adminApi.getAllUsers();
             setUsers(Array.isArray(data) ? data : []);
         } catch (err) {
@@ -504,7 +504,6 @@ const UsersTab = () => {
             {modal.show && modal.type === "error"   && <ErrorModal   isOpen message={modal.message} onClose={closeModal} />}
 
             <div style={{ display:"flex", flexDirection:"column", gap:16 }}>
-                {/* Summary pills */}
                 <div style={{ display:"flex", gap:10, flexWrap:"wrap" }}>
                     {["ALL","CUSTOMER","VENDOR","RIDER"].map(t => (
                         <button key={t} onClick={() => setFilterType(t)} style={{ padding:"8px 18px", borderRadius:50, border:`2px solid ${filterType===t ? (TYPE_COLORS[t]||"#1a5c1a") : "#e2e8f0"}`, background:filterType===t ? (TYPE_COLORS[t]||"#1a5c1a") : "white", color:filterType===t ? "white" : "#64748b", fontWeight:700, fontSize:12, cursor:"pointer", fontFamily:"'DM Sans',sans-serif", transition:"all 0.18s" }}>
@@ -513,7 +512,6 @@ const UsersTab = () => {
                     ))}
                 </div>
 
-                {/* Search + refresh */}
                 <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:12, flexWrap:"wrap" }}>
                     <SearchBar value={search} onChange={setSearch} placeholder="Search by name or email…" />
                     <button onClick={load} style={{ padding:"10px 18px", borderRadius:50, border:"1.5px solid #e2e8f0", background:"white", color:"#334155", fontWeight:600, fontSize:13, cursor:"pointer", fontFamily:"'DM Sans',sans-serif" }}>↻ Refresh</button>
@@ -559,238 +557,12 @@ const UsersTab = () => {
 };
 
 // ════════════════════════════════════════════════════════════
-// Settlements Tab  (NEW)
+// NOTE: SettlementsTab is now imported from ./SettlementsTab.jsx
+// The old inline version has been removed. The imported component
+// includes: searchable vendor/rider dropdown, auto-filled order
+// data, payment status badges, progress bars, dual-settlement
+// UX, and click-through from treated orders to the payment form.
 // ════════════════════════════════════════════════════════════
-const SettlementsTab = () => {
-    const today = new Date().toISOString().split("T")[0];
-
-    // ── Sub-tab: "orders" (view treated orders) or "records" (view past settlements)
-    const [subTab,      setSubTab]      = useState("orders");
-    const [date,        setDate]        = useState(today);
-    const [filterType,  setFilterType]  = useState("ALL");
-
-    // Treated orders state
-    const [ordersData,  setOrdersData]  = useState(null);
-    const [ordersLoad,  setOrdersLoad]  = useState(false);
-
-    // Settlement records state
-    const [settlements, setSettlements] = useState([]);
-    const [settleLoad,  setSettleLoad]  = useState(false);
-
-    // Create settlement form
-    const [form, setForm] = useState({ recipientType:"VENDOR", recipientId:"", settlementDate:today, ordersCount:"", grossAmount:"", netTransferred:"", transferReference:"", notes:"" });
-    const [creating, setCreating] = useState(false);
-    const [showForm, setShowForm] = useState(false);
-
-    const [modal, setModal] = useState({ show:false, type:"", message:"" });
-    const showMsg   = (type, message) => setModal({ show:true, type, message });
-    const closeModal = () => setModal({ show:false, type:"", message:"" });
-
-    // Load treated orders
-    const loadOrders = useCallback(async () => {
-        setOrdersLoad(true);
-        try {
-            const type = filterType === "ALL" ? null : filterType;
-            const data = await adminApi.getSettlementOrders(date, type);
-            setOrdersData(data);
-        } catch (err) {
-            showMsg("error", "Failed to load orders: " + err.message);
-        } finally { setOrdersLoad(false); }
-    }, [date, filterType]);
-
-    // Load settlement records
-    const loadSettlements = useCallback(async () => {
-        setSettleLoad(true);
-        try {
-            const type = filterType === "ALL" ? null : filterType;
-            const data = await adminApi.getSettlements(date || null, type);
-            setSettlements(Array.isArray(data) ? data : []);
-        } catch (err) {
-            showMsg("error", "Failed to load settlements: " + err.message);
-        } finally { setSettleLoad(false); }
-    }, [date, filterType]);
-
-    useEffect(() => {
-        if (subTab === "orders")  loadOrders();
-        if (subTab === "records") loadSettlements();
-    }, [subTab, loadOrders, loadSettlements]);
-
-    // Pre-fill form from a group row
-    const prefillForm = (group) => {
-        setForm(f => ({
-            ...f,
-            recipientType:   group.recipientType,
-            recipientId:     group.recipientId,
-            settlementDate:  date,
-            ordersCount:     String(group.ordersCount || ""),
-            grossAmount:     String(group.grossAmount || ""),
-            netTransferred:  String(group.netPayable  || ""),
-        }));
-        setShowForm(true);
-    };
-
-    // Submit settlement
-    const createSettlement = async () => {
-        if (!form.recipientId || !form.grossAmount) {
-            showMsg("error", "Recipient ID and Gross Amount are required"); return;
-        }
-        setCreating(true);
-        try {
-            await adminApi.createSettlement({
-                ...form,
-                ordersCount:   Number(form.ordersCount) || 0,
-                grossAmount:   Number(form.grossAmount),
-                netTransferred: Number(form.netTransferred) || undefined,
-            });
-            showMsg("success", "Settlement recorded successfully!");
-            setShowForm(false);
-            setForm(f => ({ ...f, recipientId:"", ordersCount:"", grossAmount:"", netTransferred:"", transferReference:"", notes:"" }));
-            loadSettlements();
-        } catch (err) {
-            showMsg("error", "Failed to create settlement: " + err.message);
-        } finally { setCreating(false); }
-    };
-
-    const inputStyle = { width:"100%", padding:"10px 14px", borderRadius:10, border:"1.5px solid #e2e8f0", fontSize:13, color:"#334155", fontFamily:"'DM Sans',sans-serif", outline:"none", boxSizing:"border-box" };
-    const labelStyle = { fontSize:11, fontWeight:700, color:"#64748b", textTransform:"uppercase", letterSpacing:0.8, display:"block", marginBottom:5 };
-
-    const vendorGroups = ordersData?.vendorGroups || [];
-    const riderGroups  = ordersData?.riderGroups  || [];
-    const allGroups    = [
-        ...vendorGroups.map(g => ({ ...g, recipientType:"VENDOR" })),
-        ...riderGroups.map(g  => ({ ...g, recipientType:"RIDER"  })),
-    ];
-    const displayGroups = filterType === "ALL" ? allGroups
-        : filterType === "VENDOR" ? vendorGroups.map(g => ({ ...g, recipientType:"VENDOR" }))
-            : riderGroups.map(g => ({ ...g, recipientType:"RIDER" }));
-
-    return (
-        <>
-            {modal.show && modal.type === "success" && <SuccessModal isOpen message={modal.message} onClose={closeModal} />}
-            {modal.show && modal.type === "error"   && <ErrorModal   isOpen message={modal.message} onClose={closeModal} />}
-
-            <div style={{ display:"flex", flexDirection:"column", gap:20 }}>
-                {/* Header */}
-                <div style={{ background:"white", borderRadius:20, padding:"20px 24px", border:"1.5px solid #e2e8f0" }}>
-                    <h2 style={{ fontFamily:"'Sora',sans-serif", fontWeight:800, fontSize:20, color:"#0f172a", margin:"0 0 4px" }}>💳 Manual Settlements</h2>
-                    <p style={{ color:"#64748b", fontSize:13, margin:0 }}>View delivered orders by date, then record manual bank transfers to vendors and riders.</p>
-                </div>
-
-                {/* Sub-tabs */}
-                <div style={{ display:"flex", gap:10 }}>
-                    {[["orders","📦 Treated Orders"],["records","📋 Settlement Records"]].map(([id, label]) => (
-                        <button key={id} onClick={() => setSubTab(id)} style={{ padding:"10px 22px", borderRadius:50, border:`2px solid ${subTab===id ? "#1a5c1a" : "#e2e8f0"}`, background:subTab===id ? "#1a5c1a" : "white", color:subTab===id ? "white" : "#64748b", fontWeight:700, fontSize:13, cursor:"pointer", fontFamily:"'DM Sans',sans-serif", transition:"all 0.18s" }}>
-                            {label}
-                        </button>
-                    ))}
-                </div>
-
-                {/* Filters */}
-                <div style={{ display:"flex", gap:12, flexWrap:"wrap", alignItems:"center" }}>
-                    <div>
-                        <label style={{ ...labelStyle, display:"inline-block", marginRight:8 }}>Date</label>
-                        <input type="date" value={date} onChange={e => setDate(e.target.value)}
-                               style={{ padding:"8px 12px", borderRadius:10, border:"1.5px solid #e2e8f0", fontSize:13, color:"#334155", fontFamily:"'DM Sans',sans-serif", outline:"none" }} />
-                    </div>
-                    <div style={{ display:"flex", gap:8 }}>
-                        {["ALL","VENDOR","RIDER"].map(t => (
-                            <button key={t} onClick={() => setFilterType(t)} style={{ padding:"8px 16px", borderRadius:50, border:`2px solid ${filterType===t ? "#1a5c1a" : "#e2e8f0"}`, background:filterType===t ? "#1a5c1a" : "white", color:filterType===t ? "white" : "#64748b", fontWeight:700, fontSize:12, cursor:"pointer", fontFamily:"'DM Sans',sans-serif" }}>
-                                {t}
-                            </button>
-                        ))}
-                    </div>
-                    <button onClick={subTab === "orders" ? loadOrders : loadSettlements} style={{ padding:"8px 18px", borderRadius:50, border:"1.5px solid #e2e8f0", background:"white", color:"#334155", fontWeight:600, fontSize:13, cursor:"pointer", fontFamily:"'DM Sans',sans-serif" }}>↻ Refresh</button>
-                    <button onClick={() => setShowForm(!showForm)} style={{ marginLeft:"auto", padding:"10px 22px", borderRadius:50, border:"none", background:"linear-gradient(135deg,#f97316,#fb923c)", color:"white", fontWeight:700, fontSize:13, cursor:"pointer", fontFamily:"'DM Sans',sans-serif", boxShadow:"0 4px 14px rgba(249,115,22,0.3)" }}>
-                        {showForm ? "✕ Cancel" : "+ Record Settlement"}
-                    </button>
-                </div>
-
-                {/* Create Settlement Form */}
-                {showForm && (
-                    <div style={{ background:"white", borderRadius:20, padding:"24px 28px", border:"2px solid #fed7aa", boxShadow:"0 4px 20px rgba(249,115,22,0.1)" }}>
-                        <h3 style={{ fontFamily:"'Sora',sans-serif", fontWeight:800, fontSize:17, color:"#0f172a", margin:"0 0 20px" }}>Record Manual Settlement</h3>
-                        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:16 }}>
-                            {[
-                                ["Recipient Type", "recipientType", "select"],
-                                ["Recipient ID (Profile ID)", "recipientId", "text"],
-                                ["Settlement Date", "settlementDate", "date"],
-                                ["Orders Count", "ordersCount", "number"],
-                                ["Gross Amount (₦)", "grossAmount", "number"],
-                                ["Net Transferred (₦)", "netTransferred", "number"],
-                                ["Transfer Reference", "transferReference", "text"],
-                                ["Notes", "notes", "text"],
-                            ].map(([label, key, type]) => (
-                                <div key={key}>
-                                    <label style={labelStyle}>{label}</label>
-                                    {type === "select" ? (
-                                        <select value={form[key]} onChange={e => setForm(f => ({ ...f, [key]: e.target.value }))} style={inputStyle}>
-                                            <option value="VENDOR">VENDOR</option>
-                                            <option value="RIDER">RIDER</option>
-                                        </select>
-                                    ) : (
-                                        <input type={type} value={form[key]} placeholder={label} onChange={e => setForm(f => ({ ...f, [key]: e.target.value }))} style={inputStyle} />
-                                    )}
-                                </div>
-                            ))}
-                        </div>
-                        <button onClick={createSettlement} disabled={creating} style={{ marginTop:20, padding:"12px 32px", borderRadius:50, border:"none", background:creating ? "#e2e8f0" : "linear-gradient(135deg,#1a5c1a,#2d7a2d)", color:creating ? "#94a3b8" : "white", fontWeight:800, fontSize:14, cursor:creating ? "not-allowed" : "pointer", fontFamily:"'Sora',sans-serif", boxShadow:creating ? "none" : "0 4px 16px rgba(26,92,26,0.3)" }}>
-                            {creating ? "Saving…" : "✓ Save Settlement Record"}
-                        </button>
-                    </div>
-                )}
-
-                {/* Treated Orders view */}
-                {subTab === "orders" && (
-                    ordersLoad ? <TableSkeleton /> : (
-                        <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
-                            {ordersData && (
-                                <div style={{ background:"#f0fdf4", borderRadius:12, padding:"12px 18px", border:"1.5px solid #bbf7d0", fontSize:13, color:"#166534" }}>
-                                    📦 <strong>{ordersData.totalOrders}</strong> delivered orders found on {date}
-                                </div>
-                            )}
-                            <DataTable cols={["Recipient","Type","Orders","Gross","Platform Cut","Net Payable","Bank","Actions"]} empty={<Empty icon="📦" msg={`No delivered orders on ${date}`} />}>
-                                {displayGroups.map((g, i) => (
-                                    <tr key={i} style={{ borderTop:"1px solid #f1f5f9" }}>
-                                        <td style={td}><span style={{ fontWeight:700 }}>{g.recipientName || g.recipientId}</span></td>
-                                        <td style={{ ...td, textAlign:"center" }}><Badge status={g.recipientType} /></td>
-                                        <td style={td}>{g.ordersCount}</td>
-                                        <td style={{ ...td, fontWeight:700, color:"#1a5c1a" }}>{fmt(g.grossAmount)}</td>
-                                        <td style={{ ...td, color:"#ef4444" }}>{fmt(g.platformCut)} ({g.recipientType === "VENDOR" ? "10%" : "20%"})</td>
-                                        <td style={{ ...td, fontWeight:800, color:"#059669" }}>{fmt(g.netPayable)}</td>
-                                        <td style={{ ...td, fontSize:12, color:"#64748b" }}>{g.accountNumber !== "—" ? `${g.bankName} · ${g.accountNumber}` : "—"}</td>
-                                        <td style={{ ...td, textAlign:"center" }}>
-                                            <ActionBtn label="Record Payment" color="#f97316" onClick={() => prefillForm(g)} />
-                                        </td>
-                                    </tr>
-                                ))}
-                            </DataTable>
-                        </div>
-                    )
-                )}
-
-                {/* Settlement Records view */}
-                {subTab === "records" && (
-                    settleLoad ? <TableSkeleton /> : (
-                        <DataTable cols={["Recipient","Type","Date","Orders","Gross","Net","Reference","Recorded By"]} empty={<Empty icon="📋" msg="No settlement records found" />}>
-                            {settlements.map((s, i) => (
-                                <tr key={s.id || i} style={{ borderTop:"1px solid #f1f5f9" }}>
-                                    <td style={td}><span style={{ fontWeight:700 }}>{s.recipientName || s.recipientId}</span></td>
-                                    <td style={{ ...td, textAlign:"center" }}><Badge status={s.recipientType} /></td>
-                                    <td style={td}>{s.settlementDate}</td>
-                                    <td style={td}>{s.ordersCount ?? "—"}</td>
-                                    <td style={{ ...td, color:"#1a5c1a", fontWeight:700 }}>{fmt(s.grossAmount)}</td>
-                                    <td style={{ ...td, color:"#059669", fontWeight:800 }}>{fmt(s.netTransferred)}</td>
-                                    <td style={{ ...td, fontFamily:"monospace", fontSize:12 }}>{s.transferReference || "—"}</td>
-                                    <td style={{ ...td, color:"#64748b" }}>{s.recordedBy || "—"}</td>
-                                </tr>
-                            ))}
-                        </DataTable>
-                    )
-                )}
-            </div>
-        </>
-    );
-};
 
 const ReportsTab = () => (
     <div style={{ background:"white", borderRadius:20, padding:"60px 40px", textAlign:"center", border:"1.5px solid #e2e8f0" }}>
@@ -811,6 +583,12 @@ export default function AdminDashboard({ adminName = "Admin", onExit }) {
     const navigate = useNavigate();
 
     const isMobile = typeof window !== "undefined" && window.innerWidth < 768;
+
+    // ── Toast helper — passed to SettlementsTab ───────────────────────────────
+    const [toastMsg, setToastMsg] = useState(null);
+    const toast = useCallback((msg, type = "info") => {
+        setToastMsg({ msg, type, key: Date.now() });
+    }, []);
 
     useEffect(() => {
         const token = localStorage.getItem("chopspot_token") || localStorage.getItem("adminToken");
@@ -839,6 +617,19 @@ export default function AdminDashboard({ adminName = "Admin", onExit }) {
         fetch();
     }, [navigate]);
 
+    // Simple inline toast renderer for this dashboard
+    const ToastBar = ({ msg, type, onClose }) => {
+        useEffect(() => { const t = setTimeout(onClose, 3500); return () => clearTimeout(t); }, [onClose]);
+        const colors = { success:"#10b981", error:"#ef4444", info:"#6366f1" };
+        return (
+            <div style={{ position:"fixed", top:80, right:24, zIndex:9999, background:"white", border:`1.5px solid ${colors[type]||colors.info}`, borderRadius:14, padding:"14px 18px", boxShadow:"0 8px 28px rgba(0,0,0,0.14)", display:"flex", alignItems:"center", gap:12, minWidth:280 }}>
+                <span style={{ fontSize:18 }}>{type==="success"?"✅":type==="error"?"❌":"ℹ️"}</span>
+                <p style={{ margin:0, fontSize:13, fontWeight:600, color:"#334155", flex:1 }}>{msg}</p>
+                <button onClick={onClose} style={{ background:"none", border:"none", cursor:"pointer", color:"#94a3b8", fontSize:16 }}>×</button>
+            </div>
+        );
+    };
+
     return (
         <>
             <style>{`
@@ -851,6 +642,8 @@ export default function AdminDashboard({ adminName = "Admin", onExit }) {
         ::-webkit-scrollbar { width:4px; height:4px; }
         ::-webkit-scrollbar-thumb { background:#d1d5db; border-radius:10px; }
       `}</style>
+
+            {toastMsg && <ToastBar key={toastMsg.key} msg={toastMsg.msg} type={toastMsg.type} onClose={() => setToastMsg(null)} />}
 
             <div style={{ display:"flex", minHeight:"100vh", background:"#f0f4f8", fontFamily:"'DM Sans',sans-serif" }}>
                 {sidebarOpen && <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.45)", zIndex:199, backdropFilter:"blur(2px)" }} onClick={() => setSidebarOpen(false)} />}
@@ -950,7 +743,7 @@ export default function AdminDashboard({ adminName = "Admin", onExit }) {
                                 {tab === "riders"      && <RidersTab navigate={navigate} />}
                                 {tab === "orders"      && <OrdersTab />}
                                 {tab === "users"       && <UsersTab />}
-                                {tab === "settlements" && <SettlementsTab />}
+                                {tab === "settlements" && <SettlementsTab toast={toast} />}
                                 {tab === "reports"     && <ReportsTab />}
                             </>
                         )}
