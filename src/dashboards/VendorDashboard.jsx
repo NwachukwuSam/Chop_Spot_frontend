@@ -65,14 +65,15 @@ const normaliseOrder = raw => ({
     paymentMethod: raw.paymentMethod || "Card",
     status:        resolveStatus(raw.status),
     date:          raw.createdAt || raw.date || new Date().toISOString(),
-    total:         raw.totalAmount || raw.total || 0,
+    total:         raw.subtotal || raw.totalAmount || 0,
     items:         (raw.items || raw.orderItems || []).map(i => ({
         id:    i.menuItemId || i.id || i._id,
         name:  i.name || i.itemName || "Item",
         price: i.price || i.unitPrice || 0,
         qty:   i.quantity || i.qty || 1,
     })),
-    pack: raw.packagingOption || raw.pack || null,
+    packageName: raw.packageName || null,
+    packagePrice: raw.packagePrice || null,
 });
 
 // Covers every OrderStatus enum value the backend can send
@@ -296,10 +297,10 @@ const OrderModal = ({ order, onClose, onUpdateStatus }) => {
                     {/* Items */}
                     <p className="label" style={{ marginBottom:8 }}>Order Items</p>
                     <div style={{ border:`1.5px solid ${T.border}`, borderRadius:14, overflow:"hidden", marginBottom:12 }}>
-                        {order.pack && (
+                        {order.packageName && (
                             <div style={{ display:"flex", justifyContent:"space-between", padding:"10px 14px", background:T.greenLight, borderBottom:`1px solid ${T.border}` }}>
-                                <span style={{ fontSize:13, color:T.green, fontWeight:600 }}>📦 {order.pack.name}</span>
-                                <span style={{ fontWeight:700, color:T.greenMid }}>{fmt(order.pack.price)}</span>
+                                <span style={{ fontSize:13, color:T.green, fontWeight:600 }}>📦 {order.packageName}</span>
+                                <span style={{ fontWeight:700, color:T.greenMid }}>{fmt(order.packagePrice)}</span>
                             </div>
                         )}
                         {(order.items || []).map((item, i) => (

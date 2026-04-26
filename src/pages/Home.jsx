@@ -154,7 +154,10 @@ export default function Home() {
         );
         const subtotal    = itemsSubtotal + packagePrice;
         const deliveryFee = info.location?.fee || DELIVERY_FEE;
-        const totalAmount = subtotal + deliveryFee;
+        // Use the serviceCharge already calculated by CheckoutModal (passed via info),
+        // falling back to 20% of subtotal so the Paystack amount always matches checkout.
+        const serviceCharge = info.serviceCharge ?? Math.round(subtotal * 0.20);
+        const totalAmount   = subtotal + deliveryFee + serviceCharge;
 
         // ── Generate the Paystack reference NOW, before anything else ────────────
         // We own the reference so the webhook can always find the order by it,
@@ -181,6 +184,7 @@ export default function Home() {
             packagePrice,
             subtotal,
             deliveryFee,
+            serviceCharge,
             totalAmount,
             deliveryLocation:  info.location?.label || "",
             hostel:            info.hostel           || "",
