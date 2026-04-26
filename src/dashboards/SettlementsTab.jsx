@@ -135,6 +135,8 @@ function RecipientSelector({ recipientType, onSelect, disabled, lockedLabel }) {
     // Reset + fetch when type changes
     useEffect(() => {
         if (!recipientType) return;
+        // Don't wipe the prefilled recipient when the form is locked
+        if (disabled) return;
         setSelected(null);
         setQuery("");
         onSelect(null);
