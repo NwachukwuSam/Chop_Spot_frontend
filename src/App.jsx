@@ -6,7 +6,7 @@ import ProtectedRoute from './auth/ProtectedRoute.jsx';
 
 import Home from './pages/Home';
 import CustomerDashboard from './dashboards/CustomerDashboard';
-import VendorRegister from './auth/VendoRegister.jsx';
+import VendorRegister from './auth/VendoRegister';
 import VendorApp from "./utils/VendorApp.jsx";
 import RiderRegister from './auth/RiderRegister';
 import RiderApp  from './utils/RiderApp';
@@ -15,7 +15,7 @@ import AdminDashboard from './dashboards/AdminDashboard';
 import AccountingDashboard from './dashboards/AccountingDashboard';
 import LoginPage from './auth/LoginPage';
 import RegisterPage from './auth/Registerpage';
-import ForgotPasswordPage from './auth/ForgotPasswordPage';
+import ForgotPasswordPage from './auth/Forgotpasswordpage';
 import { useAuth } from './auth/AuthContext';
 import {NetworkProvider} from "./context/NetworkContext.jsx";
 import OfflinePage from "./pages/OfflinePage.jsx";
