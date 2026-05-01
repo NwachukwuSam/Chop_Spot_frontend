@@ -3,6 +3,7 @@ import { useAuth } from "../auth/AuthContext";  // ← AuthContext, not hooks/us
 import { useNavigate, useLocation, Link } from "react-router-dom";
 import { useToast } from "../context/ToastContext";
 import * as API from "../utils/Api";
+import logo from "../assets/tasty.jpg.jpeg";
 
 const FOOD_EMOJIS = ["🍛", "🍗", "🥗", "🥘", "🍜", "🫔", "🍔", "🌽"];
 
@@ -221,7 +222,7 @@ export default function LoginPage() {
 
                     <div style={{ position: "relative", zIndex: 10 }}>
                         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                            <div style={{ width: 40, height: 40, borderRadius: 12, background: "linear-gradient(135deg,#2d8a2d,#4caf50)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20, boxShadow: "0 4px 16px rgba(45,138,45,0.4)" }}>🍽️</div>
+                            <div style={{ width: 40, height: 40, borderRadius: 12,  display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20, boxShadow: "0 4px 16px " }}><img src={logo} alt="Logo" style={{ width: "100%", height: "100%", objectFit: "cover", borderRadius: "30%" }} /></div>
                             <span style={{ fontFamily: "'Sora',sans-serif", fontWeight: 800, fontSize: 20, color: "white", letterSpacing: -0.5 }}>TastyCart</span>
                         </div>
                     </div>
