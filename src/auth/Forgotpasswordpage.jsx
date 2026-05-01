@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import * as API from "../utils/Api";
 import { useToast } from "../context/ToastContext";
+import logo from "../assets/tasty.jpg.jpeg";
 
 // ── Step config ───────────────────────────────────────────────────────────────
 const STEPS = [
@@ -273,9 +274,9 @@ export default function ForgotPasswordPage() {
 
                     {/* Logo */}
                     <div style={{ textAlign: "center", marginBottom: 32 }}>
-                        <div style={{ width: 56, height: 56, borderRadius: 18, background: "linear-gradient(135deg,#2d8a2d,#4caf50)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 26, margin: "0 auto 12px", boxShadow: "0 8px 24px rgba(45,138,45,0.3)" }}>🍽️</div>
+                        <div style={{ width: 56, height: 56, borderRadius: 18,  display: "flex", alignItems: "center", justifyContent: "center", fontSize: 26, margin: "0 auto 12px", }}><img src={logo} alt="Logo" style={{ width: "100%", height: "100%", objectFit: "cover", borderRadius: "50%" }} /></div>
                         <span style={{ fontFamily: "'Sora',sans-serif", fontWeight: 800, fontSize: 22, color: "#1a2e1a" }}>
-                            Chop<span style={{ color: "#f97316" }}>Spot</span>
+                            Tasty<span style={{ color: "#f97316" }}>Cart</span>
                         </span>
                     </div>
 
