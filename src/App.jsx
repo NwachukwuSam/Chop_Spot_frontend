@@ -14,7 +14,7 @@ import SuperAdminDashboard from './dashboards/SuperAdminDashboard';
 import AdminDashboard from './dashboards/AdminDashboard';
 import AccountingDashboard from './dashboards/AccountingDashboard';
 import LoginPage from './auth/LoginPage';
-import RegisterPage from './auth/RegisterPage';
+import RegisterPage from './auth/Registerpage';
 import ForgotPasswordPage from './auth/ForgotPasswordPage';
 import { useAuth } from './auth/AuthContext';
 import {NetworkProvider} from "./context/NetworkContext.jsx";
