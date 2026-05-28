@@ -801,7 +801,7 @@ export default function VendorRegister({ onSuccess }) {
                 {/* Navbar */}
                 <nav style={{ background: "rgba(255,255,255,0.88)", backdropFilter: "blur(18px)", height: 60, display: "flex", alignItems: "center", justifyContent: "center", borderBottom: "1px solid rgba(45,138,45,0.1)", position: "sticky", top: 0, zIndex: 200 }}>
                     <span style={{ fontFamily: "'Sora',sans-serif", fontWeight: 800, fontSize: 20, color: "#1a6a1a" }}>
-                        Chop<span style={{ color: "#f97316" }}>Spot</span>
+                        Tasty<span style={{ color: "#f97316" }}>Cart</span>
                         <span style={{ color: "#9ab59a", fontWeight: 400, fontSize: 14, marginLeft: 8 }}>· Vendor Registration</span>
                     </span>
                 </nav>

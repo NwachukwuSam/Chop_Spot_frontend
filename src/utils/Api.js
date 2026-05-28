@@ -2,8 +2,9 @@
 // Single source of truth for all HTTP calls.
 // Import named exports: import { vendorApi, orderApi } from "../utils/Api";
 // or namespace import:  import * as API from "../utils/Api";
+// https://delichops-backend-akuq.onrender.com
 
-const BASE_URL = "https://delichops-backend-akuq.onrender.com";
+const BASE_URL = "https://chop-spot.onrender.com";
 
 const TOKEN_KEYS = [
     "chopspot_token",
