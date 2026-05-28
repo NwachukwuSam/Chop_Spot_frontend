@@ -289,7 +289,7 @@ export default function Home() {
                     </div>
 
                     <div style={{ display: "flex", alignItems: "center", gap: 6, position: "absolute", left: "50%", transform: "translateX(-50%)" }} className="nav-links">
-                        {[["Find Food", "#"], ["Vendors", "#"], ["About", "#"]].map(([label, href]) => (
+                        {[["Find Food", "#"], ["Vendors", "/browse-page"], ["About", "/about-us"]].map(([label, href]) => (
                             <a key={label} href={href} style={{ color: "rgba(255,255,255,0.75)", textDecoration: "none", fontFamily: "'DM Sans',sans-serif", fontWeight: 600, fontSize: 14, padding: "8px 16px", borderRadius: 50, transition: "all 0.18s" }}
                                onMouseEnter={e => { e.target.style.background = "rgba(255,255,255,0.1)"; e.target.style.color = "white"; }}
                                onMouseLeave={e => { e.target.style.background = "transparent"; e.target.style.color = "rgba(255,255,255,0.75)"; }}>

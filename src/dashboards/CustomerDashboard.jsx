@@ -454,7 +454,7 @@ export default function CustomerDashboard() {
                     </button>
 
                     <span style={{ fontFamily: "'Sora',sans-serif", fontWeight: 800, fontSize: 18, color: "#1a6a1a" }}>
-                        Chop<span style={{ color: "#f97316" }}>Spot</span>
+                        Tasty<span style={{ color: "#f97316" }}>Cart</span>
                     </span>
 
                     <button onClick={handleLogout} style={{ display: "flex", alignItems: "center", gap: 6, background: "none", border: "1.5px solid #fee2e2", cursor: "pointer", color: "#dc2626", fontWeight: 600, fontSize: 13, fontFamily: "'DM Sans',sans-serif", padding: "6px 14px", borderRadius: 10 }}
