@@ -1,8 +1,8 @@
-const DELIVERY_FEE = 350;
+
 
 export const CartModal = ({ cartGroups, onClose, onCheckout, onRemoveGroup }) => {
     const itemsTotal = cartGroups.reduce((s, g) => s + (g.pack?.price || 0) + g.items.reduce((a, i) => a + i.price * i.qty, 0), 0);
-    const grandTotal = itemsTotal + DELIVERY_FEE;
+    const grandTotal = itemsTotal
 
     return (
         <div style={{ position: "fixed", inset: 0, zIndex: 1100, background: "rgba(0,0,0,0.5)", backdropFilter: "blur(4px)", display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }} onClick={onClose}>
@@ -39,10 +39,7 @@ export const CartModal = ({ cartGroups, onClose, onCheckout, onRemoveGroup }) =>
                                         <span style={{ fontWeight: 700 }}>₦{(item.price * item.qty).toLocaleString()}</span>
                                     </div>
                                 ))}
-                                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 10px", background: "#f4f8f4", borderRadius: 10, marginTop: 8 }}>
-                                    <span style={{ color: "#5a7a5a", fontSize: 13 }}>🛵 Delivery</span>
-                                    <span style={{ fontWeight: 700, fontSize: 14, color: "#1a2e1a" }}>₦{DELIVERY_FEE.toLocaleString()}</span>
-                                </div>
+                            
                             </div>
                         ))}
                     </div>
