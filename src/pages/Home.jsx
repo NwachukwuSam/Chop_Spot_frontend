@@ -142,7 +142,7 @@ export default function Home() {
                 whatsapp:                info.whatsapp,
                 hostel:                  info.hostel,
                 room:                    info.room,
-                defaultDeliveryLocation: info.location?.value,
+                defaultDeliveryLocation: info.hostel,
             });
         }
 
@@ -186,7 +186,7 @@ export default function Home() {
             deliveryFee,
             serviceCharge,
             totalAmount,
-            deliveryLocation:  info.location?.label || "",
+            deliveryLocation:  info.hostel || "",
             hostel:            info.hostel           || "",
             room:              info.room             || "",
             whatsappNumber:    info.whatsapp         || "",

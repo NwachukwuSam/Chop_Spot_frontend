@@ -164,7 +164,7 @@ export const PaymentModal = ({ orderInfo, orderReady, userEmail, onClose, onConf
                 metadata: {
                     custom_fields: [
                         { display_name: "Customer Name", variable_name: "customer_name", value: orderInfo?.fullName || "" },
-                        { display_name: "Delivery",      variable_name: "delivery",      value: orderInfo?.location?.label || "" },
+                        { display_name: "Delivery",      variable_name: "delivery",      value: orderInfo?.hostel || "" },
                         { display_name: "Hostel / Room", variable_name: "hostel_room",   value: [orderInfo?.hostel, orderInfo?.room].filter(Boolean).join(", ") || "" },
                     ],
                 },
@@ -260,7 +260,7 @@ export const PaymentModal = ({ orderInfo, orderReady, userEmail, onClose, onConf
                     </div>
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 6 }}>
                         <span style={{ fontSize: 12, color: "#8aaa8a" }}>Delivering to</span>
-                        <span style={{ fontSize: 12, fontWeight: 600, color: "#1a2e1a" }}>{orderInfo?.location?.label || "—"}</span>
+                        <span style={{ fontSize: 12, fontWeight: 600, color: "#1a2e1a" }}>{orderInfo?.hostel || "—"}</span>
                     </div>
                 </div>
 
