@@ -23,7 +23,7 @@
 // const SERVICE_CHARGE_RATE = 0.20; // 20%
 // const FLAT_DELIVERY_FEE = 400;    // ₦400 flat delivery fee (adjust as needed)
 
-// export const CheckoutModal = ({ totalAmount, profile, onClose, onPay, vendor }) => {
+// export const CheckoutModal = ({ totalAmount, profile, onClose, onPay, vendor, locationError }) => {
 //   const { geocode } = useGeocoder();
 //   const [customPinCoords, setCustomPinCoords] = useState(null);
 
@@ -535,7 +535,7 @@ import { AddressAutocomplete } from "../../utils/AddressAutocomplete.jsx";
 const SERVICE_CHARGE_RATE = 0.20; // 20%
 const FLAT_DELIVERY_FEE = 400;    // ₦400 flat delivery fee (adjust as needed)
 
-export const CheckoutModal = ({ totalAmount, profile, onClose, onPay, vendor }) => {
+export const CheckoutModal = ({ totalAmount, profile, onClose, onPay, vendor, locationError }) => {
   const { geocode } = useGeocoder();
   const [customPinCoords, setCustomPinCoords] = useState(null);
 
@@ -834,6 +834,11 @@ export const CheckoutModal = ({ totalAmount, profile, onClose, onPay, vendor }) 
               onSelect={handleAddressSelect}
               initialValue={form.hostel === "custom" ? "" : form.hostel}
             />
+            {locationError && (
+              <p style={{ margin: "6px 0 0", fontSize: 12, color: "#d32f2f", fontFamily: "'DM Sans',sans-serif" }}>
+                ⚠️ {locationError}
+              </p>
+            )}
           </div>
 
           {/* Map */}

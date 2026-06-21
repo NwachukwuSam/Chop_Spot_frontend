@@ -189,6 +189,8 @@ export const publicApi = {
 
     searchRestaurants: (q) =>
         publicRequest(`/api/public/restaurants/search?q=${encodeURIComponent(q)}`),
+
+    getDeliveryZones: () => publicRequest("/api/public/delivery-zones"),
 };
 
 // ─── CART ─────────────────────────────────────────────────────────────────────

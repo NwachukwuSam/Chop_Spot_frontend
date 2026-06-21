@@ -10,6 +10,15 @@ export const useAuth = () => {
   return context;
 };
 
+function isTokenExpired(token) {
+    try {
+        const payload = JSON.parse(atob(token.split('.')[1]));
+        return payload.exp && payload.exp < Date.now() / 1000;
+    } catch { return true; }
+}
+
+const AUTH_KEYS = ['token','chopspot_token','userRole','userData','chopspot_user','refreshToken','adminToken','accessToken','tastycart_token','authToken','jwt'];
+
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -24,12 +33,16 @@ export const AuthProvider = ({ children }) => {
               const userData = localStorage.getItem('userData') || localStorage.getItem('chopspot_user');
 
               if (token && userData) {
-                  const parsed = JSON.parse(userData);
-                  setUser({
-                      token,
-                      role: userRole || parsed.role || (parsed.roles?.[0] ?? ""),
-                      ...parsed,
-                  });
+                  if (isTokenExpired(token)) {
+                      AUTH_KEYS.forEach(k => localStorage.removeItem(k));
+                  } else {
+                      const parsed = JSON.parse(userData);
+                      setUser({
+                          token,
+                          role: userRole || parsed.role || (parsed.roles?.[0] ?? ""),
+                          ...parsed,
+                      });
+                  }
               }
           } catch (err) {
               console.error('Error loading user data:', err);
