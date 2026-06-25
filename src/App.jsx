@@ -22,6 +22,8 @@ import OfflinePage from "./pages/OfflinePage.jsx";
 import AboutPage from './pages/AboutUs.jsx';
 import BrowsePage from './pages/BrowsePage.jsx';
 import CompanyPublicPage from './pages/PublicPage.jsx';
+import JoinUs from './pages/JoinUs.jsx';
+import ContactUs from './pages/ContactUs.jsx';
 
 export const ROLES = {
     SUPER_ADMIN: 'SUPER_ADMIN',
@@ -68,6 +70,9 @@ function AppRoutes() {
                 <Route path="/vendor-registration" element={<VendorRegister />} />
                 <Route path="/rider-registration"  element={<RiderRegister />} />
                 <Route path="/about-us"  element={<AboutPage />} />
+                <Route path="/contact-us"  element={<ContactUs />} />
+                <Route path="/join-us"  element={<JoinUs />} />
+
                 <Route path="/browse-page"  element={<CompanyPublicPage/>} />
 
                 {/* Customer */}
