@@ -11,6 +11,7 @@ const NAV_ITEMS = [
     { id: "admins",      icon: "🛡️", label: "Admin Users"  },
     { id: "vendors",     icon: "🏪", label: "Vendors"      },
     { id: "riders",      icon: "🏍️", label: "Riders"       },
+    { id: "orders",      icon: "📦", label: "Orders"       },
     { id: "users",       icon: "👥", label: "All Users"    },
     { id: "settlements", icon: "💳", label: "Settlements"  },
     { id: "reports",     icon: "📊", label: "Reports"      },
@@ -386,6 +387,81 @@ const RidersTab = ({ toast }) => {
 };
 
 // ════════════════════════════════════════════════════════════
+// Orders Tab
+// ════════════════════════════════════════════════════════════
+const ORDER_STATUSES = [
+    "PENDING_PAYMENT","PENDING","ACCEPTED","PREPARING",
+    "READY_FOR_PICKUP","PICKED_UP","DELIVERED",
+    "PAYMENT_FAILED","PAYMENT_CANCELLED","CANCELLED",
+];
+
+const OrdersTab = ({ toast }) => {
+    const [orders,   setOrders]   = useState([]);
+    const [loading,  setLoading]  = useState(true);
+    const [updating, setUpdating] = useState({});
+
+    const load = useCallback(async () => {
+        setLoading(true);
+        try {
+            const d = await adminApi.getOrders();
+            setOrders(Array.isArray(d) ? d : d?.content || d?.orders || []);
+        } catch (err) { toast(err.message, "error"); }
+        finally { setLoading(false); }
+    }, [toast]);
+
+    useEffect(() => { load(); }, [load]);
+
+    const handleStatusChange = async (id, newStatus) => {
+        setUpdating(p => ({ ...p, [id]: true }));
+        try {
+            await adminApi.updateOrderStatus(id, newStatus);
+            setOrders(prev => prev.map(o => o.id === id ? { ...o, status: newStatus } : o));
+            toast("Status updated!", "success");
+        } catch (err) { toast(err.message, "error"); }
+        finally { setUpdating(p => ({ ...p, [id]: false })); }
+    };
+
+    const shortId = id => id ? `#${String(id).slice(-6).toUpperCase()}` : "—";
+
+    return (
+        <div style={{ display:"flex", flexDirection:"column", gap:16 }}>
+            {loading ? <Skeleton /> : (
+                <DataTable cols={["Order ID","Customer","Vendor","Total","Status","Action"]}>
+                    {orders.map((o, i) => (
+                        <tr key={o.id||i} style={{ borderTop:"1px solid #f1f5f9" }}>
+                            <td style={s}>
+                                <span style={{ fontFamily:"'Sora',sans-serif", fontWeight:700, fontSize:12, color:"#6366f1" }}>
+                                    {shortId(o.id)}
+                                </span>
+                            </td>
+                            <td style={s}>{o.customerName || o.whatsappNumber || "—"}</td>
+                            <td style={s}>{o.vendorName || "—"}</td>
+                            <td style={s}>₦{(o.totalAmount || 0).toLocaleString()}</td>
+                            <td style={{ ...s, textAlign:"center" }}><Badge status={o.status} /></td>
+                            <td style={{ ...s, textAlign:"center" }}>
+                                {updating[o.id] ? (
+                                    <span style={{ fontSize:12, color:"#94a3b8" }}>Updating…</span>
+                                ) : (
+                                    <select
+                                        value={o.status || ""}
+                                        onChange={e => handleStatusChange(o.id, e.target.value)}
+                                        style={{ padding:"5px 8px", borderRadius:8, border:"1.5px solid #e2e8f0", fontSize:11, fontFamily:"'DM Sans',sans-serif", background:"white", color:"#374151", cursor:"pointer", outline:"none" }}
+                                    >
+                                        {ORDER_STATUSES.map(st => (
+                                            <option key={st} value={st}>{st.replace(/_/g," ")}</option>
+                                        ))}
+                                    </select>
+                                )}
+                            </td>
+                        </tr>
+                    ))}
+                </DataTable>
+            )}
+        </div>
+    );
+};
+
+// ════════════════════════════════════════════════════════════
 // All Users Tab
 // ════════════════════════════════════════════════════════════
 const UsersTab = ({ toast }) => {
@@ -588,6 +664,7 @@ export default function SuperAdminDashboard({ onExit }) {
                                 {tab==="admins"      && <AdminsTab {...tabProps} />}
                                 {tab==="vendors"     && <VendorsTab {...tabProps} />}
                                 {tab==="riders"      && <RidersTab {...tabProps} />}
+                                {tab==="orders"      && <OrdersTab {...tabProps} />}
                                 {tab==="users"       && <UsersTab {...tabProps} />}
                                 {tab==="settlements" && <SettlementsTab {...tabProps} />}
                                 {tab==="reports"     && <div style={{ background:"white", borderRadius:20, padding:"60px 40px", textAlign:"center", border:"1.5px solid #e2e8f0" }}><div style={{ fontSize:52, marginBottom:16 }}>📊</div><h3 style={{ fontFamily:"'Sora',sans-serif", fontWeight:800 }}>Reports coming soon</h3></div>}

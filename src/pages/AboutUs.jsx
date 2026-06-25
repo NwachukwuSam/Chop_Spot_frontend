@@ -1,578 +1,669 @@
-import { useState, useEffect, useRef } from "react";
-import { Link } from "react-router-dom";
+import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
+import Navbar from "../components/Navbar";
+import { useAuth } from "../auth/AuthContext";
+import { useUserProfile } from "../hooks/useUserProfile";
+import daniel from '../assets/daniel.jpg';
+import grace from '../assets/Grace.png';
+import ken from '../assets/ken.jpeg';
+import marv from '../assets/marv.jpeg';
+import Sam from '../assets/SamPortrait.jpeg';
+import Moyin from '../assets/moyin.jpeg';
 
-// ── Floating food orbs (reused from login aesthetic) ──────────────────────────
-const FOOD_EMOJIS = ["🍛", "🍗", "🥗", "🥘", "🍜", "🫔", "🍔", "🌽", "🍱", "🥙", "🍣", "🧆"];
-
-function FoodOrb({ emoji, style }) {
+// ─── Ticker ──────────────────────────────────────────────────────────────────
+const Ticker = () => {
+  const items = [
+    "🍛 Order in seconds",
+    "🏍️ 30-min delivery",
+    "🥗 500+ restaurants",
+    "💳 Secure payments",
+    "⭐ 4.8 rating",
+    "🎉 Fast delivery on all orders",
+  ];
+  const looped = [...items, ...items, ...items];
   return (
-    <div style={{
-      position: "absolute", width: 52, height: 52, borderRadius: "50%",
-      background: "rgba(255,255,255,0.07)", border: "1.5px solid rgba(255,255,255,0.12)",
-      display: "flex", alignItems: "center", justifyContent: "center",
-      fontSize: 22, backdropFilter: "blur(4px)", pointerEvents: "none", ...style,
-    }}>{emoji}</div>
+    <div className="bg-[#f5920a] h-9 flex items-center overflow-hidden w-full">
+      <style>{`
+        @keyframes tickerScroll {
+          from { transform: translateX(0); }
+          to { transform: translateX(-50%); }
+        }
+        .ticker-track { animation: tickerScroll 24s linear infinite; }
+        .ticker-track:hover { animation-play-state: paused; }
+      `}</style>
+      <div className="ticker-track flex whitespace-nowrap">
+        {looped.map((item, i) => (
+          <span key={i} className="text-white font-bold text-[11px] tracking-[0.08em] pr-12">
+            • {item}
+          </span>
+        ))}
+      </div>
+    </div>
   );
-}
+};
 
-// ── Intersection Observer hook for scroll reveals ─────────────────────────────
-function useInView(threshold = 0.15) {
-  const ref = useRef(null);
-  const [inView, setInView] = useState(false);
-  useEffect(() => {
-    const obs = new IntersectionObserver(([e]) => { if (e.isIntersecting) setInView(true); }, { threshold });
-    if (ref.current) obs.observe(ref.current);
-    return () => obs.disconnect();
-  }, [threshold]);
-  return [ref, inView];
-}
+// ─── Team data ──────────────────────────────────────────────────────────────
+const TEAM = [
+  {
+    initials: "NS",
+    name: "Nwachukwu Samuel",
+    role: "Founder & CEO",
+    avatarGrad: "linear-gradient(135deg,#2d8a2d,#f28c00)",
+    bio: "The visionary force behind Tastycart. With a deep-rooted passion for technology, Samuel founded the company to bridge the gap between local businesses and modern consumers.",
+    fullBio: "Nwachukwu Samuel is a serial entrepreneur and technology enthusiast with over a decade of experience in building digital products. He founded Tastycart with a mission to empower local communities through seamless delivery solutions. Under his leadership, the company has grown from a small startup to a trusted platform serving thousands of customers. Samuel holds a degree in Computer Science and is a passionate advocate for community-driven innovation.",
+    img: Sam,
+  },
+  {
+    initials: "MM",
+    name: "Moyinoluwa Michael",
+    role: "Co-Founder & CTO",
+    avatarGrad: "linear-gradient(135deg,#1a5c1a,#2d8a2d)",
+    bio: "The technical mastermind who brings Tastycart's vision to life. His obsession with speed, reliability, and clean code ensures every tap is a smooth, delightful journey.",
+    fullBio: "Moyinoluwa Michael is a full-stack engineer with a passion for scalable systems. He co-founded Tastycart to solve the technical challenges of last-mile delivery. Moyinoluwa has worked with leading tech companies and holds a Master's in Software Engineering. He is responsible for the platform's architecture, security, and performance, ensuring that Tastycart remains fast, reliable, and always available.",
+    img: Moyin,
+  },
+  {
+    initials: "KA",
+    name: "Kenneth Akhabue",
+    role: "Business Development Lead",
+    avatarGrad: "linear-gradient(135deg,#1a4a8a,#f28c00)",
+    bio: "The growth engine of Tastycart, forging strategic partnerships and expanding the company's footprint across Nigeria.",
+    fullBio: "Kenneth Akhabue is a business development specialist with a knack for identifying and seizing opportunities. He joined Tastycart to drive the company's expansion into new markets. Kenneth has a background in economics and has successfully led several partnership initiatives that have increased the vendor base by 300%. He is deeply committed to creating value for both vendors and customers through win-win collaborations.",
+    img: ken,
+  },
+  {
+    initials: "MA",
+    name: "Marvelous Ameh",
+    role: "Brand Communication Strategist",
+    avatarGrad: "linear-gradient(135deg,#6a2d8a,#f28c00)",
+    bio: "The storyteller shaping Tastycart's voice. She crafts compelling brand narratives that resonate with our community and build lasting trust.",
+    fullBio: "Marvelous Ameh is a creative brand strategist with a passion for storytelling. She has over 8 years of experience in marketing and communications, working with both startups and established brands. At Tastycart, she leads the brand communication efforts, ensuring that every message reflects the company's values and connects with the community. Marvelous believes that authentic storytelling is the key to building a loyal customer base.",
+    img: marv,
+  },
+  {
+    initials: "DB",
+    name: "Daniel Bassey",
+    role: "Social Media Manager",
+    avatarGrad: "linear-gradient(135deg,#1a5c1a,#7aba00)",
+    bio: "The digital face of Tastycart. His energy and creativity drive online visibility, turning followers into loyal customers and brand advocates.",
+    fullBio: "Daniel Bassey is a digital marketing expert with a flair for creating engaging content. He has managed social media for several high-profile brands and brings a wealth of experience to Tastycart. Daniel is responsible for building an active online community, running campaigns, and leveraging social platforms to grow the brand's reach. His creative approach has helped Tastycart become a beloved name on social media.",
+    img: daniel,
+  },
+  {
+    initials: "GI",
+    name: "Grace Iberuoluwa",
+    role: "Marketing Specialist",
+    avatarGrad: "linear-gradient(135deg,#1a5c1a,#7aba00)",
+    bio: "The marketing strategist behind Tastycart's campaigns. She leverages data-driven insights to craft targeted marketing strategies that drive engagement and growth.",
+    fullBio: "Grace Iberuoluwa is a data-driven marketing professional with a strong background in digital strategy. She holds a degree in Marketing and has worked with various startups to scale their user base. At Tastycart, Grace designs and executes marketing campaigns that resonate with local communities, using analytics to optimise performance. She is passionate about using marketing as a tool for positive community impact.",
+    img: grace,
+  },
+];
 
-// ── Animated counter ──────────────────────────────────────────────────────────
-function Counter({ target, suffix = "", duration = 2000 }) {
-  const [count, setCount] = useState(0);
-  const [ref, inView] = useInView();
+// ─── Main Component ──────────────────────────────────────────────────────────
+export default function AboutUsNew() {
+  const navigate = useNavigate();
+  const { isLoggedIn, logout } = useAuth();
+  const { profile } = useUserProfile({ isLoggedIn });
+
+  // ── Hero slider state ──
+  const [slideIndex, setSlideIndex] = useState(0);
+  const slides = [
+    {
+      img: "https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=900&q=80",
+      label: "🍛 Freshly Prepared Meals",
+    },
+    {
+      img: "https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?w=900&q=80",
+      label: "🍕 Local Restaurant Partners",
+    },
+    {
+      img: "https://images.unsplash.com/photo-1540189549336-e6e99c3679fe?w=900&q=80",
+      label: "🥗 Healthy Options",
+    },
+    {
+      img: "https://images.unsplash.com/photo-1476224203421-9ac39bcb3327?w=900&q=80",
+      label: "🌮 Street Food Favourites",
+    },
+    {
+      img: "https://images.unsplash.com/photo-1555396273-367ea4eb4db5?w=900&q=80",
+      label: "🏪 500+ Restaurants",
+    },
+  ];
+
+  // Auto-slide
   useEffect(() => {
-    if (!inView) return;
-    let start = 0;
-    const step = target / (duration / 16);
     const timer = setInterval(() => {
-      start += step;
-      if (start >= target) { setCount(target); clearInterval(timer); }
-      else setCount(Math.floor(start));
-    }, 16);
+      setSlideIndex((prev) => (prev + 1) % slides.length);
+    }, 4000);
     return () => clearInterval(timer);
-  }, [inView, target, duration]);
-  return <span ref={ref}>{count.toLocaleString()}{suffix}</span>;
-}
+  }, [slides.length]);
 
-// ── FAQ Item ──────────────────────────────────────────────────────────────────
-function FaqItem({ q, a, index }) {
-  const [open, setOpen] = useState(false);
-  const [ref, inView] = useInView();
-  return (
-    <div ref={ref} style={{
-      borderRadius: 16, border: `1.5px solid ${open ? "#1a5c1a" : "#e9ecef"}`,
-      background: open ? "#f0fdf4" : "#fff", marginBottom: 12,
-      transition: "all 0.3s ease", overflow: "hidden",
-      boxShadow: open ? "0 4px 24px rgba(26,92,26,0.10)" : "0 1px 4px rgba(0,0,0,0.04)",
-      opacity: inView ? 1 : 0, transform: inView ? "translateY(0)" : "translateY(24px)",
-      transition: `opacity 0.5s ease ${index * 0.07}s, transform 0.5s ease ${index * 0.07}s, border 0.3s, background 0.3s, box-shadow 0.3s`,
-    }}>
-      <button onClick={() => setOpen(o => !o)} style={{
-        width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between",
-        padding: "20px 24px", background: "none", border: "none", cursor: "pointer", textAlign: "left",
-      }}>
-        <span style={{ fontFamily: "'Sora',sans-serif", fontWeight: 700, fontSize: 15, color: open ? "#1a5c1a" : "#0f172a", lineHeight: 1.4, paddingRight: 16 }}>{q}</span>
-        <div style={{
-          width: 32, height: 32, borderRadius: "50%", flexShrink: 0,
-          background: open ? "#1a5c1a" : "#f1f5f9",
-          display: "flex", alignItems: "center", justifyContent: "center",
-          transition: "all 0.3s ease",
-        }}>
-          <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke={open ? "white" : "#64748b"} strokeWidth="2.5"
-            style={{ transform: open ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.3s ease" }}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
-          </svg>
-        </div>
-      </button>
-      <div style={{
-        maxHeight: open ? 300 : 0, overflow: "hidden",
-        transition: "max-height 0.4s cubic-bezier(0.4,0,0.2,1)",
-      }}>
-        <p style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 14, color: "#475569", lineHeight: 1.75, padding: "0 24px 20px" }}>{a}</p>
-      </div>
-    </div>
-  );
-}
-
-// ── Team Card ─────────────────────────────────────────────────────────────────
-function TeamCard({ emoji, name, role, bio, index }) {
-  const [ref, inView] = useInView();
-  const [hovered, setHovered] = useState(false);
-  return (
-    <div ref={ref} onMouseEnter={() => setHovered(true)} onMouseLeave={() => setHovered(false)}
-      style={{
-        background: "#fff", borderRadius: 20, padding: "32px 24px", textAlign: "center",
-        border: `1.5px solid ${hovered ? "#1a5c1a" : "#f0f0f0"}`,
-        boxShadow: hovered ? "0 12px 48px rgba(26,92,26,0.14)" : "0 2px 12px rgba(0,0,0,0.05)",
-        transition: `all 0.35s ease, opacity 0.6s ease ${index * 0.1}s, transform 0.6s ease ${index * 0.1}s`,
-        opacity: inView ? 1 : 0, transform: inView ? "translateY(0)" : "translateY(32px)",
-        cursor: "default",
-      }}>
-      <div style={{
-        width: 80, height: 80, borderRadius: "50%", margin: "0 auto 16px",
-        background: "linear-gradient(135deg,#0d2e0d,#1a5c1a)",
-        display: "flex", alignItems: "center", justifyContent: "center",
-        fontSize: 34, boxShadow: "0 6px 24px rgba(26,92,26,0.25)",
-        transform: hovered ? "scale(1.08)" : "scale(1)", transition: "transform 0.3s ease",
-      }}>{emoji}</div>
-      <h3 style={{ fontFamily: "'Sora',sans-serif", fontWeight: 800, fontSize: 17, color: "#0f172a", marginBottom: 4 }}>{name}</h3>
-      <p style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 12, fontWeight: 700, color: "#1a5c1a", letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: 12 }}>{role}</p>
-      <p style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 13, color: "#64748b", lineHeight: 1.65 }}>{bio}</p>
-    </div>
-  );
-}
-
-// ── Value Card ────────────────────────────────────────────────────────────────
-function ValueCard({ icon, title, desc, color, index }) {
-  const [ref, inView] = useInView();
-  return (
-    <div ref={ref} style={{
-      background: "#fff", borderRadius: 20, padding: "28px 24px",
-      border: "1.5px solid #f0f0f0",
-      boxShadow: "0 2px 12px rgba(0,0,0,0.04)",
-      opacity: inView ? 1 : 0, transform: inView ? "translateY(0)" : "translateY(28px)",
-      transition: `opacity 0.6s ease ${index * 0.1}s, transform 0.6s ease ${index * 0.1}s`,
-    }}>
-      <div style={{
-        width: 52, height: 52, borderRadius: 14,
-        background: color + "18", display: "flex", alignItems: "center", justifyContent: "center",
-        fontSize: 26, marginBottom: 16,
-      }}>{icon}</div>
-      <h3 style={{ fontFamily: "'Sora',sans-serif", fontWeight: 800, fontSize: 16, color: "#0f172a", marginBottom: 8 }}>{title}</h3>
-      <p style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 13, color: "#64748b", lineHeight: 1.7 }}>{desc}</p>
-    </div>
-  );
-}
-
-// ── Step Card ─────────────────────────────────────────────────────────────────
-function StepCard({ num, icon, title, desc, index }) {
-  const [ref, inView] = useInView();
-  return (
-    <div ref={ref} style={{
-      display: "flex", gap: 20, alignItems: "flex-start",
-      opacity: inView ? 1 : 0, transform: inView ? "translateX(0)" : "translateX(-32px)",
-      transition: `opacity 0.6s ease ${index * 0.12}s, transform 0.6s ease ${index * 0.12}s`,
-    }}>
-      <div style={{ position: "relative", flexShrink: 0 }}>
-        <div style={{
-          width: 56, height: 56, borderRadius: "50%",
-          background: "linear-gradient(135deg,#0d2e0d,#2d7a2d)",
-          display: "flex", alignItems: "center", justifyContent: "center",
-          fontSize: 24, boxShadow: "0 4px 16px rgba(26,92,26,0.3)",
-        }}>{icon}</div>
-        <div style={{
-          position: "absolute", top: -6, right: -6, width: 20, height: 20, borderRadius: "50%",
-          background: "#f5920a", display: "flex", alignItems: "center", justifyContent: "center",
-          fontFamily: "'Sora',sans-serif", fontWeight: 900, fontSize: 10, color: "#fff",
-        }}>{num}</div>
-      </div>
-      <div style={{ paddingTop: 6 }}>
-        <h3 style={{ fontFamily: "'Sora',sans-serif", fontWeight: 800, fontSize: 16, color: "#0f172a", marginBottom: 6 }}>{title}</h3>
-        <p style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 13, color: "#64748b", lineHeight: 1.7 }}>{desc}</p>
-      </div>
-    </div>
-  );
-}
-
-// ════════════════════════════════════════════════════════════
-// MAIN ABOUT PAGE
-// ════════════════════════════════════════════════════════════
-export default function AboutPage() {
-  const [contactForm, setContactForm] = useState({ name: "", email: "", subject: "", message: "" });
-  const [contactSent, setContactSent] = useState(false);
-  const [contactLoading, setContactLoading] = useState(false);
-  const [contactError, setContactError] = useState("");
-  const [navScrolled, setNavScrolled] = useState(false);
-
+  // ── Scroll reveal ──
   useEffect(() => {
-    window.scrollTo({ top: 0, behavior: "instant" });
-    const onScroll = () => setNavScrolled(window.scrollY > 40);
-    window.addEventListener("scroll", onScroll);
-    return () => window.removeEventListener("scroll", onScroll);
+    const els = document.querySelectorAll("[data-reveal], [data-reveal-r]");
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((e) => {
+          if (e.isIntersecting) {
+            e.target.classList.add("on");
+            observer.unobserve(e.target);
+          }
+        });
+      },
+      { threshold: 0.12 }
+    );
+    els.forEach((el) => observer.observe(el));
+    return () => observer.disconnect();
   }, []);
 
-  const handleContact = (e) => {
-    e.preventDefault();
-    if (!contactForm.name || !contactForm.email || !contactForm.message) {
-      setContactError("Please fill in all required fields.");
-      return;
-    }
-    setContactError("");
-    setContactLoading(true);
-    setTimeout(() => { setContactLoading(false); setContactSent(true); }, 1600);
-  };
-
-  const FAQ_ITEMS = [
-    { q: "What is TastyCart and how does it work?", a: "TastyCart is Nigeria's premier food e-commerce platform connecting hungry customers with top-quality restaurants and home chefs. Simply browse, choose your meals, pay securely, and track your delivery in real time — all from one seamless app." },
-    { q: "Which cities does TastyCart currently serve?", a: "We currently operate in Lagos, Abuja, Port Harcourt, Ibadan, and Kano, with rapid expansion underway. New cities are onboarded every quarter — follow our social channels for launch announcements." },
-    { q: "How do I become a vendor (restaurant) on TastyCart?", a: "Visit quickconsult.ng/register/vendor or contact our partnerships team at vendors@tastycart.ng. Our team will walk you through onboarding, menu setup, and go-live within 48 hours." },
-    { q: "How long does delivery typically take?", a: "Average delivery time is 25–45 minutes depending on your location and order complexity. You'll receive real-time GPS tracking once your rider picks up your order." },
-    { q: "Is my payment information safe?", a: "Absolutely. TastyCart uses bank-grade 256-bit SSL encryption and is PCI-DSS compliant. We support Paystack, Flutterwave, bank transfer, and cash on delivery. We never store raw card data." },
-    { q: "Can I schedule orders in advance?", a: "Yes! TastyCart Pro subscribers can schedule orders up to 7 days in advance. Simply select 'Schedule Order' during checkout and pick your preferred delivery window." },
-    { q: "What is your refund and cancellation policy?", a: "Orders can be cancelled within 3 minutes of placement for a full refund. For quality issues, our support team processes refunds within 24 hours — no questions asked for first-time issues." },
-    { q: "How do riders earn on TastyCart?", a: "Riders keep 85% of their delivery fees plus 100% of tips. Weekly payouts are processed every Friday directly to your bank account. Top performers unlock bonus tiers and priority order assignments." },
-  ];
-
-  const TEAM = [
-    { emoji: "👨🏾‍💻", name: "Emeka Okonkwo", role: "CEO & Co-founder", bio: "Former Andela engineer with 10+ years building fintech and logistics platforms across West Africa." },
-    { emoji: "👩🏾‍🎨", name: "Fatima Al-Hassan", role: "Chief Design Officer", bio: "Ex-Figma, loves obsessing over micro-interactions and the perfect shade of green." },
-    { emoji: "👨🏽‍🍳", name: "Chef Babatunde", role: "Head of Vendor Success", bio: "Michelin-trained chef who left the kitchen to help 1,000+ Nigerian restaurants scale digitally." },
-    { emoji: "👩🏿‍💼", name: "Ngozi Eze", role: "VP of Operations", bio: "Built delivery networks for Jumia and Bolt before joining TastyCart to crack last-mile logistics." },
-    { emoji: "👨🏾‍🔬", name: "Kolade Adeyemi", role: "CTO & Co-founder", bio: "Distributed systems enthusiast. Prev: AWS, Paystack. Believes great infra is invisible." },
-    { emoji: "👩🏾‍📊", name: "Amina Bello", role: "Head of Growth", bio: "Performance marketer who scaled TastyCart from 200 to 200,000 users in 18 months." },
-  ];
-
-  const VALUES = [
-    { icon: "🔥", title: "Food First", desc: "Every decision we make starts with one question: does this make the food experience better? Quality is non-negotiable.", color: "#f5920a" },
-    { icon: "⚡", title: "Speed Without Compromise", desc: "Fast delivery shouldn't mean cold food or careless service. We've engineered both ends of that equation.", color: "#1a5c1a" },
-    { icon: "🤝", title: "Vendors Win Too", desc: "We succeed when our restaurant partners succeed. That's why our commission rates are the most competitive in the market.", color: "#2563eb" },
-    { icon: "🛡️", title: "Trust is Everything", desc: "Transparent pricing, honest reviews, zero hidden fees. We'd rather lose a transaction than lose your trust.", color: "#7c3aed" },
-    { icon: "🌍", title: "Built for Africa", desc: "From USSD payments to low-bandwidth optimization, TastyCart is engineered for Nigerian realities, not Silicon Valley assumptions.", color: "#dc2626" },
-    { icon: "♻️", title: "Sustainable Delivery", desc: "We're partnering with eco-packaging vendors and piloting electric bikes in Lagos to reduce our carbon footprint.", color: "#059669" },
-  ];
-
-  const STEPS = [
-    { num: 1, icon: "🔍", title: "Browse & Discover", desc: "Explore thousands of dishes from local favourites to premium restaurants — filtered by cuisine, rating, delivery time, and budget." },
-    { num: 2, icon: "🛒", title: "Build Your Cart", desc: "Customize your order with special instructions, add-ons, and quantities. Dietary filters help you find halal, vegan, and allergen-free options." },
-    { num: 3, icon: "💳", title: "Pay Securely", desc: "Choose from card, bank transfer, USSD, or cash on delivery. Split payments with friends coming soon." },
-    { num: 4, icon: "🏍️", title: "Real-Time Tracking", desc: "Watch your rider navigate to you on a live map. Get SMS and push notifications at every stage from kitchen to doorstep." },
-    { num: 5, icon: "😋", title: "Enjoy & Rate", desc: "Eat great food, rate your experience, and earn TastyPoints redeemable for discounts on your next order." },
-  ];
+  // ── Team modal state ──
+  const [selectedMember, setSelectedMember] = useState(null);
 
   return (
-    <>
+    <div className="font-sans text-[#1c2e1c] overflow-x-hidden" style={{ fontFamily: "'DM Sans', sans-serif" }}>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700;800;900&family=DM+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap');
-        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-        html { scroll-behavior: smooth; }
-        body { font-family: 'DM Sans', sans-serif; background: #fafafa; }
-        @keyframes heroFadeUp  { from { opacity:0; transform:translateY(36px); } to { opacity:1; transform:translateY(0); } }
-        @keyframes heroFadeIn  { from { opacity:0; } to { opacity:1; } }
-        @keyframes orbFloat1   { 0%,100% { transform:translateY(0) rotate(0deg); } 50% { transform:translateY(-18px) rotate(8deg); } }
-        @keyframes orbFloat2   { 0%,100% { transform:translateY(0); } 50% { transform:translateY(-24px) rotate(-5deg); } }
-        @keyframes orbFloat3   { 0%,100% { transform:translateY(0) rotate(0deg); } 50% { transform:translateY(-14px); } }
-        @keyframes spinRing    { from{transform:rotate(0deg)} to{transform:rotate(360deg)} }
-        @keyframes successPop  { 0%{transform:scale(0.8);opacity:0} 60%{transform:scale(1.06)} 100%{transform:scale(1);opacity:1} }
-        @keyframes pulse       { 0%,100%{opacity:1} 50%{opacity:0.6} }
-        @keyframes gradientShift { 0%,100%{background-position:0% 50%} 50%{background-position:100% 50%} }
-        @keyframes tickerScroll { from { transform: translateX(0); } to { transform: translateX(-50%); } }
-        .stat-num { font-family:'Sora',sans-serif; font-weight:900; font-size:clamp(2.4rem,5vw,3.4rem); line-height:1; }
-        .hero-title { font-family:'Sora',sans-serif; font-weight:900; font-size:clamp(2.6rem,6vw,4.2rem); line-height:1.12; letter-spacing:-0.03em; }
-        input::placeholder, textarea::placeholder { color:#94a3b8; }
-        input:focus, textarea:focus { outline:none; }
-        .contact-input { transition: all 0.25s ease; }
-        .contact-input:focus { border-color:#1a5c1a !important; background:#f0fdf4 !important; box-shadow:0 0 0 3px rgba(26,92,26,0.12) !important; }
-        .nav-link { font-family:'DM Sans',sans-serif; font-size:14px; font-weight:600; color:#374151; text-decoration:none; padding:6px 2px; position:relative; transition:color 0.2s; }
-        .nav-link::after { content:''; position:absolute; bottom:0; left:0; width:0; height:2px; background:#1a5c1a; transition:width 0.25s ease; border-radius:2px; }
-        .nav-link:hover { color:#1a5c1a; }
-        .nav-link:hover::after { width:100%; }
-        @media (max-width:768px) {
-          .hero-grid { flex-direction:column !important; }
-          .stats-grid { grid-template-columns:repeat(2,1fr) !important; }
-          .values-grid { grid-template-columns:1fr !important; }
-          .team-grid { grid-template-columns:repeat(2,1fr) !important; }
-          .how-grid { grid-template-columns:1fr !important; }
-          .contact-grid { grid-template-columns:1fr !important; }
-          .hide-mobile { display:none !important; }
+        @import url('https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,700;0,9..144,900;1,9..144,700&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&display=swap');
+        .fraunces { font-family: 'Fraunces', serif; }
+
+        @keyframes dotPulse {
+          0%,100% { opacity:1; transform:scale(1); }
+          50% { opacity:.4; transform:scale(.7); }
         }
-        @media (max-width:480px) {
-          .team-grid { grid-template-columns:1fr !important; }
-          .stats-grid { grid-template-columns:1fr !important; }
+        @keyframes fadeLeft {
+          from { opacity:0; transform:translateX(30px); }
+          to { opacity:1; transform:translateX(0); }
         }
+
+        .hero-badge-dot {
+          animation: dotPulse 1.6s ease-in-out infinite;
+        }
+
+        .hero-copy .hero-badge,
+        .hero-copy .hero-h1,
+        .hero-copy .hero-divider,
+        .hero-copy .hero-desc,
+        .hero-copy .hero-actions,
+        .hero-copy .hero-stats {
+          opacity:0;
+        }
+        .hero-copy .hero-badge { animation: fadeLeft .7s .1s both; }
+        .hero-copy .hero-h1 { animation: fadeLeft .7s .25s both; }
+        .hero-copy .hero-divider { animation: fadeLeft .7s .38s both; }
+        .hero-copy .hero-desc { animation: fadeLeft .7s .48s both; }
+        .hero-copy .hero-actions { animation: fadeLeft .7s .58s both; }
+        .hero-copy .hero-stats { animation: fadeLeft .7s .7s both; }
+
+        [data-reveal] { opacity:0; transform:translateY(32px); transition:opacity .75s ease, transform .75s ease; }
+        [data-reveal].on { opacity:1; transform:translateY(0); }
+        [data-reveal-r] { opacity:0; transform:translateX(36px); transition:opacity .75s ease, transform .75s ease; }
+        [data-reveal-r].on { opacity:1; transform:translateX(0); }
+        .d1 { transition-delay:.1s; } .d2 { transition-delay:.2s; }
+        .d3 { transition-delay:.3s; } .d4 { transition-delay:.4s; }
+        .d5 { transition-delay:.5s; }
+
+        .hero-ring {
+          position:absolute;
+          border-radius:50%;
+          border:1px solid rgba(45,138,45,0.12);
+        }
+        .hero-ring-1 { width:480px; height:480px; bottom:-120px; right:-120px; }
+        .hero-ring-2 { width:720px; height:720px; bottom:-240px; right:-240px; }
       `}</style>
 
-      {/* ── NAVBAR ── */}
-      <nav style={{
-        position: "sticky", top: 0, zIndex: 100,
-        background: navScrolled ? "rgba(255,255,255,0.96)" : "transparent",
-        backdropFilter: navScrolled ? "blur(16px)" : "none",
-        borderBottom: navScrolled ? "1px solid #e9ecef" : "none",
-        transition: "all 0.3s ease",
-        padding: "0 clamp(16px,4vw,64px)",
-      }}>
-        <div style={{ maxWidth: 1200, margin: "0 auto", height: 68, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-          <Link to="/" style={{ display: "flex", alignItems: "center", gap: 10, textDecoration: "none" }}>
-            <div style={{ width: 36, height: 36, borderRadius: 10, background: "linear-gradient(135deg,#1a5c1a,#2d7a2d)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18 }}>🍔</div>
-            <span style={{ fontFamily: "'Sora',sans-serif", fontWeight: 800, fontSize: 18, color: "#0f172a", letterSpacing: -0.5 }}>TastyCart</span>
-          </Link>
-          <div style={{ display: "flex", alignItems: "center", gap: 32 }} className="hide-mobile">
-            {["#mission", "#how-it-works", "#team", "#faq", "#contact"].map((href, i) => (
-              <a key={href} href={href} className="nav-link">{["Our Mission", "How It Works", "Team", "FAQ", "Contact"][i]}</a>
+      <Ticker />
+
+      <Navbar
+        profile={profile}
+        isLoggedIn={isLoggedIn}
+        logout={logout}
+        // cart not needed here
+      />
+
+      {/* ─── Hero ─── */}
+      <section className="grid grid-cols-1 lg:grid-cols-2 h-[550px] overflow-hidden">
+        {/* Slider */}
+        <div className="relative overflow-hidden">
+          <div
+            className="flex h-full transition-transform duration-700 ease-[cubic-bezier(.77,0,.18,1)]"
+            style={{ transform: `translateX(-${slideIndex * 100}%)` }}
+          >
+            {slides.map((slide, i) => (
+              <div key={i} className="min-w-full h-full relative flex-shrink-0">
+                <img
+                  src={slide.img}
+                  alt={slide.label}
+                  className="w-full h-full object-cover block"
+                />
+                <div className="absolute inset-0 bg-gradient-to-r from-black/20 to-transparent" />
+                <div className="absolute bottom-8 left-6 bg-black/50 backdrop-blur-sm text-white text-xs font-semibold px-4 py-2 rounded-full border border-white/15">
+                  {slide.label}
+                </div>
+              </div>
             ))}
           </div>
-          <Link to="/login" style={{
-            fontFamily: "'Sora',sans-serif", fontWeight: 700, fontSize: 13,
-            color: "#fff", background: "linear-gradient(135deg,#1a5c1a,#2d7a2d)",
-            padding: "10px 22px", borderRadius: 10, textDecoration: "none",
-            boxShadow: "0 4px 16px rgba(26,92,26,0.35)",
-          }}>Get Started →</Link>
+          {/* Dots */}
+          <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-2">
+            {slides.map((_, i) => (
+              <button
+                key={i}
+                className={`w-1.5 h-1.5 rounded-full transition-all ${
+                  i === slideIndex ? "bg-[#f28c00] w-6" : "bg-white/40"
+                }`}
+                onClick={() => setSlideIndex(i)}
+              />
+            ))}
+          </div>
         </div>
-      </nav>
 
-      {/* ── TICKER TAPE ── */}
-      <div style={{ background: "#f5920a", overflow: "hidden", height: 36, display: "flex", alignItems: "center" }}>
-        <div style={{ display: "flex", animation: "tickerScroll 22s linear infinite", whiteSpace: "nowrap" }}>
-          {Array(2).fill(["🍛 Order in seconds", "🏍️ 30-min delivery", "🥗 500+ restaurants", "💳 Secure payments", "⭐ 4.8 rating", "🎉 Free delivery on first order"]).flat().map((t, i) => (
-            <span key={i} style={{ fontFamily: "'DM Sans',sans-serif", fontWeight: 700, fontSize: 12, color: "#fff", paddingRight: 48, letterSpacing: "0.04em" }}>• {t}</span>
-          ))}
+        {/* Copy */}
+        <div className="bg-gradient-to-br from-[#0d1f0d] to-[#1a4a1a] flex flex-col justify-center px-8 md:px-14 py-16 relative overflow-hidden">
+          <div className="hero-ring hero-ring-1" />
+          <div className="hero-ring hero-ring-2" />
+          <div className="relative z-10">
+            <div className="inline-flex items-center gap-2 bg-[#f28c00]/15 border border-[#f28c00]/30 text-[#f28c00] text-[11px] font-bold tracking-[0.18em] uppercase px-3 py-1.5 rounded-full mb-7 hero-badge">
+              <span className="w-1.5 h-1.5 rounded-full bg-[#f28c00] hero-badge-dot" />
+              Our Story
+            </div>
+            <h1 className="fraunces font-black text-white text-[clamp(38px,4.5vw,66px)] leading-[1.04] tracking-[-2px] mb-5 hero-h1">
+              Built for <em className="text-[#f28c00] not-italic">your</em><br />
+              neighbourhood
+            </h1>
+            <div className="w-14 h-[3px] rounded-full bg-gradient-to-r from-[#f28c00] to-[#2d8a2d] mb-5 hero-divider" />
+            <p className="text-white/55 text-[17px] leading-relaxed max-w-md mb-9 hero-desc">
+              A technology company on a mission to simplify how people access daily essentials — one delivery at a time.
+            </p>
+            <div className="flex flex-wrap gap-3 mb-12 hero-actions">
+              <a
+                href="/"
+                className="inline-block bg-gradient-to-br from-[#1a5c1a] to-[#2d8a2d] text-white font-bold text-sm px-7 py-3.5 rounded-full shadow-lg shadow-[#2d8a2d]/35 hover:-translate-y-0.5 transition"
+              >
+                🛵 Order Now
+              </a>
+              <a
+                href="#mission"
+                className="inline-block border border-white/20 text-white font-semibold text-sm px-7 py-3.5 rounded-full hover:bg-white/10 transition"
+              >
+                Our Mission
+              </a>
+            </div>
+            <div className="flex gap-8 hero-stats">
+              <div>
+                <div className="fraunces font-black text-3xl text-[#f28c00]">1k+</div>
+                <div className="text-[10px] font-semibold text-white/35 tracking-[0.15em] uppercase mt-1">Orders</div>
+              </div>
+              <div className="w-px bg-white/10" />
+              <div>
+                <div className="fraunces font-black text-3xl text-[#f28c00]">50+</div>
+                <div className="text-[10px] font-semibold text-white/35 tracking-[0.15em] uppercase mt-1">Vendors</div>
+              </div>
+              <div className="w-px bg-white/10" />
+              <div>
+                <div className="fraunces font-black text-3xl text-[#f28c00]">4.8★</div>
+                <div className="text-[10px] font-semibold text-white/35 tracking-[0.15em] uppercase mt-1">Rating</div>
+              </div>
+              <div className="w-px bg-white/10" />
+              <div>
+                <div className="fraunces font-black text-3xl text-[#f28c00]">25m</div>
+                <div className="text-[10px] font-semibold text-white/35 tracking-[0.15em] uppercase mt-1">Avg Delivery</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ─── About ─── */}
+      <section className="bg-[#f0faf0] py-24">
+        <div className="max-w-[1100px] mx-auto px-6 md:px-10">
+          <div className="grid md:grid-cols-2 gap-12 items-center">
+            <div data-reveal>
+              <div className="flex items-center gap-2 text-[11px] font-extrabold tracking-[0.22em] uppercase text-[#2d8a2d] mb-3">
+                <span className="w-6 h-0.5 rounded bg-[#f28c00]" />
+                Who We Are
+              </div>
+              <h2 className="fraunces font-black text-[clamp(28px,3.5vw,44px)] leading-[1.1] tracking-[-1px] text-[#1c2e1c] mb-5">
+                More than a<br />
+                <em className="text-[#2d8a2d] not-italic">delivery app</em>
+              </h2>
+              <p className="text-[#4a6a4a] text-base leading-relaxed mb-4">
+                Born from a vision to redefine speed and efficiency in digital experiences, Tastycart is a comprehensive,
+                technology-driven platform designed to be your one-stop shop for all local needs.
+              </p>
+              <p className="text-[#4a6a4a] text-base leading-relaxed">
+                We bridge the gap between local businesses and consumers — making meals, groceries, and medicine
+                available instantly at your doorstep.
+              </p>
+              <div className="flex flex-wrap gap-4 mt-7">
+                <div className="bg-white border border-[#d6ebd6] rounded-2xl px-5 py-4 text-center">
+                  <div className="fraunces font-black text-[28px] text-[#f28c00]">25m</div>
+                  <div className="text-[11px] font-semibold text-[#5a7a5a] tracking-[0.1em] uppercase mt-0.5">
+                    Avg Delivery
+                  </div>
+                </div>
+                <div className="bg-white border border-[#d6ebd6] rounded-2xl px-5 py-4 text-center">
+                  <div className="fraunces font-black text-[28px] text-[#2d8a2d]">50+</div>
+                  <div className="text-[11px] font-semibold text-[#5a7a5a] tracking-[0.1em] uppercase mt-0.5">
+                    Partners
+                  </div>
+                </div>
+                <div className="bg-white border border-[#d6ebd6] rounded-2xl px-5 py-4 text-center">
+                  <div className="fraunces font-black text-[28px] text-[#f28c00]">4.9★</div>
+                  <div className="text-[11px] font-semibold text-[#5a7a5a] tracking-[0.1em] uppercase mt-0.5">
+                    Avg Rating
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div data-reveal-r className="d2">
+              <div className="grid grid-cols-2 grid-rows-[220px_160px] gap-3">
+                <img
+                  src="https://images.unsplash.com/photo-1567521464027-f127ff144326?w=600&q=80"
+                  alt="Cooking"
+                  className="row-span-2 h-full w-full object-cover rounded-2xl"
+                />
+                <img
+                  src="https://images.unsplash.com/photo-1571091718767-18b5b1457add?w=600&q=80"
+                  alt="Burger"
+                  className="w-full h-full object-cover rounded-2xl"
+                />
+                <img
+                  src="https://images.unsplash.com/photo-1626645738196-c2a7c87a8f58?w=600&q=80"
+                  alt="Fresh produce"
+                  className="w-full h-full object-cover rounded-2xl"
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ─── Stats Banner ─── */}
+      <div className="bg-gradient-to-br from-[#0d1f0d] to-[#1a4a1a] py-16">
+        <div className="max-w-[1100px] mx-auto px-6 md:px-10">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-0">
+            {[
+              { num: "1,000+", label: "Orders Delivered" },
+              { num: "50+", label: "Local Vendors" },
+              { num: "4.8", label: "Customer Rating" },
+              { num: "5", label: "Team Members" },
+            ].map((stat, i) => (
+              <div
+                key={i}
+                className="text-center py-6 relative border-r border-white/10 last:border-r-0"
+                data-reveal
+              >
+                <div className="fraunces font-black text-4xl text-[#f28c00]">{stat.num}</div>
+                <div className="text-xs font-semibold text-white/40 tracking-[0.14em] uppercase mt-2">
+                  {stat.label}
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       </div>
 
-      {/* ── HERO ── */}
-      <section style={{
-        background: "linear-gradient(160deg,#0d2e0d 0%,#1a4a1a 55%,#0d2e0d 100%)",
-        position: "relative", overflow: "hidden",
-        padding: "clamp(64px,10vw,120px) clamp(16px,4vw,64px)",
-      }}>
-        {/* Dot grid */}
-        <div style={{ position: "absolute", inset: 0, opacity: 0.05 }}>
-          <svg width="100%" height="100%"><defs><pattern id="dots" x="0" y="0" width="40" height="40" patternUnits="userSpaceOnUse"><circle cx="20" cy="20" r="1.5" fill="white"/></pattern></defs><rect width="100%" height="100%" fill="url(#dots)"/></svg>
-        </div>
-        <div style={{ position: "absolute", top: -160, right: -160, width: 500, height: 500, borderRadius: "50%", background: "radial-gradient(circle,rgba(45,138,45,0.22) 0%,transparent 70%)" }}/>
-        <div style={{ position: "absolute", bottom: -120, left: -80, width: 360, height: 360, borderRadius: "50%", background: "radial-gradient(circle,rgba(245,146,10,0.14) 0%,transparent 70%)" }}/>
-
-        {FOOD_EMOJIS.slice(0, 8).map((emoji, i) => (
-          <FoodOrb key={i} emoji={emoji} style={{
-            top: `${[10,25,45,70,80,55,20,38][i]}%`,
-            left: `${[72,86,80,90,65,77,93,68][i]}%`,
-            animation: `orbFloat${(i % 3) + 1} ${3.5 + i * 0.45}s ease-in-out infinite`,
-            animationDelay: `${i * 0.28}s`,
-          }} />
-        ))}
-
-        <div style={{ maxWidth: 1200, margin: "0 auto", position: "relative", zIndex: 2 }}>
-          <div style={{ display: "inline-flex", alignItems: "center", gap: 8, background: "rgba(245,146,10,0.15)", border: "1px solid rgba(245,146,10,0.3)", borderRadius: 50, padding: "6px 16px", marginBottom: 28, animation: "heroFadeIn 0.7s ease both" }}>
-            <span style={{ fontSize: 14 }}>🇳🇬</span>
-            <span style={{ fontFamily: "'DM Sans',sans-serif", fontWeight: 700, fontSize: 12, color: "#f5920a", letterSpacing: "0.06em", textTransform: "uppercase" }}>Nigeria's Fastest Growing Food Platform</span>
+      {/* ─── Mission ─── */}
+      <section className="py-24 bg-white" id="mission">
+        <div className="max-w-[1100px] mx-auto px-6 md:px-10">
+          <div data-reveal>
+            <div className="flex items-center gap-2 text-[11px] font-extrabold tracking-[0.22em] uppercase text-[#2d8a2d] mb-3">
+              <span className="w-6 h-0.5 rounded bg-[#f28c00]" />
+              Purpose
+            </div>
+            <h2 className="fraunces font-black text-[clamp(28px,3.5vw,44px)] leading-[1.1] tracking-[-1px] text-[#1c2e1c]">
+              What drives us<br />
+              <em className="text-[#2d8a2d] not-italic">every single day</em>
+            </h2>
           </div>
-          <h1 className="hero-title" style={{ color: "#fff", marginBottom: 24, maxWidth: 700, animation: "heroFadeUp 0.8s ease 0.1s both" }}>
-            We're on a mission to feed{" "}
-            <span style={{ color: "#4caf50", fontStyle: "italic" }}>every Nigerian,</span>{" "}
-            <span style={{ color: "#f5920a" }}>every day.</span>
-          </h1>
-          <p style={{ fontFamily: "'DM Sans',sans-serif", fontSize: "clamp(15px,2vw,18px)", color: "rgba(255,255,255,0.65)", lineHeight: 1.75, maxWidth: 560, marginBottom: 40, animation: "heroFadeUp 0.8s ease 0.22s both" }}>
-            TastyCart connects food lovers with the best local restaurants and home chefs, delivering exceptional meals in minutes — not hours. Built in Lagos, for Africa.
-          </p>
-          <div style={{ display: "flex", gap: 14, flexWrap: "wrap", animation: "heroFadeUp 0.8s ease 0.34s both" }}>
-            <a href="#mission" style={{ fontFamily: "'Sora',sans-serif", fontWeight: 700, fontSize: 14, color: "#fff", background: "linear-gradient(135deg,#1a5c1a,#2d7a2d)", padding: "14px 28px", borderRadius: 12, textDecoration: "none", boxShadow: "0 6px 24px rgba(26,92,26,0.45)" }}>Our Story →</a>
-            <a href="#contact" style={{ fontFamily: "'Sora',sans-serif", fontWeight: 700, fontSize: 14, color: "rgba(255,255,255,0.85)", background: "rgba(255,255,255,0.1)", border: "1.5px solid rgba(255,255,255,0.18)", padding: "14px 28px", borderRadius: 12, textDecoration: "none" }}>Get in Touch</a>
+          <div className="grid md:grid-cols-2 gap-5 mt-14">
+            <div
+              className="bg-gradient-to-br from-[#0d1f0d] to-[#1a4a1a] rounded-3xl p-10 relative overflow-hidden text-white"
+              data-reveal
+            >
+              <div className="absolute -bottom-10 -right-10 w-36 h-36 rounded-full bg-[#f28c00]/10" />
+              <div className="text-4xl mb-5">🎯</div>
+              <h3 className="fraunces font-black text-2xl mb-4">Our Mission</h3>
+              <p className="text-white/65 text-sm leading-relaxed">
+                Empower local communities by providing a seamless, reliable, and hyper-local delivery ecosystem.
+                We connect consumers with the best local stores and restaurants — ensuring access to quality food
+                and essentials is just a few taps away.
+              </p>
+            </div>
+            <div
+              className="bg-[#e8f5e0] border border-[#d6ebd6] rounded-3xl p-10 relative overflow-hidden"
+              data-reveal
+            >
+              <div className="absolute -bottom-10 -right-10 w-36 h-36 rounded-full bg-[#f28c00]/10" />
+              <div className="text-4xl mb-5">🌍</div>
+              <h3 className="fraunces font-black text-2xl text-[#1c2e1c] mb-4">Our Vision</h3>
+              <p className="text-[#5a7a5a] text-sm leading-relaxed">
+                To be the most trusted and beloved local delivery platform — recognized for speed, reliability,
+                and community. A world where accessing daily necessities is effortless, supporting local economies
+                and fostering a more connected lifestyle.
+              </p>
+            </div>
           </div>
         </div>
       </section>
 
-      {/* ── STATS ── */}
-      <section style={{ background: "#fff", padding: "clamp(48px,7vw,80px) clamp(16px,4vw,64px)", borderBottom: "1px solid #f0f0f0" }}>
-        <div style={{ maxWidth: 1200, margin: "0 auto" }}>
-          <div className="stats-grid" style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 24, textAlign: "center" }}>
+      {/* ─── Values ─── */}
+      <section className="py-24 bg-gradient-to-br from-[#0d1f0d] via-[#0f2e0f] to-[#1a4a1a]" id="values">
+        <div className="max-w-[1100px] mx-auto px-6 md:px-10">
+          <div data-reveal>
+            <div className="flex items-center gap-2 text-[11px] font-extrabold tracking-[0.22em] uppercase text-white/60 mb-3">
+              <span className="w-6 h-0.5 rounded bg-[#f28c00]" />
+              What We Stand For
+            </div>
+            <h2 className="fraunces font-black text-[clamp(28px,3.5vw,44px)] leading-[1.1] tracking-[-1px] text-white">
+              The way we work <em className="text-[#f28c00] not-italic">matters</em>
+            </h2>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 mt-14">
             {[
-              { val: 200000, suf: "+", label: "Happy Customers", icon: "😋" },
-              { val: 500, suf: "+", label: "Restaurant Partners", icon: "🏪" },
-              { val: 30, suf: " min", label: "Avg Delivery Time", icon: "⚡" },
-              { val: 98, suf: "%", label: "Customer Satisfaction", icon: "⭐" },
-            ].map(({ val, suf, label, icon }, i) => (
-              <div key={i} style={{ padding: "24px 16px" }}>
-                <div style={{ fontSize: 32, marginBottom: 12 }}>{icon}</div>
-                <div className="stat-num" style={{ color: "#1a5c1a", marginBottom: 8 }}>
-                  <Counter target={val} suffix={suf} />
+              { icon: "💚", title: "Customer First", body: "Obsessed with delivering exceptional experiences that consistently exceed expectations." },
+              { icon: "💡", title: "Innovation at Core", body: "Pushing the boundaries of what's possible — constantly finding better ways to serve." },
+              { icon: "⚡", title: "Speed & Efficiency", body: "Lightning-fast performance and reliable service, every single time." },
+              { icon: "🤝", title: "Transparency", body: "Open communication and lasting relationships with every partner and customer." },
+              { icon: "🏘️", title: "Community Focused", body: "Dedicated to strengthening local communities by uplifting the businesses within them." },
+            ].map((val, i) => (
+              <div
+                key={i}
+                className="bg-white/5 border border-white/10 rounded-2xl p-5 hover:bg-[#2d8a2d]/20 hover:border-[#2d8a2d]/30 transition-all hover:-translate-y-1"
+                data-reveal
+              >
+                <div className="w-12 h-12 rounded-xl bg-[#f28c00]/15 border border-[#f28c00]/30 flex items-center justify-center text-2xl mb-4">
+                  {val.icon}
                 </div>
-                <p style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 14, color: "#64748b", fontWeight: 600 }}>{label}</p>
+                <div className="font-extrabold text-sm text-white mb-2">{val.title}</div>
+                <div className="text-xs text-white/50 leading-relaxed">{val.body}</div>
               </div>
             ))}
           </div>
         </div>
       </section>
 
-      {/* ── MISSION ── */}
-      <section id="mission" style={{ padding: "clamp(64px,8vw,100px) clamp(16px,4vw,64px)", background: "#fafafa" }}>
-        <div style={{ maxWidth: 1200, margin: "0 auto" }}>
-          <div className="hero-grid" style={{ display: "flex", gap: 64, alignItems: "center" }}>
-            {/* Left — dark card */}
-            <div style={{ flex: "0 0 48%", background: "linear-gradient(160deg,#0d2e0d,#1a4a1a)", borderRadius: 24, padding: "48px 40px", position: "relative", overflow: "hidden" }}>
-              <div style={{ position: "absolute", top: -60, right: -60, width: 200, height: 200, borderRadius: "50%", background: "radial-gradient(circle,rgba(245,146,10,0.2),transparent 70%)" }}/>
-              <div style={{ position: "absolute", bottom: -40, left: -40, width: 160, height: 160, borderRadius: "50%", background: "radial-gradient(circle,rgba(76,175,80,0.18),transparent 70%)" }}/>
-              <div style={{ position: "relative", zIndex: 2 }}>
-                <p style={{ fontFamily: "'DM Sans',sans-serif", fontWeight: 700, fontSize: 11, letterSpacing: "0.14em", textTransform: "uppercase", color: "#f5920a", marginBottom: 16 }}>Our Mission</p>
-                <h2 style={{ fontFamily: "'Sora',sans-serif", fontWeight: 900, fontSize: "clamp(1.8rem,3vw,2.6rem)", color: "#fff", lineHeight: 1.2, marginBottom: 24 }}>
-                  Food shouldn't be complicated. Or slow.
-                </h2>
-                <p style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 15, color: "rgba(255,255,255,0.65)", lineHeight: 1.8, marginBottom: 32 }}>
-                  We started TastyCart in 2022 with a simple frustration: ordering food in Lagos was unreliable, overpriced, and stressful. We decided to fix it — not with a copy-paste of Western apps, but with something built from scratch for how Nigerians actually eat, pay, and live.
-                </p>
-                <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
-                  {["Founded in Lagos 🏙️", "Team of 80+", "Seed-funded 🚀"].map(tag => (
-                    <span key={tag} style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 12, fontWeight: 600, color: "rgba(255,255,255,0.7)", background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 50, padding: "5px 14px" }}>{tag}</span>
-                  ))}
-                </div>
-              </div>
+      {/* ─── Technology ─── */}
+      <section className="py-24 bg-white">
+        <div className="max-w-[1100px] mx-auto px-6 md:px-10">
+          <div data-reveal>
+            <div className="flex items-center gap-2 text-[11px] font-extrabold tracking-[0.22em] uppercase text-[#2d8a2d] mb-3">
+              <span className="w-6 h-0.5 rounded bg-[#f28c00]" />
+              Our Technology
             </div>
-            {/* Right — values */}
-            <div style={{ flex: 1 }}>
-              <p style={{ fontFamily: "'DM Sans',sans-serif", fontWeight: 700, fontSize: 11, letterSpacing: "0.14em", textTransform: "uppercase", color: "#1a5c1a", marginBottom: 16 }}>What We Stand For</p>
-              <h2 style={{ fontFamily: "'Sora',sans-serif", fontWeight: 900, fontSize: "clamp(1.6rem,2.8vw,2.2rem)", color: "#0f172a", lineHeight: 1.2, marginBottom: 32 }}>The values that guide every delivery</h2>
-              <div className="values-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
-                {VALUES.map((v, i) => <ValueCard key={i} {...v} index={i} />)}
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* ── HOW IT WORKS ── */}
-      <section id="how-it-works" style={{ background: "#fff", padding: "clamp(64px,8vw,100px) clamp(16px,4vw,64px)" }}>
-        <div style={{ maxWidth: 1200, margin: "0 auto" }}>
-          <div style={{ textAlign: "center", marginBottom: 64 }}>
-            <p style={{ fontFamily: "'DM Sans',sans-serif", fontWeight: 700, fontSize: 11, letterSpacing: "0.14em", textTransform: "uppercase", color: "#f5920a", marginBottom: 12 }}>Simple & Fast</p>
-            <h2 style={{ fontFamily: "'Sora',sans-serif", fontWeight: 900, fontSize: "clamp(1.8rem,3.5vw,2.8rem)", color: "#0f172a", lineHeight: 1.15 }}>
-              From craving to doorstep<br />in 5 easy steps
+            <h2 className="fraunces font-black text-[clamp(28px,3.5vw,44px)] leading-[1.1] tracking-[-1px] text-[#1c2e1c]">
+              Built to <em className="text-[#2d8a2d] not-italic">scale</em><br />
+              with your community
             </h2>
-          </div>
-          <div className="how-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "40px 80px", maxWidth: 900, margin: "0 auto" }}>
-            {STEPS.map((step, i) => <StepCard key={i} {...step} index={i} />)}
-          </div>
-        </div>
-      </section>
-
-      {/* ── TEAM ── */}
-      <section id="team" style={{ background: "linear-gradient(180deg,#fafafa 0%,#f0fdf4 100%)", padding: "clamp(64px,8vw,100px) clamp(16px,4vw,64px)" }}>
-        <div style={{ maxWidth: 1200, margin: "0 auto" }}>
-          <div style={{ textAlign: "center", marginBottom: 56 }}>
-            <p style={{ fontFamily: "'DM Sans',sans-serif", fontWeight: 700, fontSize: 11, letterSpacing: "0.14em", textTransform: "uppercase", color: "#1a5c1a", marginBottom: 12 }}>The People</p>
-            <h2 style={{ fontFamily: "'Sora',sans-serif", fontWeight: 900, fontSize: "clamp(1.8rem,3.5vw,2.8rem)", color: "#0f172a", lineHeight: 1.15 }}>Meet the team behind the taste</h2>
-            <p style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 15, color: "#64748b", lineHeight: 1.7, maxWidth: 520, margin: "16px auto 0" }}>
-              A tight-knit crew of builders, foodies, and operators who wake up every day thinking about how to make your meal experience better.
+            <p className="text-[#4a6a4a] text-base leading-relaxed max-w-lg mt-3">
+              At the heart of Tastycart is a robust, scalable technology stack designed to handle the complexities
+              of modern on-demand delivery.
             </p>
           </div>
-          <div className="team-grid" style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 20 }}>
-            {TEAM.map((member, i) => <TeamCard key={i} {...member} index={i} />)}
-          </div>
-          <div style={{ textAlign: "center", marginTop: 40 }}>
-            <a href="mailto:careers@tastycart.ng" style={{ fontFamily: "'Sora',sans-serif", fontWeight: 700, fontSize: 14, color: "#1a5c1a", textDecoration: "none", borderBottom: "2px solid #1a5c1a", paddingBottom: 2 }}>We're hiring — join the team →</a>
-          </div>
-        </div>
-      </section>
-
-      {/* ── FAQ ── */}
-      <section id="faq" style={{ background: "#fff", padding: "clamp(64px,8vw,100px) clamp(16px,4vw,64px)" }}>
-        <div style={{ maxWidth: 760, margin: "0 auto" }}>
-          <div style={{ textAlign: "center", marginBottom: 56 }}>
-            <p style={{ fontFamily: "'DM Sans',sans-serif", fontWeight: 700, fontSize: 11, letterSpacing: "0.14em", textTransform: "uppercase", color: "#f5920a", marginBottom: 12 }}>Got Questions?</p>
-            <h2 style={{ fontFamily: "'Sora',sans-serif", fontWeight: 900, fontSize: "clamp(1.8rem,3.5vw,2.8rem)", color: "#0f172a", lineHeight: 1.15 }}>Frequently asked questions</h2>
-            <p style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 15, color: "#64748b", marginTop: 14 }}>Can't find what you're looking for? <a href="#contact" style={{ color: "#1a5c1a", fontWeight: 700, textDecoration: "none" }}>Contact our team ↓</a></p>
-          </div>
-          <div>
-            {FAQ_ITEMS.map((item, i) => <FaqItem key={i} {...item} index={i} />)}
-          </div>
-        </div>
-      </section>
-
-      {/* ── CONTACT ── */}
-      <section id="contact" style={{ background: "linear-gradient(160deg,#0d2e0d,#1a4a1a)", padding: "clamp(64px,8vw,100px) clamp(16px,4vw,64px)", position: "relative", overflow: "hidden" }}>
-        <div style={{ position: "absolute", top: -100, right: -100, width: 400, height: 400, borderRadius: "50%", background: "radial-gradient(circle,rgba(245,146,10,0.15),transparent 70%)" }}/>
-        <div style={{ position: "absolute", bottom: -80, left: -80, width: 300, height: 300, borderRadius: "50%", background: "radial-gradient(circle,rgba(76,175,80,0.15),transparent 70%)" }}/>
-        <div style={{ maxWidth: 1100, margin: "0 auto", position: "relative", zIndex: 2 }}>
-          <div style={{ textAlign: "center", marginBottom: 60 }}>
-            <p style={{ fontFamily: "'DM Sans',sans-serif", fontWeight: 700, fontSize: 11, letterSpacing: "0.14em", textTransform: "uppercase", color: "#f5920a", marginBottom: 12 }}>Reach Out</p>
-            <h2 style={{ fontFamily: "'Sora',sans-serif", fontWeight: 900, fontSize: "clamp(1.8rem,3.5vw,2.8rem)", color: "#fff", lineHeight: 1.15 }}>We'd love to hear from you</h2>
-            <p style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 15, color: "rgba(255,255,255,0.55)", marginTop: 14, maxWidth: 480, margin: "14px auto 0" }}>Whether you're a customer, restaurant partner, investor, or job seeker — our inbox is always open.</p>
-          </div>
-
-          <div className="contact-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1.6fr", gap: 40, alignItems: "start" }}>
-            {/* Info column */}
-            <div>
+          <div className="grid md:grid-cols-2 gap-12 items-start mt-14">
+            <div className="flex flex-col gap-3" data-reveal>
               {[
-                { icon: "📍", label: "Office Address", value: "14 Marina Street, Victoria Island, Lagos, Nigeria" },
-                { icon: "📞", label: "Phone", value: "+234 800 TASTYCART" },
-                { icon: "✉️", label: "General Enquiries", value: "hello@tastycart.ng" },
-                { icon: "🤝", label: "Vendor Partnerships", value: "vendors@tastycart.ng" },
-                { icon: "🏍️", label: "Rider Recruitment", value: "riders@tastycart.ng" },
-                { icon: "📰", label: "Press & Media", value: "press@tastycart.ng" },
-              ].map(({ icon, label, value }) => (
-                <div key={label} style={{ display: "flex", gap: 16, alignItems: "flex-start", marginBottom: 24 }}>
-                  <div style={{ width: 44, height: 44, borderRadius: 12, background: "rgba(255,255,255,0.08)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20, flexShrink: 0 }}>{icon}</div>
+                { icon: "✨", title: "Seamless User Experience", body: "Sleek, modern design with an intuitive interface that makes navigation and checkout a breeze." },
+                { icon: "📱", title: "Cross-Platform Access", body: "A consistent, optimized experience across all devices — from phone to tablet to desktop." },
+                { icon: "🛠️", title: "Advanced Tech Stack", body: "Built with ReactJS and modern technologies, engineered for performance and scalability." },
+                { icon: "🔮", title: "Innovative Features", body: "Constantly developing features that meet and exceed user expectations." },
+              ].map((tech, i) => (
+                <div
+                  key={i}
+                  className="flex gap-4 p-5 rounded-2xl border border-[#d6ebd6] bg-[#f0faf0] hover:border-[#2d8a2d] hover:bg-white hover:shadow-md transition-all"
+                >
+                  <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-[#1a5c1a] to-[#2d8a2d] flex items-center justify-center text-2xl flex-shrink-0">
+                    {tech.icon}
+                  </div>
                   <div>
-                    <p style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 11, fontWeight: 700, color: "rgba(255,255,255,0.4)", letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: 3 }}>{label}</p>
-                    <p style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 14, color: "rgba(255,255,255,0.8)", fontWeight: 500 }}>{value}</p>
+                    <div className="font-extrabold text-sm text-[#1c2e1c]">{tech.title}</div>
+                    <div className="text-xs text-[#5a7a5a] leading-relaxed">{tech.body}</div>
                   </div>
                 </div>
               ))}
-              <div style={{ marginTop: 8 }}>
-                <p style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 11, fontWeight: 700, color: "rgba(255,255,255,0.4)", letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: 14 }}>Follow Us</p>
-                <div style={{ display: "flex", gap: 10 }}>
-                  {["𝕏", "in", "📘", "📷"].map((s, i) => (
-                    <div key={i} style={{ width: 38, height: 38, borderRadius: 10, background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.15)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", fontSize: 14, color: "#fff" }}>{s}</div>
-                  ))}
-                </div>
-              </div>
             </div>
-
-            {/* Form */}
-            <div style={{ background: "rgba(255,255,255,0.06)", border: "1.5px solid rgba(255,255,255,0.1)", borderRadius: 24, padding: "40px 36px", backdropFilter: "blur(12px)" }}>
-              {contactSent ? (
-                <div style={{ textAlign: "center", padding: "24px 0", animation: "successPop 0.5s cubic-bezier(.34,1.56,.64,1) both" }}>
-                  <div style={{ width: 72, height: 72, borderRadius: "50%", background: "linear-gradient(135deg,#1a5c1a,#2d7a2d)", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 20px", fontSize: 32 }}>✅</div>
-                  <h3 style={{ fontFamily: "'Sora',sans-serif", fontWeight: 800, fontSize: 22, color: "#fff", marginBottom: 10 }}>Message sent!</h3>
-                  <p style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 14, color: "rgba(255,255,255,0.6)", lineHeight: 1.7 }}>Thanks for reaching out. Our team will get back to you within 24 hours. 🚀</p>
-                  <button onClick={() => { setContactSent(false); setContactForm({ name:"",email:"",subject:"",message:"" }); }}
-                    style={{ marginTop: 24, fontFamily: "'DM Sans',sans-serif", fontWeight: 700, fontSize: 13, color: "#1a5c1a", background: "rgba(255,255,255,0.9)", border: "none", borderRadius: 10, padding: "10px 24px", cursor: "pointer" }}>
-                    Send another message
-                  </button>
-                </div>
-              ) : (
-                <>
-                  <h3 style={{ fontFamily: "'Sora',sans-serif", fontWeight: 800, fontSize: 22, color: "#fff", marginBottom: 6 }}>Send us a message</h3>
-                  <p style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 13, color: "rgba(255,255,255,0.5)", marginBottom: 28, lineHeight: 1.6 }}>We typically respond within 2–4 business hours.</p>
-                  {contactError && <p style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 13, color: "#fca5a5", marginBottom: 16 }}>⚠️ {contactError}</p>}
-                  <form onSubmit={handleContact} style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
-                      {[
-                        { placeholder: "Your name *", key: "name", type: "text" },
-                        { placeholder: "Your email *", key: "email", type: "email" },
-                      ].map(({ placeholder, key, type }) => (
-                        <input key={key} type={type} placeholder={placeholder} value={contactForm[key]} required
-                          onChange={e => setContactForm(p => ({ ...p, [key]: e.target.value }))} className="contact-input"
-                          style={{ width: "100%", padding: "13px 16px", borderRadius: 12, border: "1.5px solid rgba(255,255,255,0.15)", background: "rgba(255,255,255,0.08)", fontFamily: "'DM Sans',sans-serif", fontSize: 14, color: "#fff", transition: "all 0.25s" }}
-                        />
-                      ))}
-                    </div>
-                    <select value={contactForm.subject} onChange={e => setContactForm(p => ({ ...p, subject: e.target.value }))}
-                      style={{ padding: "13px 16px", borderRadius: 12, border: "1.5px solid rgba(255,255,255,0.15)", background: "rgba(255,255,255,0.08)", fontFamily: "'DM Sans',sans-serif", fontSize: 14, color: contactForm.subject ? "#fff" : "rgba(255,255,255,0.4)", cursor: "pointer", outline: "none" }}>
-                      <option value="" style={{ background: "#1a4a1a" }}>Select a topic</option>
-                      {["General Enquiry","Customer Support","Vendor Partnership","Rider Recruitment","Press & Media","Investor Relations","Bug Report"].map(o => (
-                        <option key={o} value={o} style={{ background: "#1a4a1a" }}>{o}</option>
-                      ))}
-                    </select>
-                    <textarea placeholder="Your message *" value={contactForm.message} required rows={5}
-                      onChange={e => setContactForm(p => ({ ...p, message: e.target.value }))} className="contact-input"
-                      style={{ padding: "13px 16px", borderRadius: 12, border: "1.5px solid rgba(255,255,255,0.15)", background: "rgba(255,255,255,0.08)", fontFamily: "'DM Sans',sans-serif", fontSize: 14, color: "#fff", resize: "vertical", outline: "none", minHeight: 120 }}
-                    />
-                    <button type="submit" disabled={contactLoading} style={{
-                      width: "100%", padding: "15px", borderRadius: 12, border: "none",
-                      background: contactLoading ? "rgba(76,175,80,0.5)" : "linear-gradient(135deg,#1a5c1a,#2d7a2d)",
-                      color: "#fff", fontFamily: "'Sora',sans-serif", fontWeight: 700, fontSize: 14,
-                      cursor: contactLoading ? "not-allowed" : "pointer",
-                      display: "flex", alignItems: "center", justifyContent: "center", gap: 10,
-                      boxShadow: contactLoading ? "none" : "0 4px 20px rgba(26,92,26,0.4)",
-                      transition: "all 0.2s",
-                    }}>
-                      {contactLoading
-                        ? <><svg width="16" height="16" viewBox="0 0 24 24" fill="none" style={{ animation: "spinRing 0.8s linear infinite" }}><circle cx="12" cy="12" r="10" stroke="rgba(255,255,255,0.3)" strokeWidth="3"/><path d="M12 2a10 10 0 0110 10" stroke="white" strokeWidth="3" strokeLinecap="round"/></svg>Sending…</>
-                        : <>Send Message <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.2"><path strokeLinecap="round" strokeLinejoin="round" d="M14 5l7 7m0 0l-7 7m7-7H3"/></svg></>
-                      }
-                    </button>
-                  </form>
-                </>
-              )}
+            <div className="relative rounded-2xl overflow-hidden h-[460px]" data-reveal-r>
+              <img
+                src="https://images.unsplash.com/photo-1512941937669-90a1b58e7e9c?w=700&q=80"
+                alt="Technology"
+                className="w-full h-full object-cover"
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-[rgba(13,31,13,0.85)] to-transparent" />
+              <div className="absolute bottom-7 left-7 right-7">
+                <h4 className="fraunces font-black text-xl text-white mb-2">Technology that connects</h4>
+                <p className="text-white/60 text-sm">Real-time tracking, secure payments, and instant communication — all in one place.</p>
+              </div>
             </div>
           </div>
         </div>
       </section>
 
-      {/* ── FOOTER ── */}
-      <footer style={{ background: "#080f08", padding: "32px clamp(16px,4vw,64px)" }}>
-        <div style={{ maxWidth: 1200, margin: "0 auto", display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 16 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <div style={{ width: 32, height: 32, borderRadius: 9, background: "linear-gradient(135deg,#1a5c1a,#2d7a2d)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16 }}>🍔</div>
-            <span style={{ fontFamily: "'Sora',sans-serif", fontWeight: 800, fontSize: 16, color: "#fff" }}>TastyCart</span>
+      {/* ─── Team ─── */}
+      <section className="py-24 bg-[#f0faf0]" id="team">
+        <div className="max-w-[1100px] mx-auto px-6 md:px-10">
+          <div data-reveal>
+            <div className="flex items-center gap-2 text-[11px] font-extrabold tracking-[0.22em] uppercase text-[#2d8a2d] mb-3">
+              <span className="w-6 h-0.5 rounded bg-[#f28c00]" />
+              Our People
+            </div>
+            <h2 className="fraunces font-black text-[clamp(28px,3.5vw,44px)] leading-[1.1] tracking-[-1px] text-[#1c2e1c]">
+              The <em className="text-[#2d8a2d] not-italic">humans</em> behind<br />
+              every delivery
+            </h2>
+            <p className="text-[#4a6a4a] text-base leading-relaxed max-w-md mt-3">
+              A diverse group of problem-solvers united by a shared vision to revolutionize local commerce.
+            </p>
           </div>
-          <p style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 12, color: "rgba(255,255,255,0.3)" }}>© 2026 TastyCart Nigeria Ltd. All rights reserved.</p>
-          <div style={{ display: "flex", gap: 24 }}>
-            {["Privacy", "Terms", "Cookies"].map(l => (
-              <a key={l} href="#" style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 12, color: "rgba(255,255,255,0.35)", textDecoration: "none" }}>{l}</a>
+          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5 mt-14">
+            {TEAM.map((member, i) => (
+              <div
+                key={i}
+                className="bg-white rounded-3xl border border-[#d6ebd6] overflow-hidden hover:-translate-y-2 hover:shadow-2xl transition-all cursor-pointer"
+                data-reveal
+                onClick={() => setSelectedMember(member)}
+              >
+                <div className="h-[160px] relative overflow-hidden">
+                  <img
+                    src={member.img}
+                    alt={member.name}
+                    className="w-full h-full object-cover object-top"
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
+                  <div
+                    className="absolute -bottom-8 left-6 w-[68px] h-[68px] rounded-full border-4 border-white flex items-center justify-center shadow-md"
+                    style={{ background: member.avatarGrad }}
+                  >
+                    <span className="fraunces font-black text-xl text-white">{member.initials}</span>
+                  </div>
+                </div>
+                <div className="pt-10 px-6 pb-6">
+                  <div className="fraunces font-extrabold text-lg text-[#1c2e1c]">{member.name}</div>
+                  <div className="text-[11px] font-bold tracking-[0.12em] uppercase text-[#f28c00] mt-0.5 mb-3">
+                    {member.role}
+                  </div>
+                  <div className="text-xs text-[#5a7a5a] leading-relaxed">{member.bio}</div>
+                </div>
+              </div>
             ))}
           </div>
         </div>
+      </section>
+
+      {/* ─── Team Member Modal ─── */}
+      {selectedMember && (
+        <div
+          className="fixed inset-0 z-[1000] flex items-center justify-center p-4"
+          style={{ background: "rgba(0,0,0,0.75)", backdropFilter: "blur(8px)" }}
+          onClick={() => setSelectedMember(null)}
+        >
+          <div
+            className="bg-white rounded-3xl max-w-2xl w-full max-h-[90vh] overflow-y-auto relative"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 text-3xl leading-none z-10"
+              onClick={() => setSelectedMember(null)}
+            >
+              ×
+            </button>
+            <div className="relative h-64 md:h-80 overflow-hidden rounded-t-3xl">
+              <img
+                src={selectedMember.img}
+                alt={selectedMember.name}
+                className="w-full h-full object-cover object-top"
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
+              <div
+                className="absolute bottom-4 left-6 w-20 h-20 rounded-full border-4 border-white flex items-center justify-center shadow-lg"
+                style={{ background: selectedMember.avatarGrad }}
+              >
+                <span className="fraunces font-black text-2xl text-white">{selectedMember.initials}</span>
+              </div>
+            </div>
+            <div className="p-8">
+              <h3 className="fraunces font-black text-3xl text-[#1c2e1c]">{selectedMember.name}</h3>
+              <div className="text-sm font-bold tracking-[0.12em] uppercase text-[#f28c00] mt-1 mb-4">
+                {selectedMember.role}
+              </div>
+              <p className="text-[#4a6a4a] text-base leading-relaxed">
+                {selectedMember.fullBio}
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ─── CTA ─── */}
+      <section className="py-24 text-center relative overflow-hidden bg-gradient-to-br from-[#0d1f0d] to-[#1a4a1a]">
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[700px] h-[700px] rounded-full bg-radial-circle from-[rgba(45,138,45,0.12)] to-transparent" />
+        <div className="relative" data-reveal>
+          <h2 className="fraunces font-black text-white text-[clamp(32px,5vw,58px)] leading-tight tracking-[-1.5px] mb-4">
+            Hungry? Let's get you<br />
+            <em className="text-[#f28c00] not-italic">sorted</em>.
+          </h2>
+          <p className="text-white/50 text-lg mb-9">Order from the best local restaurants in your area.</p>
+          <a
+            href="/"
+            className="inline-flex items-center gap-2 bg-gradient-to-br from-[#1a5c1a] to-[#2d8a2d] text-white font-bold text-base px-10 py-4 rounded-full shadow-lg shadow-[#2d8a2d]/35 hover:-translate-y-0.5 transition"
+          >
+            🛵 Order Now
+          </a>
+        </div>
+      </section>
+
+      {/* ─── Footer ─── */}
+      <footer className="bg-[#0d1f0d] border-t border-white/5 px-6 md:px-10 py-7 flex flex-col md:flex-row items-center justify-between gap-2">
+        <span className="fraunces font-black text-white text-lg">
+          Tasty<span className="text-[#f28c00]">cart</span>
+        </span>
+        <div className="flex gap-5 text-sm">
+          <a href="#" className="text-white/40 hover:text-white transition">Home</a>
+          <a href="#mission" className="text-white/40 hover:text-white transition">Mission</a>
+          <a href="#team" className="text-white/40 hover:text-white transition">Team</a>
+        </div>
+        <span className="text-white/30 text-sm text-center">
+          © 2025 Tastycart. Building the future of local commerce.
+        </span>
       </footer>
-    </>
+    </div>
   );
 }

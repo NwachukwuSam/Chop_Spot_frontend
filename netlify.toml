@@ -6,3 +6,11 @@
   from = "/*"
   to = "/index.html"
   status = 200
+
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Frame-Options = "DENY"
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+    Content-Security-Policy = "default-src 'self'; script-src 'self' 'unsafe-inline' js.paystack.co unpkg.com; connect-src 'self' https://chop-spot.onrender.com https://api.geoapify.com https://nominatim.openstreetmap.org https://api.cloudinary.com; img-src 'self' data: https: blob:; style-src 'self' 'unsafe-inline' fonts.googleapis.com; font-src fonts.gstatic.com;"

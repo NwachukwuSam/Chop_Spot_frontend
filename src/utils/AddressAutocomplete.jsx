@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 
-const GEOAPIFY_API_KEY = import.meta.env.REACT_APP_GEOAPIFY_KEY || "e43911e06f084271bc3fe690985ead81";
+const GEOAPIFY_API_KEY = import.meta.env.VITE_GEOAPIFY_KEY;
 const AUTOCOMPLETE_URL = "https://api.geoapify.com/v1/geocode/autocomplete";
 
 export const AddressAutocomplete = ({ placeholder, onSelect, initialValue = "" }) => {
@@ -32,6 +32,8 @@ export const AddressAutocomplete = ({ placeholder, onSelect, initialValue = "" }
       setShowDropdown(false);
       return;
     }
+
+    if (!GEOAPIFY_API_KEY) return;
 
     debounceTimer.current = setTimeout(async () => {
       setIsLoading(true);
