@@ -20,8 +20,6 @@ import { useAuth } from './auth/AuthContext';
 import {NetworkProvider} from "./context/NetworkContext.jsx";
 import OfflinePage from "./pages/OfflinePage.jsx";
 import AboutPage from './pages/AboutUs.jsx';
-import BrowsePage from './pages/BrowsePage.jsx';
-import CompanyPublicPage from './pages/PublicPage.jsx';
 import JoinUs from './pages/JoinUs.jsx';
 import ContactUs from './pages/ContactUs.jsx';
 
