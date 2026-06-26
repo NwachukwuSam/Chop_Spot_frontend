@@ -73,8 +73,6 @@ function AppRoutes() {
                 <Route path="/contact-us"  element={<ContactUs />} />
                 <Route path="/join-us"  element={<JoinUs />} />
 
-                <Route path="/browse-page"  element={<CompanyPublicPage/>} />
-
                 {/* Customer */}
                 <Route path="/dashboard" element={
                     <ProtectedRoute allowedRoles={[ROLES.CUSTOMER]}>
