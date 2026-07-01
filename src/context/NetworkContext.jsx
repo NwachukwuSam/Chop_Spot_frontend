@@ -16,7 +16,7 @@ export function NetworkProvider({ children }) {
             const controller = new AbortController();
             const timeout = setTimeout(() => controller.abort(), 4000);
 
-            const res = await fetch('https://delichops-backend-akuq.onrender.com/api/health-check', {
+            const res = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/health-check`, {
                 method: 'HEAD',
                 cache: 'no-store',
                 signal: controller.signal,
