@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { useToast } from "../../context/ToastContext";
 
-const PAYSTACK_PUBLIC_KEY = import.meta.env.VITE_PAYSTACK_PUBLIC_KEY || "";
+const PAYSTACK_PUBLIC_KEY = import.meta.env.VITE_PAYSTACK_PUBLIC_KEY || "pk_test_d58a48f54ecb5efc089feb4eb78f7c1d37ec1d26";
 
 // ─── Script loader (module-level singleton) ───────────────────────────────────
 let _scriptPromise = null;
