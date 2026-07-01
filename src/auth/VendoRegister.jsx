@@ -189,7 +189,7 @@ const Step1 = ({ data, set }) => {
 
     return (
         <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-            <Header emoji="🏪" title="Tell us about your business" sub="This is what hungry customers will see on ChopSpot" />
+            <Header emoji="🏪" title="Tell us about your business" sub="This is what hungry customers will see on Tasty-cart" />
 
             {/* Logo / Photo Picker */}
             <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 8 }}>
@@ -694,7 +694,7 @@ const SuccessScreen = ({ name }) => (
             <div style={{ width: 90, height: 90, borderRadius: "50%", background: "linear-gradient(135deg,#2d8a2d,#4caf50)", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 22px", fontSize: 44 }}>🎉</div>
             <h2 style={{ fontFamily: "'Sora',sans-serif", fontWeight: 800, fontSize: 26, color: "#1a2e1a", margin: "0 0 10px" }}>Welcome aboard!</h2>
             <p style={{ color: "#5a7a5a", fontSize: 15, margin: "0 0 6px" }}>
-                <strong>{name}</strong> is now listed on ChopSpot.
+                <strong>{name}</strong> is now listed on Tasty-cart..
             </p>
             <p style={{ color: "#9ab59a", fontSize: 13, marginBottom: 22 }}>Opening your vendor dashboard…</p>
             <div style={{ height: 5, background: "#e8f5e0", borderRadius: 10, overflow: "hidden" }}>
