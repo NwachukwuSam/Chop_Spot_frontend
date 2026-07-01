@@ -29,7 +29,7 @@ export default function OfflinePage() {
             const controller = new AbortController();
             const timeout = setTimeout(() => controller.abort(), 5000);
 
-            await fetch('https://delichops-backend-akuq.onrender.com/api/health-check', {
+            await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/health-check`, {
                 method: 'HEAD',
                 cache: 'no-store',
                 signal: controller.signal,

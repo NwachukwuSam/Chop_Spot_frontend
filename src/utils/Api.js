@@ -2,8 +2,6 @@
 // Single source of truth for all HTTP calls.
 // Import named exports: import { vendorApi, orderApi } from "../utils/Api";
 // or namespace import:  import * as API from "../utils/Api";
-// https://delichops-backend-akuq.onrender.com
-
 const BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
 const TOKEN_KEYS = [
