@@ -1,51 +1,42 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { useNetwork } from '../context/NetworkContext';
 
 export default function OfflinePage() {
     const navigate = useNavigate();
     const location = useLocation();
-    const { isOnline } = useNetwork();
 
     const [retrying, setRetrying] = useState(false);
+    const [failed, setFailed] = useState(false);
 
-    // Auto-redirect when connection is restored
-    useEffect(() => {
-        if (isOnline) {
-            const returnTo = location.state?.returnTo ||
-                new URLSearchParams(location.search).get('returnTo') ||
-                '/';
-
-            console.log(`[OfflinePage] Connection restored → redirecting to ${returnTo}`);
-            navigate(returnTo, { replace: true });
-        }
-    }, [isOnline, navigate, location]);
+    const getReturnTo = () =>
+        location.state?.returnTo ||
+        new URLSearchParams(location.search).get('returnTo') ||
+        '/';
 
     const handleRetry = async () => {
         setRetrying(true);
+        setFailed(false);
 
         try {
-            // Force a real network check
             const controller = new AbortController();
             const timeout = setTimeout(() => controller.abort(), 5000);
 
-            await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/health-check`, {
-                method: 'HEAD',
+            const res = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/public/restaurants`, {
+                method: 'GET',
                 cache: 'no-store',
                 signal: controller.signal,
             });
 
             clearTimeout(timeout);
 
-            // If we reach here, connection is back
-            const returnTo = location.state?.returnTo ||
-                new URLSearchParams(location.search).get('returnTo') ||
-                '/';
-            navigate(returnTo, { replace: true });
-
-        } catch (err) {
-            console.log("Still offline");
-            // Stay on offline page
+            if (res.ok) {
+                navigate(getReturnTo(), { replace: true });
+            } else {
+                setFailed(true);
+                setRetrying(false);
+            }
+        } catch {
+            setFailed(true);
             setRetrying(false);
         }
     };
@@ -72,6 +63,12 @@ export default function OfflinePage() {
                     Please check your network and try again.
                 </p>
 
+                {failed && (
+                    <p style={{ color: '#c0392b', marginBottom: '16px', fontSize: '14px' }}>
+                        Still unable to reach the server. Please check your connection.
+                    </p>
+                )}
+
                 <button
                     onClick={handleRetry}
                     disabled={retrying}
@@ -93,7 +90,7 @@ export default function OfflinePage() {
                 </button>
 
                 <p style={{ fontSize: '13px', color: '#64748b' }}>
-                    We'll automatically take you back once you're online.
+                    Click retry once your connection is restored.
                 </p>
             </div>
         </div>
