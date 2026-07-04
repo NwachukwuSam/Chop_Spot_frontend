@@ -1,4 +1,4 @@
-// ─── Api.js — ChopSpot unified API layer ─────────────────────────────────────
+// ─── Api.js — Tasty-CART unified API layer ─────────────────────────────────────
 // Single source of truth for all HTTP calls.
 // Import named exports: import { vendorApi, orderApi } from "../utils/Api";
 // or namespace import:  import * as API from "../utils/Api";
