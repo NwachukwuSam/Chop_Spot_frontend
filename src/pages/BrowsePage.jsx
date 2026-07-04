@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import { publicApi } from "../utils/Api";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // DATA
@@ -19,89 +20,42 @@ const CUISINES = [
   { id: "drinks",   label: "Drinks",        emoji: "🥤" },
 ];
 
-const RESTAURANTS = [
-  {
-    id: 1, name: "Mama Titi's Kitchen",
-    cuisine: ["jollof","soups"], tags: ["Best Jollof", "Local Favourite"],
-    emoji: "🍛", bg: "#FFF3E0", rating: 4.9, reviews: 2841,
-    deliveryTime: "20–30", deliveryFee: "Free", minOrder: 1500,
-    priceRange: "₦₦", open: true, featured: true, discount: "20% OFF",
-    description: "Authentic Lagos home cooking. Mama Titi's jollof is legendary.",
-    popular: ["Jollof Rice + Chicken", "Egusi Soup", "Fried Plantain"],
-  },
-  {
-    id: 2, name: "The Grill Republic",
-    cuisine: ["grills"], tags: ["Top Rated", "Premium"],
-    emoji: "🍗", bg: "#FBE9E7", rating: 4.8, reviews: 1923,
-    deliveryTime: "25–40", deliveryFee: "₦400", minOrder: 3000,
-    priceRange: "₦₦₦", open: true, featured: true, discount: null,
-    description: "Slow-smoked meats, charcoal grills, and bold marinades.",
-    popular: ["Suya Platter", "BBQ Ribs", "Peri-Peri Chicken"],
-  },
-  {
-    id: 3, name: "Burger Factory NG",
-    cuisine: ["burgers"], tags: ["Fast Delivery", "Popular"],
-    emoji: "🍔", bg: "#FFFDE7", rating: 4.7, reviews: 3102,
-    deliveryTime: "15–25", deliveryFee: "₦250", minOrder: 2000,
-    priceRange: "₦₦", open: true, featured: false, discount: "Buy 2 Get 1",
-    description: "Smash burgers, crispy fries, and thick milkshakes since 2019.",
-    popular: ["Double Smash Burger", "Spicy Chicken Burger", "Loaded Fries"],
-  },
-  {
-    id: 4, name: "Noodle House Lagos",
-    cuisine: ["noodles"], tags: ["Trending", "Healthy Options"],
-    emoji: "🍜", bg: "#F3E5F5", rating: 4.6, reviews: 887,
-    deliveryTime: "20–35", deliveryFee: "₦300", minOrder: 2500,
-    priceRange: "₦₦", open: true, featured: false, discount: null,
-    description: "Pan-Asian noodles adapted for Nigerian taste buds.",
-    popular: ["Jollof Ramen", "Spicy Pad Thai", "Beef Udon"],
-  },
-  {
-    id: 5, name: "Eko Pizza Co.",
-    cuisine: ["pizza"], tags: ["New", "Wood-fired"],
-    emoji: "🍕", bg: "#E8F5E9", rating: 4.5, reviews: 432,
-    deliveryTime: "30–45", deliveryFee: "₦500", minOrder: 4000,
-    priceRange: "₦₦₦", open: true, featured: false, discount: "15% OFF first order",
-    description: "Wood-fired Neapolitan pizza with local toppings like suya and peppered beef.",
-    popular: ["Suya Pizza", "Margherita", "Pepperoni + Shito"],
-  },
-  {
-    id: 6, name: "Seafresh Market",
-    cuisine: ["seafood"], tags: ["Fresh Daily", "Premium"],
-    emoji: "🦐", bg: "#E0F7FA", rating: 4.8, reviews: 1204,
-    deliveryTime: "35–50", deliveryFee: "₦600", minOrder: 5000,
-    priceRange: "₦₦₦₦", open: false, featured: false, discount: null,
-    description: "Freshly sourced Lagos Atlantic seafood. Opens at 11AM daily.",
-    popular: ["Grilled Lobster", "Peppered Snail", "Catfish Pepper Soup"],
-  },
-  {
-    id: 7, name: "Sweet Surrender",
-    cuisine: ["desserts","drinks"], tags: ["Vegan Friendly", "Halal"],
-    emoji: "🍰", bg: "#FCE4EC", rating: 4.9, reviews: 2310,
-    deliveryTime: "20–30", deliveryFee: "Free", minOrder: 1000,
-    priceRange: "₦", open: true, featured: false, discount: "Free drink on ₦3k+",
-    description: "Artisan cakes, frozen yogurt, fresh juice, and bubble tea.",
-    popular: ["Mango Cheesecake", "Boba Tea", "Vegan Chocolate Lava"],
-  },
-  {
-    id: 8, name: "Wrap & Roll Naija",
-    cuisine: ["wraps","salads"], tags: ["Healthy", "Low-Cal"],
-    emoji: "🫔", bg: "#F1F8E9", rating: 4.4, reviews: 756,
-    deliveryTime: "15–25", deliveryFee: "₦200", minOrder: 2000,
-    priceRange: "₦₦", open: true, featured: false, discount: null,
-    description: "Clean eating wraps, power bowls, and fresh salads for the health-conscious.",
-    popular: ["Suya Chicken Wrap", "Power Bowl", "Avocado Caesar"],
-  },
-  {
-    id: 9, name: "Buka 2.0",
-    cuisine: ["soups","jollof"], tags: ["Traditional", "Local Favourite"],
-    emoji: "🥘", bg: "#FFF8E1", rating: 4.7, reviews: 1567,
-    deliveryTime: "25–40", deliveryFee: "₦300", minOrder: 1500,
-    priceRange: "₦₦", open: true, featured: false, discount: null,
-    description: "The modern buka experience — traditional soups, amala, eba, and more.",
-    popular: ["Banga Soup + Starch", "Ofe Onugbu", "Amala + Ewedu"],
-  },
-];
+const CATEGORY_META = {
+  "Nigerian":          { emoji: "🍛", bg: "#FFF3E0", cuisine: ["jollof", "soups"] },
+  "Continental":       { emoji: "🍽️", bg: "#F3E5F5", cuisine: [] },
+  "Fast Food":         { emoji: "🍔", bg: "#FFFDE7", cuisine: ["burgers"] },
+  "Grills & BBQ":      { emoji: "🍗", bg: "#FBE9E7", cuisine: ["grills"] },
+  "Street Food":       { emoji: "🌮", bg: "#FFF8E1", cuisine: [] },
+  "Soups & Swallow":   { emoji: "🥘", bg: "#FFF8E1", cuisine: ["soups"] },
+  "Pastries & Drinks": { emoji: "🍰", bg: "#FCE4EC", cuisine: ["desserts", "drinks"] },
+  "Healthy Bowls":     { emoji: "🥗", bg: "#F1F8E9", cuisine: ["salads"] },
+  "Seafood":           { emoji: "🦐", bg: "#E0F7FA", cuisine: ["seafood"] },
+  "Snacks & Sides":    { emoji: "🍟", bg: "#FFFDE7", cuisine: [] },
+};
+
+const normalizeRestaurant = (raw) => {
+  const meta = CATEGORY_META[raw.category] || { emoji: "🍽️", bg: "#F5F5F5", cuisine: [] };
+  const deliveryFromPrice = raw.deliveryFromPrice ?? raw.deliveryFrom ?? 0;
+  return {
+    id:           raw._id || raw.id,
+    name:         raw.restaurantName || raw.name || "Restaurant",
+    cuisine:      meta.cuisine,
+    tags:         raw.tags || [],
+    emoji:        meta.emoji,
+    bg:           meta.bg,
+    rating:       raw.rating ?? 4.5,
+    reviews:      raw.reviewCount || raw.reviews || 0,
+    deliveryTime: "25–40",
+    deliveryFee:  deliveryFromPrice > 0 ? `₦${deliveryFromPrice}` : "Free",
+    minOrder:     raw.minOrder || 1000,
+    priceRange:   "₦₦",
+    open:         !!(raw.open ?? raw.isOpen ?? true),
+    featured:     raw.featured ?? false,
+    discount:     raw.discount || null,
+    description:  raw.description || "",
+    popular:      raw.popularItems || ["Popular Dish", "Chef's Special", "House Special"],
+  };
+};
 
 const DEALS = [
   { emoji: "🎉", title: "First Order Free Delivery", desc: "Use code FIRST at checkout", color: "#1a5c1a", bg: "linear-gradient(135deg,#0d2e0d,#1a5c1a)" },
@@ -410,6 +364,9 @@ export default function BrowsePage() {
   const [navScrolled, setNavScrolled]       = useState(false);
   const [location, setLocation]             = useState("Victoria Island, Lagos");
   const [cartBump, setCartBump]             = useState(false);
+  const [restaurants, setRestaurants]       = useState([]);
+  const [loading, setLoading]               = useState(true);
+  const [apiError, setApiError]             = useState(null);
   const { cart, addItem, removeItem, changeQty, total, count } = useCart();
 
   useEffect(() => {
@@ -418,13 +375,28 @@ export default function BrowsePage() {
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
+  const loadRestaurants = useCallback(() => {
+    setLoading(true);
+    setApiError(null);
+    publicApi.getRestaurants()
+      .then(res => {
+        const raw = Array.isArray(res) ? res
+          : res?.content ?? res?.data ?? res?.restaurants ?? res?.vendors ?? [];
+        setRestaurants(raw.map(normalizeRestaurant));
+      })
+      .catch(err => setApiError(err.message || "Failed to load restaurants"))
+      .finally(() => setLoading(false));
+  }, []);
+
+  useEffect(() => { loadRestaurants(); }, [loadRestaurants]);
+
   const handleAdd = useCallback((rid, rname, item, price) => {
     addItem(rid, rname, item, price);
     setCartBump(true);
     setTimeout(() => setCartBump(false), 400);
   }, [addItem]);
 
-  const filtered = RESTAURANTS
+  const filtered = restaurants
     .filter(r => activeCuisine === "all" || r.cuisine.includes(activeCuisine))
     .filter(r => !openOnly || r.open)
     .filter(r => !freeDelivery || r.deliveryFee === "Free")
@@ -449,6 +421,7 @@ export default function BrowsePage() {
         @keyframes bump       { 0%,100%{transform:scale(1)} 40%{transform:scale(1.25)} 70%{transform:scale(0.92)} }
         @keyframes shimmer    { 0%{background-position:-400px 0} 100%{background-position:400px 0} }
         @keyframes dealSlide  { from{opacity:0;transform:translateX(-20px)} to{opacity:1;transform:translateX(0)} }
+        @keyframes spin       { from{transform:rotate(0deg)} to{transform:rotate(360deg)} }
         ::-webkit-scrollbar { width: 6px; height: 6px; }
         ::-webkit-scrollbar-track { background: transparent; }
         ::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 4px; }
@@ -610,7 +583,21 @@ export default function BrowsePage() {
         </div>
 
         {/* ── RESULTS GRID ── */}
-        {filtered.length === 0 ? (
+        {loading ? (
+          <div style={{ textAlign: "center", padding: "80px 0" }}>
+            <svg width="48" height="48" viewBox="0 0 24 24" style={{ animation: "spin 1s linear infinite", margin: "0 auto 16px", display: "block" }}>
+              <circle cx="12" cy="12" r="10" stroke="#1a5c1a" strokeWidth="2.5" fill="none" strokeDasharray="30 30" />
+            </svg>
+            <p style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 15, color: "#94a3b8", fontWeight: 600 }}>Loading restaurants…</p>
+          </div>
+        ) : apiError ? (
+          <div style={{ textAlign: "center", padding: "80px 0" }}>
+            <div style={{ fontSize: 56, marginBottom: 16 }}>⚠️</div>
+            <h3 style={{ fontFamily: "'Sora',sans-serif", fontWeight: 800, fontSize: 20, color: "#374151", marginBottom: 8 }}>Could not load restaurants</h3>
+            <p style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 14, color: "#94a3b8", marginBottom: 20 }}>{apiError}</p>
+            <button onClick={loadRestaurants} style={{ background: "#1a5c1a", color: "#fff", border: "none", borderRadius: 12, padding: "12px 28px", fontFamily: "'Sora',sans-serif", fontWeight: 700, fontSize: 14, cursor: "pointer" }}>Try Again</button>
+          </div>
+        ) : filtered.length === 0 ? (
           <div style={{ textAlign: "center", padding: "80px 0" }}>
             <div style={{ fontSize: 56, marginBottom: 16 }}>🔍</div>
             <h3 style={{ fontFamily: "'Sora',sans-serif", fontWeight: 800, fontSize: 20, color: "#374151", marginBottom: 8 }}>No restaurants found</h3>

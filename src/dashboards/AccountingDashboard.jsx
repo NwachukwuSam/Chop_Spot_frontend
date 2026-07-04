@@ -159,9 +159,28 @@ const OverviewTab = ({ overview, vendorPayouts, riderPayouts, expenses }) => {
 // ════════════════════════════════════════════════════════════
 // Sales Tab
 // ════════════════════════════════════════════════════════════
-const SalesTab = ({ sales }) => {
-    const [search, setSearch] = useState("");
+const SalesTab = ({ toast }) => {
+    const [sales,        setSales]        = useState([]);
+    const [loading,      setLoading]      = useState(true);
+    const [page,         setPage]         = useState(0);
+    const [totalPages,   setTotalPages]   = useState(1);
+    const [search,       setSearch]       = useState("");
     const [statusFilter, setStatusFilter] = useState("ALL");
+
+    const loadSales = useCallback(async (p = 0) => {
+        setLoading(true);
+        try {
+            const d = await financeApi.getSales(null, p, 20);
+            const list = Array.isArray(d) ? d : (Array.isArray(d?.content) ? d.content : d?.orders || []);
+            setSales(list);
+            setTotalPages(d?.totalPages ?? (list.length < 20 ? p + 1 : p + 2));
+        } catch (err) { toast(err.message, "error"); }
+        finally { setLoading(false); }
+    }, [toast]);
+
+    useEffect(() => { loadSales(0); }, [loadSales]);
+
+    const goPage = (p) => { setPage(p); loadSales(p); };
 
     const filtered = sales
         .filter(o => statusFilter==="ALL" || o.status?.toUpperCase()===statusFilter)
@@ -190,7 +209,9 @@ const SalesTab = ({ sales }) => {
                         </tr>
                         </thead>
                         <tbody>
-                        {filtered.map((o,i) => (
+                        {loading ? (
+                            <tr><td colSpan={8} style={{ padding:"50px", textAlign:"center", color:"#94a3b8" }}>Loading…</td></tr>
+                        ) : filtered.map((o,i) => (
                             <tr key={o.id||i} style={{ borderTop:"1px solid #f1f5f9" }}>
                                 <td style={TD}><span style={{ fontFamily:"monospace", fontSize:11, fontWeight:700 }}>#{(o.id||"").slice(-8)}</span></td>
                                 <td style={TD}>{o.customerName||o.customer||"—"}</td>
@@ -205,8 +226,15 @@ const SalesTab = ({ sales }) => {
                         </tbody>
                     </table>
                 </div>
-                {filtered.length===0 && <div style={{ padding:"50px", textAlign:"center", color:"#94a3b8" }}>No orders found</div>}
+                {!loading && filtered.length===0 && <div style={{ padding:"50px", textAlign:"center", color:"#94a3b8" }}>No orders found</div>}
             </div>
+            {!loading && totalPages > 1 && (
+                <div style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:12, padding:"8px 0" }}>
+                    <button onClick={() => goPage(page - 1)} disabled={page === 0} style={{ padding:"7px 18px", borderRadius:8, border:"1.5px solid #d1fae5", background:"white", color: page === 0 ? "#bbb" : "#10b981", fontWeight:700, fontSize:13, cursor: page === 0 ? "not-allowed" : "pointer" }}>← Prev</button>
+                    <span style={{ fontSize:13, fontWeight:600, color:"#64748b" }}>Page {page + 1} of {totalPages}</span>
+                    <button onClick={() => goPage(page + 1)} disabled={page >= totalPages - 1} style={{ padding:"7px 18px", borderRadius:8, border:"1.5px solid #d1fae5", background:"white", color: page >= totalPages - 1 ? "#bbb" : "#10b981", fontWeight:700, fontSize:13, cursor: page >= totalPages - 1 ? "not-allowed" : "pointer" }}>Next →</button>
+                </div>
+            )}
         </div>
     );
 };
@@ -567,7 +595,6 @@ export default function AccountingDashboard({ onExit }) {
     const [vendorPayouts, setVendorPayouts] = useState([]);
     const [riderPayouts,  setRiderPayouts]  = useState([]);
     const [expenses,      setExpenses]      = useState([]);
-    const [sales,         setSales]         = useState([]);
     const [overview,      setOverview]      = useState({});
     const [loading,       setLoading]       = useState(true);
     const [sidebarOpen,   setSidebarOpen]   = useState(false);
@@ -584,18 +611,16 @@ export default function AccountingDashboard({ onExit }) {
         const load = async () => {
             setLoading(true);
             try {
-                const [ov, vp, rp, exp, sl] = await Promise.all([
+                const [ov, vp, rp, exp] = await Promise.all([
                     financeApi.getOverview(),
                     financeApi.getVendorPayouts(),
                     financeApi.getRiderPayouts(),
                     financeApi.getExpenses(),
-                    financeApi.getSales(),
                 ]);
                 setOverview(ov || {});
                 setVendorPayouts(Array.isArray(vp) ? vp : []);
                 setRiderPayouts(Array.isArray(rp)  ? rp : []);
                 setExpenses(Array.isArray(exp)      ? exp : []);
-                setSales(Array.isArray(sl)          ? sl : []);
             } catch (err) {
                 toast("Failed to load finance data: " + err.message, "error");
             } finally { setLoading(false); }
@@ -724,7 +749,7 @@ export default function AccountingDashboard({ onExit }) {
                         ) : (
                             <>
                                 {tab==="overview" && <OverviewTab overview={overview} vendorPayouts={vendorPayouts} riderPayouts={riderPayouts} expenses={expenses} />}
-                                {tab==="sales"    && <SalesTab sales={sales} />}
+                                {tab==="sales"    && <SalesTab {...tabProps} />}
                                 {tab==="vendors"  && <VendorPayoutsTab payouts={vendorPayouts} setPayouts={setVendorPayouts} {...tabProps} />}
                                 {tab==="riders"   && <RiderPayoutsTab  payouts={riderPayouts}  setPayouts={setRiderPayouts}  {...tabProps} />}
                                 {tab==="expenses" && <ExpensesTab expenses={expenses} setExpenses={setExpenses} {...tabProps} />}

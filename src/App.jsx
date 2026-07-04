@@ -68,7 +68,8 @@ function AppRoutes() {
                 <Route path="/vendor-registration" element={<VendorRegister />} />
                 <Route path="/rider-registration"  element={<RiderRegister />} />
                 <Route path="/about-us"  element={<AboutPage />} />
-                <Route path="/browse-page"  element={<CompanyPublicPage/>} />
+                <Route path="/browse-page"  element={<BrowsePage/>} />
+                <Route path="/company"      element={<CompanyPublicPage/>} />
 
                 {/* Customer */}
                 <Route path="/dashboard" element={

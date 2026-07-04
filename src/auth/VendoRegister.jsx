@@ -417,6 +417,31 @@ const Step2 = ({ data, set }) => {
                 <input type="number" value={data.deliveryFromPrice || ""} onChange={e => set("deliveryFromPrice", e.target.value)}
                        placeholder="e.g. 300" style={inp()} onFocus={focus} onBlur={blur} />
             </Field>
+
+            <div style={{ background: "#f0f7f0", borderRadius: 14, padding: "14px 16px", border: "1.5px solid #d0e8d0" }}>
+                <p style={{ ...lbl, marginBottom: 4 }}>🏦 Payout Bank Details (optional)</p>
+                <p style={{ fontSize: 12, color: "#7a9a7a", margin: "0 0 14px", fontFamily: "'Plus Jakarta Sans',sans-serif", lineHeight: 1.55 }}>
+                    Needed to receive your earnings. You can add this later from your vendor dashboard.
+                </p>
+                <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                    <Field label="Bank Name">
+                        <input value={data.bankName || ""} onChange={e => set("bankName", e.target.value)}
+                               placeholder="e.g. GTBank, First Bank, Opay" style={inp()} onFocus={focus} onBlur={blur} />
+                    </Field>
+                    <div style={{ display: "flex", gap: 12 }}>
+                        <Field label="Account Number" style={{ flex: 1 }}>
+                            <input type="tel" value={data.accountNumber || ""}
+                                   onChange={e => set("accountNumber", e.target.value.replace(/\D/g, "").slice(0, 10))}
+                                   placeholder="0123456789"
+                                   style={{ ...inp(), letterSpacing: 2 }} onFocus={focus} onBlur={blur} />
+                        </Field>
+                        <Field label="Account Name" style={{ flex: 1 }}>
+                            <input value={data.accountName || ""} onChange={e => set("accountName", e.target.value)}
+                                   placeholder="As on your bank account" style={inp()} onFocus={focus} onBlur={blur} />
+                        </Field>
+                    </div>
+                </div>
+            </div>
         </div>
     );
 };
@@ -741,6 +766,9 @@ export default function VendorRegister({ onSuccess }) {
                 openTime:          data.openTime  || "08:00",
                 closeTime:         data.closeTime || "20:00",
                 deliveryFromPrice: Number(data.deliveryFromPrice) || 0,
+                bankName:          data.bankName      || null,
+                accountNumber:     data.accountNumber || null,
+                accountName:       data.accountName   || null,
 
                 // Step 3 — Packaging
                 packages: (data.packages || []).map(p => ({

@@ -54,7 +54,10 @@ const normaliseVendor = raw => ({
     isOpen:      raw.isOpen ?? raw.open ?? false,
     rating:      raw.rating || 0,
     totalOrders: raw.totalOrders || 0,
-    status:      (raw.status || "PENDING").toUpperCase(),
+    status:        (raw.status || "PENDING").toUpperCase(),
+    bankName:      raw.bankName      || "",
+    accountNumber: raw.accountNumber || "",
+    accountName:   raw.accountName   || "",
 });
 
 const normaliseOrder = raw => ({
@@ -862,6 +865,9 @@ const ProfileTab = ({ vendor, onUpdate, onToast }) => {
                 deliveryFromPrice:     Number(v.deliveryFrom)||0,
                 packages:              (v.packages||[]).map(p => ({ id:p.id||p._id, name:p.name, price:p.price })),
                 logoUrl:               v.logoUrl,
+                bankName:              v.bankName      || null,
+                accountNumber:         v.accountNumber || null,
+                accountName:           v.accountName   || null,
             });
             onUpdate(v);
             onToast("Profile saved!");
@@ -908,6 +914,21 @@ const ProfileTab = ({ vendor, onUpdate, onToast }) => {
                 <div className="profile-grid" style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12 }}>
                     <Field label="Phone *"><input className="input-field" value={v.phone||""} onChange={e => set("phone",e.target.value)} placeholder="+234…" /></Field>
                     <Field label="Email"><input className="input-field" value={v.email||""} onChange={e => set("email",e.target.value)} placeholder="you@example.com" /></Field>
+                </div>
+            </Section>
+
+            <Section title="🏦 Payout Details">
+                <p style={{ fontSize:12, color:T.muted, margin:"0 0 4px" }}>Required to receive weekly earnings payouts.</p>
+                <Field label="Bank Name">
+                    <input className="input-field" value={v.bankName||""} onChange={e => set("bankName",e.target.value)} placeholder="e.g. GTBank, First Bank, Opay" />
+                </Field>
+                <div className="profile-grid" style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12 }}>
+                    <Field label="Account Number">
+                        <input className="input-field" type="tel" value={v.accountNumber||""} onChange={e => set("accountNumber", e.target.value.replace(/\D/g,"").slice(0,10))} placeholder="0123456789" style={{ letterSpacing:2 }} />
+                    </Field>
+                    <Field label="Account Name">
+                        <input className="input-field" value={v.accountName||""} onChange={e => set("accountName",e.target.value)} placeholder="As on your bank account" />
+                    </Field>
                 </div>
             </Section>
 

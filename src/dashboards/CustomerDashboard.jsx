@@ -1,8 +1,9 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useNavigate }   from "react-router-dom";
-import { orderApi }      from "../utils/Api";
+import { orderApi, reviewApi } from "../utils/Api";
 import {useAuth} from "../auth/AuthContext.jsx";
 import { useUserProfile } from "../hooks/useUserProfile";
+import { useToast } from "../context/ToastContext";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 const fmt     = (n)   => `₦${Number(n || 0).toLocaleString()}`;
@@ -140,8 +141,126 @@ const LiveTracker = ({ status }) => {
     );
 };
 
+// ── Star Selector ─────────────────────────────────────────────────────────────
+const StarSelector = ({ value, onChange }) => (
+    <div style={{ display: "flex", gap: 4 }}>
+        {[1, 2, 3, 4, 5].map(star => (
+            <button key={star} type="button" onClick={() => onChange(star)}
+                style={{ background: "none", border: "none", cursor: "pointer", fontSize: 28, color: star <= value ? "#f97316" : "#ddd", padding: "0 2px", lineHeight: 1, transition: "color 0.1s" }}>
+                ★
+            </button>
+        ))}
+    </div>
+);
+
+// ── Review Modal ──────────────────────────────────────────────────────────────
+const ReviewModal = ({ order, onClose, onSubmitted }) => {
+    const [vendorStars,    setVendorStars]    = useState(0);
+    const [riderStars,     setRiderStars]     = useState(0);
+    const [vendorComment,  setVendorComment]  = useState("");
+    const [riderComment,   setRiderComment]   = useState("");
+    const [submitting,     setSubmitting]     = useState(false);
+    const [error,          setError]          = useState(null);
+
+    const hasRider = Boolean(order?.riderId);
+
+    const handleSubmit = async () => {
+        if (vendorStars === 0) { setError("Please rate the restaurant before submitting."); return; }
+        setSubmitting(true);
+        setError(null);
+        try {
+            const dto = {
+                orderId:       order.id,
+                vendorId:      order.vendorId,
+                vendorRating:  vendorStars,
+                vendorComment: vendorComment.trim() || null,
+            };
+            if (hasRider && riderStars > 0) {
+                dto.riderId      = order.riderId;
+                dto.riderRating  = riderStars;
+                dto.riderComment = riderComment.trim() || null;
+            }
+            await reviewApi.submitReview(dto);
+            onSubmitted(order.id);
+        } catch (err) {
+            setError(err.message || "Failed to submit review. Please try again.");
+            setSubmitting(false);
+        }
+    };
+
+    return (
+        <div style={{ position: "fixed", inset: 0, zIndex: 2100, background: "rgba(0,0,0,0.6)", backdropFilter: "blur(5px)", display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }} onClick={onClose}>
+            <div onClick={e => e.stopPropagation()} style={{ background: "#fff", borderRadius: 24, width: "100%", maxWidth: 440, maxHeight: "88vh", display: "flex", flexDirection: "column", boxShadow: "0 28px 90px rgba(0,0,0,0.22)", animation: "dbIn 0.28s cubic-bezier(.34,1.56,.64,1)", overflow: "hidden" }}>
+
+                {/* Header */}
+                <div style={{ background: "linear-gradient(135deg,#1a6a1a,#2d8a2d)", padding: "20px 22px 16px", flexShrink: 0, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <div>
+                        <h3 style={{ fontFamily: "'Sora',sans-serif", fontWeight: 800, fontSize: 17, color: "white", margin: 0 }}>Rate Your Order</h3>
+                        <p style={{ color: "rgba(255,255,255,0.7)", fontSize: 12, margin: "3px 0 0" }}>{order?.groups?.[0]?.vendor?.name || "Restaurant"}</p>
+                    </div>
+                    <button onClick={onClose} disabled={submitting} style={{ background: "rgba(255,255,255,0.15)", border: "none", borderRadius: "50%", width: 34, height: 34, cursor: "pointer", fontSize: 18, color: "white", display: "flex", alignItems: "center", justifyContent: "center" }}>×</button>
+                </div>
+
+                {/* Body */}
+                <div style={{ overflowY: "auto", flex: 1, padding: "20px 22px" }}>
+                    {error && (
+                        <div style={{ background: "#fdecea", border: "1px solid #fca5a5", borderRadius: 10, padding: "10px 14px", marginBottom: 16, fontSize: 13, color: "#c0392b", fontFamily: "'DM Sans',sans-serif" }}>
+                            {error}
+                        </div>
+                    )}
+
+                    {/* Vendor rating */}
+                    <div style={{ marginBottom: 20 }}>
+                        <p style={{ fontFamily: "'Sora',sans-serif", fontWeight: 700, fontSize: 13, color: "#1a2e1a", margin: "0 0 6px" }}>🍽 Restaurant Rating <span style={{ color: "#e74c3c" }}>*</span></p>
+                        <StarSelector value={vendorStars} onChange={setVendorStars} />
+                        <textarea
+                            value={vendorComment}
+                            onChange={e => setVendorComment(e.target.value.slice(0, 300))}
+                            placeholder="How was the food? (optional)"
+                            rows={3}
+                            style={{ marginTop: 10, width: "100%", padding: "11px 13px", borderRadius: 12, border: "1.5px solid #d8eed8", background: "#f4f8f4", fontSize: 13, color: "#1a2e1a", fontFamily: "'DM Sans',sans-serif", resize: "vertical", outline: "none", boxSizing: "border-box" }}
+                            onFocus={e => e.target.style.borderColor = "#2d8a2d"}
+                            onBlur={e => e.target.style.borderColor = "#d8eed8"}
+                        />
+                        <p style={{ fontSize: 11, color: "#8aaa8a", margin: "4px 0 0", textAlign: "right" }}>{vendorComment.length}/300</p>
+                    </div>
+
+                    {/* Rider rating (conditional) */}
+                    {hasRider && (
+                        <div style={{ paddingTop: 16, borderTop: "1px solid #e8f0e8" }}>
+                            <p style={{ fontFamily: "'Sora',sans-serif", fontWeight: 700, fontSize: 13, color: "#1a2e1a", margin: "0 0 6px" }}>🛵 Rider Rating <span style={{ fontSize: 11, color: "#8aaa8a", fontWeight: 400 }}>(optional)</span></p>
+                            <StarSelector value={riderStars} onChange={setRiderStars} />
+                            <textarea
+                                value={riderComment}
+                                onChange={e => setRiderComment(e.target.value.slice(0, 300))}
+                                placeholder="How was the delivery? (optional)"
+                                rows={2}
+                                style={{ marginTop: 10, width: "100%", padding: "11px 13px", borderRadius: 12, border: "1.5px solid #d8eed8", background: "#f4f8f4", fontSize: 13, color: "#1a2e1a", fontFamily: "'DM Sans',sans-serif", resize: "vertical", outline: "none", boxSizing: "border-box" }}
+                                onFocus={e => e.target.style.borderColor = "#2d8a2d"}
+                                onBlur={e => e.target.style.borderColor = "#d8eed8"}
+                            />
+                        </div>
+                    )}
+                </div>
+
+                {/* Footer */}
+                <div style={{ padding: "12px 22px 20px", flexShrink: 0, display: "flex", gap: 10 }}>
+                    <button onClick={onClose} disabled={submitting} style={{ flex: 1, padding: "12px", borderRadius: 50, border: "1.5px solid #d0e8d0", background: "white", color: "#2d8a2d", fontWeight: 700, fontSize: 13, cursor: submitting ? "not-allowed" : "pointer", fontFamily: "'Sora',sans-serif", opacity: submitting ? 0.6 : 1 }}>
+                        Cancel
+                    </button>
+                    <button onClick={handleSubmit} disabled={submitting} style={{ flex: 2, padding: "12px", borderRadius: 50, border: "none", background: submitting ? "#e8e8e8" : "linear-gradient(135deg,#2d8a2d,#4caf50)", color: submitting ? "#aaa" : "white", fontWeight: 800, fontSize: 13, cursor: submitting ? "wait" : "pointer", fontFamily: "'Sora',sans-serif", boxShadow: submitting ? "none" : "0 4px 16px rgba(45,138,45,0.3)", display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
+                        {submitting ? (
+                            <><svg width="14" height="14" viewBox="0 0 24 24" fill="none" style={{ animation: "spin 0.8s linear infinite" }}><circle cx="12" cy="12" r="10" stroke="rgba(255,255,255,0.3)" strokeWidth="3"/><path d="M12 2a10 10 0 0110 10" stroke="white" strokeWidth="3" strokeLinecap="round"/></svg>Submitting…</>
+                        ) : "Submit Review"}
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+};
+
 // ── Order Detail Modal ────────────────────────────────────────────────────────
-const OrderDetailModal = ({ order, onClose, onRefresh }) => {
+const OrderDetailModal = ({ order, onClose, onRefresh, isReviewed, onRateClick }) => {
     if (!order) return null;
     return (
         <div style={{ position: "fixed", inset: 0, zIndex: 2000, background: "rgba(0,0,0,0.55)", backdropFilter: "blur(5px)", display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }} onClick={onClose}>
@@ -225,13 +344,28 @@ const OrderDetailModal = ({ order, onClose, onRefresh }) => {
 
                     {/* Price breakdown */}
                     {(order.subtotal > 0 || order.deliveryFee > 0) && (
-                        <div style={{ background: "#f4f8f4", borderRadius: 14, padding: "14px 16px" }}>
+                        <div style={{ background: "#f4f8f4", borderRadius: 14, padding: "14px 16px", marginBottom: 16 }}>
                             {[["Subtotal", fmt(order.subtotal)], ["Delivery Fee", fmt(order.deliveryFee)]].map(([l, v]) => (
                                 <div key={l} style={{ display: "flex", justifyContent: "space-between", padding: "4px 0", fontSize: 13, color: "#5a7a5a" }}>
                                     <span>{l}</span><span style={{ fontWeight: 600, color: "#1a2e1a" }}>{v}</span>
                                 </div>
                             ))}
                         </div>
+                    )}
+
+                    {/* Rate this order */}
+                    {(order.status === "DELIVERED" || order.status === "COMPLETED") && (
+                        isReviewed ? (
+                            <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "12px 16px", background: "#e8f5e0", borderRadius: 12, color: "#2d6a2d", fontSize: 13, fontWeight: 700 }}>
+                                ✅ You reviewed this order
+                            </div>
+                        ) : (
+                            <button onClick={onRateClick} style={{ width: "100%", padding: "13px", borderRadius: 12, border: "1.5px solid #f97316", background: "#fff7f0", color: "#f97316", fontFamily: "'Sora',sans-serif", fontWeight: 700, fontSize: 14, cursor: "pointer", transition: "all 0.18s" }}
+                                onMouseEnter={e => { e.currentTarget.style.background = "#f97316"; e.currentTarget.style.color = "white"; }}
+                                onMouseLeave={e => { e.currentTarget.style.background = "#fff7f0"; e.currentTarget.style.color = "#f97316"; }}>
+                                ⭐ Rate this order
+                            </button>
+                        )
                     )}
                 </div>
             </div>
@@ -323,16 +457,22 @@ export default function CustomerDashboard() {
     // Normalise auth hook shape
     const auth     = useAuth();
     const logout   = auth.logout;
+    const toast    = useToast();
 
     const { profile: fetchedProfile, saveProfile } = useUserProfile({ isLoggedIn: true });
-    const [profile,       setProfile]       = useState(null);
-    const [orders,        setOrders]        = useState([]);
-    const [selectedOrder, setSelectedOrder] = useState(null);
-    const [showEdit,      setShowEdit]      = useState(false);
-    const [savingProfile, setSavingProfile] = useState(false);
-    const [activeTab,     setActiveTab]     = useState("all");
-    const [loading,       setLoading]       = useState(true);
-    const [error,         setError]         = useState(null);
+    const [profile,           setProfile]           = useState(null);
+    const [orders,            setOrders]            = useState([]);
+    const [selectedOrder,     setSelectedOrder]     = useState(null);
+    const [showEdit,          setShowEdit]          = useState(false);
+    const [savingProfile,     setSavingProfile]     = useState(false);
+    const [activeTab,         setActiveTab]         = useState("all");
+    const [loading,           setLoading]           = useState(true);
+    const [error,             setError]             = useState(null);
+    const [reviewedOrderIds,  setReviewedOrderIds]  = useState(new Set());
+    const [reviewOrder,       setReviewOrder]       = useState(null);
+    const [orderHasNext,      setOrderHasNext]      = useState(false);
+    const [orderPage,         setOrderPage]         = useState(0);
+    const [loadingMore,       setLoadingMore]       = useState(false);
     const pollRef = useRef(null);
 
     // Sync profile once fetched
@@ -345,13 +485,15 @@ export default function CustomerDashboard() {
         if (!silent) setLoading(true);
         setError(null);
         try {
-            const raw  = await orderApi.getMyOrders();
+            const raw  = await orderApi.getMyOrders(0, 10);
             const list = Array.isArray(raw)           ? raw
                 : Array.isArray(raw?.content)  ? raw.content
                     : Array.isArray(raw?.orders)   ? raw.orders
                         : [];
             const normalised = list.map(normaliseOrder);
             setOrders(normalised);
+            setOrderPage(0);
+            setOrderHasNext(raw?.last === false || raw?.hasNext === true);
             setSelectedOrder(prev => {
                 if (!prev) return prev;
                 return normalised.find(o => o.id === prev.id) || prev;
@@ -364,7 +506,36 @@ export default function CustomerDashboard() {
         }
     }, []);
 
+    const loadMoreOrders = useCallback(async () => {
+        setLoadingMore(true);
+        try {
+            const nextPage = orderPage + 1;
+            const raw = await orderApi.getMyOrders(nextPage, 10);
+            const list = Array.isArray(raw)          ? raw
+                : Array.isArray(raw?.content) ? raw.content
+                    : Array.isArray(raw?.orders)  ? raw.orders
+                        : [];
+            setOrders(prev => [...prev, ...list.map(normaliseOrder)]);
+            setOrderPage(nextPage);
+            setOrderHasNext(raw?.last === false || raw?.hasNext === true);
+        } catch (err) {
+            console.error("Failed to load more orders:", err);
+        } finally {
+            setLoadingMore(false);
+        }
+    }, [orderPage]);
+
     useEffect(() => { fetchOrders(); }, [fetchOrders]);
+
+    // ── Load reviewed order IDs ───────────────────────────────────────────────
+    useEffect(() => {
+        reviewApi.getMyReviews()
+            .then(res => {
+                const list = Array.isArray(res) ? res : (res?.content ?? res?.data ?? res?.reviews ?? []);
+                setReviewedOrderIds(new Set(list.map(r => r.orderId).filter(Boolean)));
+            })
+            .catch(() => {});
+    }, []);
 
     // ── Poll active orders every 30s ──────────────────────────────────────────
     useEffect(() => {
@@ -590,6 +761,23 @@ export default function CustomerDashboard() {
                         })}
                     </div>
 
+                    {/* Load more */}
+                    {orderHasNext && activeTab === "all" && !loading && !error && (
+                        <div style={{ textAlign: "center", padding: "16px 0 8px" }}>
+                            <button
+                                onClick={loadMoreOrders}
+                                disabled={loadingMore}
+                                style={{ padding: "11px 32px", borderRadius: 50, border: "1.5px solid #d0e8d0", background: "white", color: "#2d8a2d", fontFamily: "'Sora',sans-serif", fontWeight: 700, fontSize: 13, cursor: loadingMore ? "wait" : "pointer", display: "inline-flex", alignItems: "center", gap: 8, opacity: loadingMore ? 0.7 : 1, transition: "all 0.18s" }}
+                                onMouseEnter={e => { if (!loadingMore) { e.currentTarget.style.background = "#e8f5e0"; } }}
+                                onMouseLeave={e => { e.currentTarget.style.background = "white"; }}
+                            >
+                                {loadingMore ? (
+                                    <><svg width="14" height="14" viewBox="0 0 24 24" fill="none" style={{ animation: "spin 0.8s linear infinite" }}><circle cx="12" cy="12" r="10" stroke="rgba(45,138,45,0.3)" strokeWidth="3"/><path d="M12 2a10 10 0 0110 10" stroke="#2d8a2d" strokeWidth="3" strokeLinecap="round"/></svg>Loading…</>
+                                ) : "Load more orders"}
+                            </button>
+                        </div>
+                    )}
+
                     {/* Favourites */}
                     {orders.length > 0 && (() => {
                         const freq = {};
@@ -642,6 +830,19 @@ export default function CustomerDashboard() {
                     order={selectedOrder}
                     onClose={() => setSelectedOrder(null)}
                     onRefresh={() => fetchOrders(true)}
+                    isReviewed={reviewedOrderIds.has(selectedOrder.id)}
+                    onRateClick={() => setReviewOrder(selectedOrder)}
+                />
+            )}
+            {reviewOrder && (
+                <ReviewModal
+                    order={reviewOrder}
+                    onClose={() => setReviewOrder(null)}
+                    onSubmitted={(orderId) => {
+                        setReviewedOrderIds(prev => new Set([...prev, orderId]));
+                        setReviewOrder(null);
+                        toast.success("Review submitted! Thank you for your feedback.");
+                    }}
                 />
             )}
             {showEdit && (
