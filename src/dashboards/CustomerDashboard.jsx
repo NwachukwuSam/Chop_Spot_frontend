@@ -4,6 +4,7 @@ import { orderApi, reviewApi } from "../utils/Api";
 import {useAuth} from "../auth/AuthContext.jsx";
 import { useUserProfile } from "../hooks/useUserProfile";
 import { useToast } from "../context/ToastContext";
+import { useSse } from "../hooks/useSse";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 const fmt     = (n)   => `₦${Number(n || 0).toLocaleString()}`;
@@ -475,6 +476,12 @@ export default function CustomerDashboard() {
     const [loadingMore,       setLoadingMore]       = useState(false);
     const pollRef = useRef(null);
 
+    // ── SSE real-time updates ─────────────────────────────────────────────────
+    const { subscribe, unsubscribe, isConnected: sseConnected } = useSse({
+        userId: auth.user?.id || auth.user?.userId,
+        isAuthenticated: auth.isAuthenticated,
+    });
+
     // Sync profile once fetched
     useEffect(() => {
         if (fetchedProfile) setProfile(fetchedProfile);
@@ -537,11 +544,32 @@ export default function CustomerDashboard() {
             .catch(() => {});
     }, []);
 
-    // ── Poll active orders every 30s ──────────────────────────────────────────
+    // ── SSE event handlers ────────────────────────────────────────────────────
+    useEffect(() => {
+        const handleStatusUpdate = (data) => {
+            const orderId = data.orderId || data.id;
+            const newStatus = data.status;
+            if (!orderId || !newStatus) return;
+            setOrders(prev => prev.map(o =>
+                o.id === orderId ? { ...o, status: resolveStatus(newStatus) } : o
+            ));
+            setSelectedOrder(prev =>
+                prev?.id === orderId ? { ...prev, status: resolveStatus(newStatus) } : prev
+            );
+        };
+        subscribe("ORDER_STATUS_UPDATED", handleStatusUpdate);
+        subscribe("ORDER_CONFIRMED",      handleStatusUpdate);
+        return () => {
+            unsubscribe("ORDER_STATUS_UPDATED");
+            unsubscribe("ORDER_CONFIRMED");
+        };
+    }, [subscribe, unsubscribe]);
+
+    // ── Poll active orders every 60s (fallback when SSE disconnected)  ────────
     useEffect(() => {
         const hasActive = orders.some(o => isActiveOrder(o.status));
         clearInterval(pollRef.current);
-        if (hasActive) pollRef.current = setInterval(() => fetchOrders(true), 30_000);
+        if (hasActive) pollRef.current = setInterval(() => fetchOrders(true), 60_000);
         return () => clearInterval(pollRef.current);
     }, [orders, fetchOrders]);
 
@@ -624,9 +652,15 @@ export default function CustomerDashboard() {
                         Back to Home
                     </button>
 
-                    <span style={{ fontFamily: "'Sora',sans-serif", fontWeight: 800, fontSize: 18, color: "#1a6a1a" }}>
-                        Tasty<span style={{ color: "#f97316" }}>Cart</span>
-                    </span>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                        <span style={{ fontFamily: "'Sora',sans-serif", fontWeight: 800, fontSize: 18, color: "#1a6a1a" }}>
+                            Tasty<span style={{ color: "#f97316" }}>Cart</span>
+                        </span>
+                        <span style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 10, fontWeight: 700, fontFamily: "'DM Sans',sans-serif", padding: "2px 8px", borderRadius: 20, background: sseConnected ? "#e8f5e0" : "#f0f0f0", color: sseConnected ? "#1a6a1a" : "#888", border: `1px solid ${sseConnected ? "#b0d5b0" : "#ddd"}` }}>
+                            <span style={{ width: 6, height: 6, borderRadius: "50%", background: sseConnected ? "#2d8a2d" : "#aaa", display: "inline-block", animation: sseConnected ? "ping 2s ease-in-out infinite" : "none" }}/>
+                            {sseConnected ? "Live" : "Reconnecting…"}
+                        </span>
+                    </div>
 
                     <button onClick={handleLogout} style={{ display: "flex", alignItems: "center", gap: 6, background: "none", border: "1.5px solid #fee2e2", cursor: "pointer", color: "#dc2626", fontWeight: 600, fontSize: 13, fontFamily: "'DM Sans',sans-serif", padding: "6px 14px", borderRadius: 10 }}
                             onMouseEnter={e => e.currentTarget.style.background = "#fef2f2"}
@@ -678,7 +712,7 @@ export default function CustomerDashboard() {
                                 <p style={{ fontFamily: "'Sora',sans-serif", fontWeight: 800, fontSize: 13, color: "#92400e", margin: 0 }}>
                                     {orders.filter(o => isActiveOrder(o.status)).length} active order{orders.filter(o => isActiveOrder(o.status)).length > 1 ? "s" : ""} in progress
                                 </p>
-                                <p style={{ fontSize: 12, color: "#b45309", margin: "2px 0 0" }}>Tracking updates automatically every 30 seconds</p>
+                                <p style={{ fontSize: 12, color: "#b45309", margin: "2px 0 0" }}>{sseConnected ? "● Live updates enabled" : "Refreshing every 60 seconds"}</p>
                             </div>
                             <button onClick={() => setActiveTab("active")} style={{ background: "#f97316", border: "none", borderRadius: 10, padding: "6px 14px", color: "white", fontWeight: 700, fontSize: 12, cursor: "pointer" }}>Track</button>
                         </div>

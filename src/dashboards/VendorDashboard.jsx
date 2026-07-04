@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { vendorApi, orderApi, publicApi } from "../utils/Api.js";
 import Logo from "../assets/tasty.jpg.jpeg";
+import { useSse } from "../hooks/useSse.js";
 
 // ─── Brand tokens ─────────────────────────────────────────────────────────────
 const T = {
@@ -1099,6 +1100,41 @@ export default function VendorDashboard({ onLogout }) {
         setToast({ msg, type });
         setTimeout(() => setToast(null), 3200);
     };
+
+    // ── SSE real-time updates ─────────────────────────────────────────────────
+    const { subscribe, unsubscribe } = useSse({
+        userId: vendor?.userId || vendor?.id,
+        isAuthenticated: !!vendor,
+    });
+
+    useEffect(() => {
+        const handleNewOrder = (data) => {
+            const order = data.order || data;
+            if (!order?.id) return;
+            const norm = normaliseOrder(order);
+            setOrders(prev => {
+                if (prev.some(o => o.id === norm.id)) return prev;
+                showToast("New order received! 🔔");
+                return [norm, ...prev];
+            });
+        };
+
+        const handleOrderUpdate = (data) => {
+            const orderId = data.orderId || data.id;
+            const newStatus = data.status;
+            if (!orderId || !newStatus) return;
+            setOrders(prev => prev.map(o =>
+                o.id === orderId ? { ...o, status: resolveStatus(newStatus) } : o
+            ));
+        };
+
+        subscribe("NEW_ORDER",    handleNewOrder);
+        subscribe("ORDER_UPDATE", handleOrderUpdate);
+        return () => {
+            unsubscribe("NEW_ORDER");
+            unsubscribe("ORDER_UPDATE");
+        };
+    }, [subscribe, unsubscribe]);
 
     useEffect(() => {
         (async () => {

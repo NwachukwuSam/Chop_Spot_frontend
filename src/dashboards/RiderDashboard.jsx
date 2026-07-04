@@ -1016,6 +1016,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { riderApi, orderApi } from "../utils/Api.js";
 import Logo from "../assets/tasty.jpg.jpeg";
+import { useSse } from "../hooks/useSse.js";
 
 // ─── Brand tokens ─────────────────────────────────────────────────────────────
 const T = {
@@ -1672,6 +1673,27 @@ export default function RiderDashboard({ initialRider, onLogout }) {
         else window.location.href="/login";
     };
 
+    // ── SSE real-time updates ─────────────────────────────────────────────────
+    const { subscribe, unsubscribe, isConnected: sseConnected } = useSse({
+        userId: rider?.userId || rider?.id,
+        isAuthenticated: !!rider,
+    });
+
+    const playBeep = () => {
+        try {
+            const ctx  = new (window.AudioContext || window.webkitAudioContext)();
+            const osc  = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            osc.frequency.value = 880;
+            gain.gain.setValueAtTime(0.3, ctx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.4);
+            osc.start(ctx.currentTime);
+            osc.stop(ctx.currentTime + 0.4);
+        } catch {}
+    };
+
     const loadProfile = useCallback(async () => {
         setLoading(true); setError(null);
         try {
@@ -1710,13 +1732,49 @@ export default function RiderDashboard({ initialRider, onLogout }) {
 
     useEffect(()=>{ loadProfile(); },[loadProfile]);
     useEffect(()=>{ if(rider) loadRiderOrders(); },[rider?.id, loadRiderOrders]);
+    // ── SSE event handlers ────────────────────────────────────────────────────
+    useEffect(() => {
+        const handleNewOrder = (data) => {
+            if (rider?.availability !== "ONLINE") return;
+            const order = data.order || data;
+            if (!order?.id) return;
+            const norm = normaliseOrder(order);
+            setAvailableOrders(prev => {
+                if (prev.some(o => o.id === norm.id)) return prev;
+                playBeep();
+                showToast("New order available! 🛵");
+                return [norm, ...prev];
+            });
+        };
+
+        const handleOrderUpdate = (data) => {
+            const orderId = data.orderId || data.id;
+            const newStatus = data.status;
+            if (!orderId || !newStatus) return;
+            setActiveDeliveries(prev => prev.map(o =>
+                o.id === orderId ? { ...o, status: resolveStatus(newStatus) } : o
+            ));
+        };
+
+        subscribe("NEW_ORDER",    handleNewOrder);
+        subscribe("ORDER_UPDATE", handleOrderUpdate);
+        return () => {
+            unsubscribe("NEW_ORDER");
+            unsubscribe("ORDER_UPDATE");
+        };
+    }, [subscribe, unsubscribe, rider?.availability]);
+
+    // ── Poll available orders every 30s — only when SSE is disconnected ───────
     useEffect(()=>{
-        if (rider?.availability==="ONLINE") {
+        if (rider?.availability==="ONLINE" && !sseConnected) {
             fetchAvailable();
             const iv = setInterval(fetchAvailable, 30000);
             return ()=>clearInterval(iv);
         }
-    }, [rider?.availability, fetchAvailable]);
+        if (rider?.availability==="ONLINE" && sseConnected) {
+            fetchAvailable(); // initial fetch when SSE connects
+        }
+    }, [rider?.availability, fetchAvailable, sseConnected]);
 
     const updateRider = useCallback(updated => {
         const r = { ...updated, fullName:`${updated.firstName||""} ${updated.lastName||""}`.trim() };
