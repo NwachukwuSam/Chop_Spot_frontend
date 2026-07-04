@@ -41,16 +41,50 @@ function handleUnauthorized() {
         localStorage.removeItem("adminToken");
         localStorage.removeItem("token");
         localStorage.removeItem("chopspot_user");
+        localStorage.removeItem("chopspot_refresh_token");
     } catch (_) {}
     window.dispatchEvent(new CustomEvent("chopspot:unauthorized"));
+}
+
+// ─── Silent token refresh ─────────────────────────────────────────────────────
+// Deduplicates concurrent refresh attempts — all 401s share one in-flight call.
+let _refreshPromise = null;
+
+async function refreshAccessToken() {
+    if (_refreshPromise) return _refreshPromise;
+    _refreshPromise = (async () => {
+        try {
+            const rt = localStorage.getItem("chopspot_refresh_token");
+            if (!rt) return null;
+            const res = await fetch(`${BASE_URL}/api/auth/refresh`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ refreshToken: rt }),
+            });
+            if (!res.ok) return null;
+            const data = await res.json();
+            const newToken = data.accessToken || data.token;
+            if (!newToken) return null;
+            localStorage.setItem("chopspot_token", newToken);
+            localStorage.setItem("token", newToken);
+            if (data.refreshToken) {
+                localStorage.setItem("chopspot_refresh_token", data.refreshToken);
+            }
+            return newToken;
+        } catch {
+            return null;
+        }
+    })().finally(() => { _refreshPromise = null; });
+    return _refreshPromise;
 }
 
 // ─── Core request helpers ─────────────────────────────────────────────────────
 
 /**
- * Core request function - handles auth, errors, and network issues
+ * Core request function - handles auth, errors, and network issues.
+ * _isRetry is internal — prevents infinite refresh loops.
  */
-async function request(endpoint, options = {}) {
+async function request(endpoint, options = {}, _isRetry = false) {
     const url = `${BASE_URL}${endpoint}`;
 
     try {
@@ -66,8 +100,15 @@ async function request(endpoint, options = {}) {
             data = {};
         }
 
-        // Handle 401 Unauthorized
+        // On 401: attempt a silent token refresh once, then retry the request.
+        // On 403 or after a failed refresh: clear session and redirect to login.
         if (res.status === 401 || res.status === 403) {
+            if (res.status === 401 && !_isRetry) {
+                const newToken = await refreshAccessToken();
+                if (newToken) {
+                    return request(endpoint, options, true);
+                }
+            }
             handleUnauthorized();
             throw new Error("Your session has expired. Please sign in again.");
         }
@@ -214,6 +255,8 @@ export const userProfileApi = {
     getProfile: () => request("/api/users/profile"),
     updateProfile: (dto) =>
         request("/api/users/profile", { method: "PUT", body: JSON.stringify(dto) }),
+    changePassword: (dto) =>
+        request("/api/users/change-password", { method: "POST", body: JSON.stringify(dto) }),
 };
 
 // ─── VENDOR ───────────────────────────────────────────────────────────────────
@@ -288,7 +331,10 @@ export const orderApi = {
     cancelOrder: (orderId) =>
         request(`/api/orders/${orderId}`, { method: "DELETE" }),
 
-    getMyOrders: () => request("/api/orders/my-orders"),
+    getMyOrders: (page = null, size = 10) =>
+        page !== null
+            ? request(`/api/orders/my-orders?page=${page}&size=${size}`)
+            : request("/api/orders/my-orders"),
 
     getVendorOrders: () => request("/api/orders/vendor-orders"),
 
@@ -298,8 +344,13 @@ export const orderApi = {
         request(`/api/orders/${id}/status?status=${status}`, { method: "PUT" }),
 
     // NOTE: getAllOrders on the frontend now routes through /api/admin/orders
-    getAllOrders: (status = null) =>
-        request(status ? `/api/admin/orders?status=${status}` : "/api/admin/orders"),
+    getAllOrders: (status = null, page = null, size = 20) => {
+        const p = new URLSearchParams();
+        if (status) p.set("status", status);
+        if (page !== null) { p.set("page", page); p.set("size", size); }
+        const q = p.toString();
+        return request(q ? `/api/admin/orders?${q}` : "/api/admin/orders");
+    },
 
     // Fetch orders that are ready for a rider to pick up.
     getAllReadyForPickupOrders: () =>
@@ -333,8 +384,13 @@ export const adminApi = {
     deleteRider:  (id)  => request(`/api/admin/riders/${id}`,         { method: "DELETE" }),
 
     // ── Orders ─────────────────────────────────────────────────────────────────
-    getOrders:         (status = null) =>
-        request(status ? `/api/admin/orders?status=${status}` : "/api/admin/orders"),
+    getOrders: (status = null, page = null, size = 20) => {
+        const p = new URLSearchParams();
+        if (status) p.set("status", status);
+        if (page !== null) { p.set("page", page); p.set("size", size); }
+        const q = p.toString();
+        return request(q ? `/api/admin/orders?${q}` : "/api/admin/orders");
+    },
     updateOrderStatus: (id, status) =>
         request(`/api/admin/orders/${id}/status?status=${status}`, { method: "PUT" }),
     assignRider:       (orderId, riderUserId) =>
@@ -414,8 +470,13 @@ export const adminApi = {
 export const financeApi = {
     getOverview: () => request("/api/finance/overview"),
 
-    getSales: (status = null) =>
-        request(status ? `/api/finance/sales?status=${status}` : "/api/finance/sales"),
+    getSales: (status = null, page = null, size = 20) => {
+        const p = new URLSearchParams();
+        if (status) p.set("status", status);
+        if (page !== null) { p.set("page", page); p.set("size", size); }
+        const q = p.toString();
+        return request(q ? `/api/finance/sales?${q}` : "/api/finance/sales");
+    },
 
     getVendorPayouts: (status = null) =>
         request(status ? `/api/finance/vendor-payouts?status=${status}` : "/api/finance/vendor-payouts"),
@@ -459,6 +520,24 @@ export const financeApi = {
         request(`/api/finance/expenses/${id}`, { method: "DELETE" }),
 };
 
+export const reportApi = {
+    getSummary:              ()                        => request("/api/admin/reports/summary"),
+    getRevenue:              (period = "WEEKLY")       => request(`/api/admin/reports/revenue?period=${period}`),
+    getTopVendors:           (limit = 10, period = "WEEKLY") =>
+        request(`/api/admin/reports/top-vendors?limit=${limit}&period=${period}`),
+    getOrderStatusBreakdown: ()                        => request("/api/admin/reports/order-status-breakdown"),
+    getPeakHours:            ()                        => request("/api/admin/reports/peak-hours"),
+};
+
+export const reviewApi = {
+    submitReview: (dto) =>
+        request("/api/reviews", { method: "POST", body: JSON.stringify(dto) }),
+    getVendorReviews: (vendorId) =>
+        request(`/api/reviews/vendor/${vendorId}`),
+    getMyReviews: () =>
+        request("/api/reviews/my-reviews"),
+};
+
 // ─── Default export ───────────────────────────────────────────────────────────
 export default {
     login,
@@ -475,4 +554,6 @@ export default {
     orderApi,
     adminApi,
     financeApi,
+    reportApi,
+    reviewApi,
 };
