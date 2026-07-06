@@ -1,10 +1,15 @@
-import { useState, useEffect, useRef, useCallback } from "react";
-import { messaging, getToken, onMessage } from "../firebase";
+import { useState, useEffect, useCallback } from "react";
+import { getMessagingInstance, getToken, onMessage } from "../firebase";
 import { useToast } from "../context/ToastContext";
 
-const VAPID_KEY      = import.meta.env.VITE_FIREBASE_VAPID_KEY;
-const API_BASE       = import.meta.env.VITE_API_BASE_URL;
-const STORAGE_KEY    = "chopspot_fcm_token";
+const VAPID_KEY   = import.meta.env.VITE_FIREBASE_VAPID_KEY;
+const API_BASE    = import.meta.env.VITE_API_BASE_URL;
+const STORAGE_KEY = "chopspot_fcm_token";
+
+// Evaluated once at module load — avoids touching Notification inside a hook.
+const SUPPORTED =
+    typeof Notification !== "undefined" &&
+    "serviceWorker" in navigator;
 
 async function registerTokenWithBackend(fcmToken) {
     const authToken =
@@ -25,43 +30,57 @@ async function registerTokenWithBackend(fcmToken) {
 
 export default function usePushNotifications() {
     const toast = useToast();
+
     const [notificationsEnabled, setNotificationsEnabled] = useState(
-        () => Notification.permission === "granted"
+        () => SUPPORTED && Notification.permission === "granted"
     );
-    const unsubscribeRef = useRef(null);
+    // Resolved lazily via getMessagingInstance() — null until isSupported() resolves.
+    const [msgInstance, setMsgInstance] = useState(null);
 
-    // Set up foreground message listener once messaging is available.
+    // Resolve the messaging instance once on mount.
+    // getMessagingInstance() runs isSupported() before calling getMessaging(),
+    // so this is safe on any browser including those without SW support.
     useEffect(() => {
-        if (!messaging) return;
+        if (!SUPPORTED) return;
+        getMessagingInstance()
+            .then(m => { if (m) setMsgInstance(m); })
+            .catch(err => console.warn("[FCM] getMessagingInstance failed:", err));
+    }, []);
 
-        const unsub = onMessage(messaging, (payload) => {
-            const title = payload.notification?.title || "ChopSpot";
-            const body  = payload.notification?.body  || "";
-            toast.info(`${title}: ${body}`, 7000);
-        });
-
-        unsubscribeRef.current = unsub;
-        return () => unsub();
-    }, [toast]);
+    // Foreground message listener — wired up once msgInstance is resolved.
+    useEffect(() => {
+        if (!msgInstance) return;
+        try {
+            const unsub = onMessage(msgInstance, (payload) => {
+                const title = payload.notification?.title || "ChopSpot";
+                const body  = payload.notification?.body  || "";
+                toast.info(`${title}: ${body}`, 7000);
+            });
+            return () => unsub();
+        } catch (err) {
+            console.warn("[FCM] onMessage setup failed:", err);
+        }
+    }, [msgInstance, toast]);
 
     const requestPermission = useCallback(async () => {
-        if (!messaging || !VAPID_KEY) return;
+        if (!SUPPORTED || !msgInstance || !VAPID_KEY) return;
 
         try {
             const permission = await Notification.requestPermission();
             if (permission !== "granted") return;
 
-            const currentToken = await getToken(messaging, {
-                vapidKey:           VAPID_KEY,
-                serviceWorkerRegistration: await navigator.serviceWorker.register(
-                    "/firebase-messaging-sw.js",
-                    { scope: "/" }
-                ),
+            const swReg = await navigator.serviceWorker.register(
+                "/firebase-messaging-sw.js",
+                { scope: "/" }
+            );
+
+            const currentToken = await getToken(msgInstance, {
+                vapidKey:                  VAPID_KEY,
+                serviceWorkerRegistration: swReg,
             });
 
             if (!currentToken) return;
 
-            // Skip registration if the token hasn't changed since last time.
             const cached = localStorage.getItem(STORAGE_KEY);
             if (cached !== currentToken) {
                 await registerTokenWithBackend(currentToken);
@@ -70,9 +89,9 @@ export default function usePushNotifications() {
 
             setNotificationsEnabled(true);
         } catch (err) {
-            console.warn("FCM token error:", err);
+            console.warn("[FCM] Token registration failed:", err);
         }
-    }, []);
+    }, [msgInstance]);
 
     return { notificationsEnabled, requestPermission };
 }
