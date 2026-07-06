@@ -1,12 +1,12 @@
-import { useState, useEffect, useRef, useCallback } from "react";
-import { messaging, getToken, onMessage } from "../firebase";
+import { useState, useEffect, useCallback } from "react";
+import { getMessagingInstance, getToken, onMessage } from "../firebase";
 import { useToast } from "../context/ToastContext";
 
 const VAPID_KEY   = import.meta.env.VITE_FIREBASE_VAPID_KEY;
 const API_BASE    = import.meta.env.VITE_API_BASE_URL;
 const STORAGE_KEY = "chopspot_fcm_token";
 
-// Evaluated once at module load — safe to use as a constant inside hooks.
+// Evaluated once at module load — avoids touching Notification inside a hook.
 const SUPPORTED =
     typeof Notification !== "undefined" &&
     "serviceWorker" in navigator;
@@ -31,32 +31,39 @@ async function registerTokenWithBackend(fcmToken) {
 export default function usePushNotifications() {
     const toast = useToast();
 
-    // Guard Notification.permission access — the global may not exist on this browser.
     const [notificationsEnabled, setNotificationsEnabled] = useState(
         () => SUPPORTED && Notification.permission === "granted"
     );
-    const unsubscribeRef = useRef(null);
+    // Resolved lazily via getMessagingInstance() — null until isSupported() resolves.
+    const [msgInstance, setMsgInstance] = useState(null);
 
-    // Foreground message listener. All hooks are called unconditionally;
-    // the feature guard lives inside the effect body.
+    // Resolve the messaging instance once on mount.
+    // getMessagingInstance() runs isSupported() before calling getMessaging(),
+    // so this is safe on any browser including those without SW support.
     useEffect(() => {
-        if (!SUPPORTED || !messaging) return;
+        if (!SUPPORTED) return;
+        getMessagingInstance()
+            .then(m => { if (m) setMsgInstance(m); })
+            .catch(err => console.warn("[FCM] getMessagingInstance failed:", err));
+    }, []);
 
+    // Foreground message listener — wired up once msgInstance is resolved.
+    useEffect(() => {
+        if (!msgInstance) return;
         try {
-            const unsub = onMessage(messaging, (payload) => {
+            const unsub = onMessage(msgInstance, (payload) => {
                 const title = payload.notification?.title || "ChopSpot";
                 const body  = payload.notification?.body  || "";
                 toast.info(`${title}: ${body}`, 7000);
             });
-            unsubscribeRef.current = unsub;
             return () => unsub();
         } catch (err) {
             console.warn("[FCM] onMessage setup failed:", err);
         }
-    }, [toast]);
+    }, [msgInstance, toast]);
 
     const requestPermission = useCallback(async () => {
-        if (!SUPPORTED || !messaging || !VAPID_KEY) return;
+        if (!SUPPORTED || !msgInstance || !VAPID_KEY) return;
 
         try {
             const permission = await Notification.requestPermission();
@@ -67,9 +74,9 @@ export default function usePushNotifications() {
                 { scope: "/" }
             );
 
-            const currentToken = await getToken(messaging, {
-                vapidKey:                   VAPID_KEY,
-                serviceWorkerRegistration:  swReg,
+            const currentToken = await getToken(msgInstance, {
+                vapidKey:                  VAPID_KEY,
+                serviceWorkerRegistration: swReg,
             });
 
             if (!currentToken) return;
@@ -84,7 +91,7 @@ export default function usePushNotifications() {
         } catch (err) {
             console.warn("[FCM] Token registration failed:", err);
         }
-    }, []);
+    }, [msgInstance]);
 
     return { notificationsEnabled, requestPermission };
 }
