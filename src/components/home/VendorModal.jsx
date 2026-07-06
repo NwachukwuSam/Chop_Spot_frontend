@@ -1,11 +1,27 @@
 import { useState, useEffect } from "react";
 import * as API from "../../utils/Api";
 
+const StarDisplay = ({ value }) => (
+    <span style={{ color: "#f97316", fontSize: 13, letterSpacing: 1 }}>
+        {"★".repeat(Math.round(value || 0))}{"☆".repeat(5 - Math.round(value || 0))}
+    </span>
+);
+
 export const VendorModal = ({ vendor, onClose, onGoToCart }) => {
     const [selectedPack, setSelectedPack] = useState(null);
     const [quantities, setQuantities]     = useState({});
     const [menuCategories, setMenuCategories] = useState([]);
     const [menuLoading, setMenuLoading]   = useState(true);
+    const [reviews, setReviews]           = useState([]);
+
+    useEffect(() => {
+        API.reviewApi.getVendorReviews(vendor.id)
+            .then(res => {
+                const list = Array.isArray(res) ? res : (res?.content ?? res?.data ?? res?.reviews ?? []);
+                setReviews(list.slice(0, 3));
+            })
+            .catch(() => {});
+    }, [vendor.id]);
 
     useEffect(() => {
         const fetchMenu = async () => {
@@ -68,10 +84,30 @@ export const VendorModal = ({ vendor, onClose, onGoToCart }) => {
 
                 <div style={{ overflowY: "auto", flex: 1, padding: "20px 24px" }}>
                     <h2 style={{ fontFamily: "'Sora',sans-serif", fontWeight: 800, fontSize: 22, margin: "0 0 3px", color: "#1a2e1a" }}>{vendor.name}</h2>
-                    <p style={{ color: "#6a8a6a", fontSize: 13, margin: "0 0 20px", display: "flex", alignItems: "center", gap: 4 }}>
+                    <p style={{ color: "#6a8a6a", fontSize: 13, margin: "0 0 12px", display: "flex", alignItems: "center", gap: 4 }}>
                         <svg width="13" height="13" fill="#2d8a2d" viewBox="0 0 24 24"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/></svg>
                         {vendor.address}
                     </p>
+
+                    {/* Recent reviews */}
+                    {reviews.length > 0 && (
+                        <div style={{ marginBottom: 20, background: "#f9fdf9", borderRadius: 14, padding: "12px 14px", border: "1px solid #e0eee0" }}>
+                            <p style={{ fontFamily: "'Sora',sans-serif", fontWeight: 700, fontSize: 11, color: "#3a6a3a", textTransform: "uppercase", letterSpacing: 1.2, margin: "0 0 10px" }}>⭐ Customer Reviews</p>
+                            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                                {reviews.map((r, i) => (
+                                    <div key={i} style={{ borderBottom: i < reviews.length - 1 ? "1px solid #eaf4ea" : "none", paddingBottom: i < reviews.length - 1 ? 8 : 0 }}>
+                                        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 2 }}>
+                                            <span style={{ fontSize: 12, fontWeight: 700, color: "#1a2e1a" }}>{r.customerName || r.userName || "Customer"}</span>
+                                            <StarDisplay value={r.vendorRating || r.rating || 0} />
+                                        </div>
+                                        {(r.vendorComment || r.comment) && (
+                                            <p style={{ margin: 0, fontSize: 12, color: "#5a7a5a", lineHeight: 1.5 }}>{r.vendorComment || r.comment}</p>
+                                        )}
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
 
                     {/* Pack selection */}
                     {vendor.packages && vendor.packages.length > 0 && (

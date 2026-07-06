@@ -1,7 +1,7 @@
 // SuperAdminDashboard.jsx
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import { adminApi } from "../utils/Api";
+import { adminApi, reportApi } from "../utils/Api";
 import SettlementsTab from "./SettlementsTab.jsx";
 
 const fmt = (n) => `₦${Number(n || 0).toLocaleString()}`;
@@ -396,20 +396,26 @@ const ORDER_STATUSES = [
 ];
 
 const OrdersTab = ({ toast }) => {
-    const [orders,   setOrders]   = useState([]);
-    const [loading,  setLoading]  = useState(true);
-    const [updating, setUpdating] = useState({});
+    const [orders,      setOrders]      = useState([]);
+    const [loading,     setLoading]     = useState(true);
+    const [updating,    setUpdating]    = useState({});
+    const [page,        setPage]        = useState(0);
+    const [totalPages,  setTotalPages]  = useState(1);
 
-    const load = useCallback(async () => {
+    const load = useCallback(async (p = 0) => {
         setLoading(true);
         try {
-            const d = await adminApi.getOrders();
-            setOrders(Array.isArray(d) ? d : d?.content || d?.orders || []);
+            const d = await adminApi.getOrders(null, p, 20);
+            const list = Array.isArray(d) ? d : (Array.isArray(d?.content) ? d.content : d?.orders || []);
+            setOrders(list);
+            setTotalPages(d?.totalPages ?? (list.length < 20 ? p + 1 : p + 2));
         } catch (err) { toast(err.message, "error"); }
         finally { setLoading(false); }
     }, [toast]);
 
-    useEffect(() => { load(); }, [load]);
+    useEffect(() => { load(0); }, [load]);
+
+    const goPage = (p) => { setPage(p); load(p); };
 
     const handleStatusChange = async (id, newStatus) => {
         setUpdating(p => ({ ...p, [id]: true }));
@@ -456,6 +462,13 @@ const OrdersTab = ({ toast }) => {
                         </tr>
                     ))}
                 </DataTable>
+            )}
+            {!loading && totalPages > 1 && (
+                <div style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:12, padding:"8px 0" }}>
+                    <button onClick={() => goPage(page - 1)} disabled={page === 0} style={{ padding:"7px 18px", borderRadius:8, border:"1.5px solid rgba(99,102,241,0.3)", background: page === 0 ? "transparent" : "rgba(99,102,241,0.08)", color: page === 0 ? "#4a5568" : "#818cf8", fontWeight:700, fontSize:13, cursor: page === 0 ? "not-allowed" : "pointer" }}>← Prev</button>
+                    <span style={{ fontSize:13, fontWeight:600, color:"#94a3b8" }}>Page {page + 1} of {totalPages}</span>
+                    <button onClick={() => goPage(page + 1)} disabled={page >= totalPages - 1} style={{ padding:"7px 18px", borderRadius:8, border:"1.5px solid rgba(99,102,241,0.3)", background: page >= totalPages - 1 ? "transparent" : "rgba(99,102,241,0.08)", color: page >= totalPages - 1 ? "#4a5568" : "#818cf8", fontWeight:700, fontSize:13, cursor: page >= totalPages - 1 ? "not-allowed" : "pointer" }}>Next →</button>
+                </div>
             )}
         </div>
     );
@@ -520,6 +533,218 @@ const UsersTab = ({ toast }) => {
                 </DataTable>
             )}
             <p style={{ fontSize:12, color:"#94a3b8", textAlign:"center", margin:0 }}>Showing {filtered.length} of {users.length} users</p>
+        </div>
+    );
+};
+
+// ════════════════════════════════════════════════════════════
+// Reports Tab
+// ════════════════════════════════════════════════════════════
+
+// Normalizers (pure — no React deps)
+const _normRev  = d => { const l=Array.isArray(d)?d:Array.isArray(d?.data)?d.data:Array.isArray(d?.revenue)?d.revenue:[]; return l.map(r=>({label:r.label||r.period||r.date||"—",value:Number(r.value||r.revenue||r.totalRevenue||0)})); };
+const _normBrk  = d => { if(Array.isArray(d))return d.map(x=>({status:x.status||"?",count:Number(x.count||x.total||0)})); if(d&&typeof d==="object")return Object.entries(d).map(([k,v])=>({status:k,count:Number(v)})); return []; };
+const _normVend = d => { const l=Array.isArray(d)?d:Array.isArray(d?.vendors)?d.vendors:Array.isArray(d?.data)?d.data:[]; return l.map(v=>({name:v.vendorName||v.name||"—",orders:Number(v.totalOrders||v.orderCount||0),revenue:Number(v.totalRevenue||v.revenue||0)})); };
+const _normPeak = d => { const l=Array.isArray(d)?d:Array.isArray(d?.hours)?d.hours:Array.isArray(d?.data)?d.data:[]; const m={}; l.forEach(h=>{m[h.hour??h.hourOfDay??0]=Number(h.count||h.orders||0);}); return Array.from({length:24},(_,i)=>({hour:i,count:m[i]||0})); };
+
+const ReportBarChart = ({ data, color, valueFmt, labelFmt, chartHeight=160 }) => {
+    if(!data.length) return <div style={{height:chartHeight,display:"flex",alignItems:"center",justifyContent:"center",color:"#94a3b8",fontSize:13}}>No data available</div>;
+    const max=Math.max(...data.map(d=>d.value??d.count??0),1);
+    const MAX_H=chartHeight-22;
+    return (
+        <div style={{display:"flex",alignItems:"flex-end",gap:2,height:chartHeight,overflowX:"auto"}}>
+            {data.map((d,i)=>{
+                const val=d.value??d.count??0;
+                const h=Math.max(val>0?3:0,Math.round(val/max*MAX_H));
+                const lbl=labelFmt?labelFmt(d.label??d.hour??i):(d.label??d.hour??i);
+                return (
+                    <div key={i} title={valueFmt?valueFmt(val):String(val)}
+                        style={{flex:1,minWidth:14,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"flex-end",height:"100%",gap:3}}>
+                        <div style={{width:"72%",height:h,background:color,borderRadius:"3px 3px 0 0",flexShrink:0,transition:"height 0.5s ease"}}/>
+                        <span style={{fontSize:8,color:"#94a3b8",lineHeight:1,width:"100%",textAlign:"center",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{lbl}</span>
+                    </div>
+                );
+            })}
+        </div>
+    );
+};
+
+const ReportsTab = ({ toast }) => {
+    const [summary,    setSummary]    = useState({});
+    const [revenue,    setRevenue]    = useState([]);
+    const [breakdown,  setBreakdown]  = useState([]);
+    const [topVendors, setTopVendors] = useState([]);
+    const [peakHours,  setPeakHours]  = useState([]);
+    const [loading,    setLoading]    = useState(true);
+    const [period,     setPeriod]     = useState("WEEKLY");
+    const [pLoad,      setPLoad]      = useState(false);
+    const didInit = useRef(false);
+
+    // Load everything on mount
+    useEffect(() => {
+        let alive = true;
+        (async () => {
+            try {
+                const [sum, rev, brk, top, peak] = await Promise.all([
+                    reportApi.getSummary().catch(() => ({})),
+                    reportApi.getRevenue(period).catch(() => []),
+                    reportApi.getOrderStatusBreakdown().catch(() => []),
+                    reportApi.getTopVendors(10, period).catch(() => []),
+                    reportApi.getPeakHours().catch(() => []),
+                ]);
+                if (!alive) return;
+                setSummary(sum || {});
+                setRevenue(_normRev(rev));
+                setBreakdown(_normBrk(brk));
+                setTopVendors(_normVend(top));
+                setPeakHours(_normPeak(peak));
+            } finally { if (alive) { setLoading(false); didInit.current = true; } }
+        })();
+        return () => { alive = false; };
+    }, []); // eslint-disable-line
+
+    // Reload period-sensitive data (revenue + top vendors) on period toggle
+    useEffect(() => {
+        if (!didInit.current) return;
+        let alive = true;
+        setPLoad(true);
+        (async () => {
+            const [rev, top] = await Promise.all([
+                reportApi.getRevenue(period).catch(() => []),
+                reportApi.getTopVendors(10, period).catch(() => []),
+            ]);
+            if (!alive) return;
+            setRevenue(_normRev(rev));
+            setTopVendors(_normVend(top));
+            setPLoad(false);
+        })();
+        return () => { alive = false; };
+    }, [period]);
+
+    const ACC = "#6366f1";
+    const fmtN = n => `₦${Number(n||0).toLocaleString()}`;
+
+    const CARDS = [
+        { label:"Total Revenue",      value:fmtN(summary.totalRevenue),                        icon:"💰", color:"#6366f1" },
+        { label:"Total Orders",       value:(summary.totalOrders||0).toLocaleString(),           icon:"📦", color:"#10b981" },
+        { label:"Avg Order Value",    value:fmtN(summary.averageOrderValue),                    icon:"📈", color:"#f59e0b" },
+        { label:"Service Charges",    value:fmtN(summary.totalServiceChargeCollected),           icon:"🏷️", color:"#ef4444" },
+        { label:"This Month Revenue", value:fmtN(summary.thisMonthRevenue),                     icon:"📅", color:"#8b5cf6" },
+        { label:"This Month Orders",  value:(summary.thisMonthOrders||0).toLocaleString(),       icon:"🗓️", color:"#f97316" },
+    ];
+
+    const ST_C = { DELIVERED:"#10b981",COMPLETED:"#10b981",PENDING:"#f59e0b",ACCEPTED:"#3b82f6",PREPARING:"#6366f1",CANCELLED:"#ef4444",REJECTED:"#ef4444",READY_FOR_PICKUP:"#8b5cf6",OUT_FOR_DELIVERY:"#f97316",PICKED_UP:"#f97316" };
+    const brkTotal = breakdown.reduce((a,x) => a+x.count, 0);
+
+    const Card = ({title, children, right}) => (
+        <div style={{background:"white",borderRadius:20,border:"1.5px solid #e2e8f0",overflow:"hidden",boxShadow:"0 2px 10px rgba(0,0,0,0.03)"}}>
+            <div style={{padding:"16px 22px",borderBottom:"1px solid #f1f5f9",display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:8}}>
+                <h3 style={{fontFamily:"'Sora',sans-serif",fontWeight:800,fontSize:14,color:"#0f172a",margin:0}}>{title}</h3>
+                {right}
+            </div>
+            <div style={{padding:"18px 22px"}}>{children}</div>
+        </div>
+    );
+
+    const PeriodToggle = () => (
+        <div style={{display:"flex",gap:4,background:"#f1f5f9",borderRadius:8,padding:3}}>
+            {["DAILY","WEEKLY","MONTHLY"].map(p => (
+                <button key={p} onClick={() => setPeriod(p)} disabled={pLoad}
+                    style={{padding:"5px 11px",borderRadius:6,border:"none",background:period===p?ACC:"transparent",color:period===p?"white":"#64748b",fontWeight:700,fontSize:11,cursor:pLoad?"wait":"pointer",transition:"all 0.15s",opacity:pLoad&&period!==p?0.5:1}}>
+                    {p==="DAILY"?"Daily":p==="WEEKLY"?"Weekly":"Monthly"}
+                </button>
+            ))}
+        </div>
+    );
+
+    if (loading) return (
+        <div style={{display:"flex",flexDirection:"column",gap:20}}>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(160px,1fr))",gap:14}}>
+                {[...Array(6)].map((_,i) => <div key={i} style={{background:"white",borderRadius:16,height:84,border:"1.5px solid #e2e8f0",animation:`pulse 1.4s ease-in-out ${i*0.08}s infinite`}}/>)}
+            </div>
+            <div style={{background:"white",borderRadius:20,height:280,border:"1.5px solid #e2e8f0",animation:"pulse 1.4s ease-in-out infinite"}}/>
+            <div style={{background:"white",borderRadius:20,height:200,border:"1.5px solid #e2e8f0",animation:"pulse 1.4s ease-in-out 0.15s infinite"}}/>
+        </div>
+    );
+
+    return (
+        <div style={{display:"flex",flexDirection:"column",gap:20}}>
+
+            {/* 1 — Summary Cards */}
+            <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(160px,1fr))",gap:14}}>
+                {CARDS.map((c,i) => (
+                    <div key={i} style={{background:"white",borderRadius:16,padding:"18px 20px",border:"1.5px solid #e2e8f0",boxShadow:"0 2px 10px rgba(0,0,0,0.03)",display:"flex",alignItems:"center",gap:12}}>
+                        <div style={{width:42,height:42,borderRadius:12,background:`${c.color}18`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:20,flexShrink:0}}>{c.icon}</div>
+                        <div>
+                            <p style={{fontSize:10,color:"#94a3b8",margin:0,fontWeight:600,textTransform:"uppercase",letterSpacing:0.7}}>{c.label}</p>
+                            <p style={{fontFamily:"'Sora',sans-serif",fontWeight:800,fontSize:18,margin:"2px 0 0",color:c.color,lineHeight:1.1}}>{c.value}</p>
+                        </div>
+                    </div>
+                ))}
+            </div>
+
+            {/* 2 — Revenue Over Time */}
+            <Card title="💹 Revenue Over Time" right={<PeriodToggle/>}>
+                {pLoad
+                    ? <div style={{height:180,display:"flex",alignItems:"center",justifyContent:"center",color:"#94a3b8",fontSize:13}}>Updating…</div>
+                    : <ReportBarChart data={revenue} color={ACC} valueFmt={fmtN} chartHeight={180}/>}
+            </Card>
+
+            {/* 3 — Order Status Breakdown */}
+            <Card title="📊 Order Status Breakdown">
+                {breakdown.length===0
+                    ? <div style={{textAlign:"center",padding:"30px",color:"#94a3b8",fontSize:13}}>No data available</div>
+                    : breakdown.map(({status,count}) => {
+                        const pct = brkTotal>0 ? (count/brkTotal*100) : 0;
+                        const c   = ST_C[status]||"#94a3b8";
+                        return (
+                            <div key={status} style={{marginBottom:12}}>
+                                <div style={{display:"flex",justifyContent:"space-between",fontSize:12,fontWeight:600,marginBottom:5,color:"#334155"}}>
+                                    <span>{status.replace(/_/g," ")}</span>
+                                    <span style={{color:"#64748b"}}>{count.toLocaleString()} <span style={{fontWeight:400}}>({pct.toFixed(1)}%)</span></span>
+                                </div>
+                                <div style={{height:8,background:"#f1f5f9",borderRadius:4,overflow:"hidden"}}>
+                                    <div style={{height:"100%",width:`${pct}%`,background:c,borderRadius:4,transition:"width 0.6s ease"}}/>
+                                </div>
+                            </div>
+                        );
+                    })}
+            </Card>
+
+            {/* 4 — Top Vendors */}
+            <Card title="🏆 Top Vendors" right={pLoad ? <span style={{fontSize:12,color:"#94a3b8"}}>Updating…</span> : null}>
+                {topVendors.length===0
+                    ? <div style={{textAlign:"center",padding:"30px",color:"#94a3b8",fontSize:13}}>No data available</div>
+                    : (
+                        <div style={{overflowX:"auto"}}>
+                            <table style={{width:"100%",borderCollapse:"collapse"}}>
+                                <thead>
+                                <tr style={{background:"#f8fafc"}}>
+                                    {["#","Vendor","Orders","Revenue"].map(h => (
+                                        <th key={h} style={{padding:"10px 14px",textAlign:["Revenue","Orders"].includes(h)?"right":"left",fontSize:10,fontWeight:800,color:"#64748b",textTransform:"uppercase",letterSpacing:0.7}}>{h}</th>
+                                    ))}
+                                </tr>
+                                </thead>
+                                <tbody>
+                                {topVendors.map((v,i) => (
+                                    <tr key={i} style={{borderTop:"1px solid #f1f5f9"}}>
+                                        <td style={{padding:"11px 14px",fontSize:13,fontWeight:700,color:ACC}}>{i+1}</td>
+                                        <td style={{padding:"11px 14px",fontSize:13,fontWeight:600,color:"#334155"}}>{v.name}</td>
+                                        <td style={{padding:"11px 14px",fontSize:13,textAlign:"right",color:"#64748b"}}>{v.orders.toLocaleString()}</td>
+                                        <td style={{padding:"11px 14px",fontSize:13,textAlign:"right",fontWeight:700,color:"#10b981"}}>{fmtN(v.revenue)}</td>
+                                    </tr>
+                                ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    )}
+            </Card>
+
+            {/* 5 — Peak Hours */}
+            <Card title="⏰ Peak Hours — Orders by Hour of Day">
+                <ReportBarChart data={peakHours} color="#818cf8" labelFmt={h=>`${h}h`} chartHeight={160}/>
+            </Card>
+
         </div>
     );
 };
@@ -667,7 +892,7 @@ export default function SuperAdminDashboard({ onExit }) {
                                 {tab==="orders"      && <OrdersTab {...tabProps} />}
                                 {tab==="users"       && <UsersTab {...tabProps} />}
                                 {tab==="settlements" && <SettlementsTab {...tabProps} />}
-                                {tab==="reports"     && <div style={{ background:"white", borderRadius:20, padding:"60px 40px", textAlign:"center", border:"1.5px solid #e2e8f0" }}><div style={{ fontSize:52, marginBottom:16 }}>📊</div><h3 style={{ fontFamily:"'Sora',sans-serif", fontWeight:800 }}>Reports coming soon</h3></div>}
+                                {tab==="reports"     && <ReportsTab {...tabProps} />}
                             </>
                         )}
                     </main>

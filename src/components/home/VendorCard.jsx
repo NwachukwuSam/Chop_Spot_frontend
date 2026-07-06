@@ -3,7 +3,7 @@ export const VendorCard = ({ vendor, onClick }) => {
         id: vendor.id,
         name: vendor.restaurantName,
         image: vendor.logoUrl || "https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?w=400&q=80",
-        rating: vendor.rating || 4.5,
+        rating: (vendor.rating && vendor.rating > 0) ? vendor.rating : null,
         deliveryFrom: vendor.deliveryFromPrice || 0,
         category: vendor.category,
         isOpen: vendor.open || vendor.isOpen,
@@ -35,7 +35,7 @@ export const VendorCard = ({ vendor, onClick }) => {
                     <div style={{ position: "absolute", bottom: 10, left: 12, background: "#1a1a1a", color: "white", fontSize: 10, fontWeight: 800, padding: "4px 10px", borderRadius: 20, letterSpacing: 1.2 }}>CLOSED</div>
                 )}
                 <div style={{ position: "absolute", top: 10, right: 10, background: "rgba(255,255,255,0.93)", borderRadius: 20, padding: "3px 9px", fontSize: 12, fontWeight: 700, color: "#1a1a1a", display: "flex", alignItems: "center", gap: 3 }}>
-                    ⭐ {vendorData.rating}
+                    {vendorData.rating ? `⭐ ${vendorData.rating}` : "⭐ New"}
                 </div>
             </div>
             <div style={{ padding: "13px 15px 15px" }}>
