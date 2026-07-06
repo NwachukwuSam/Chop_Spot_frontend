@@ -3,6 +3,9 @@ import { useEffect, useRef, useCallback, useState } from "react";
 const BASE_URL = import.meta.env.VITE_API_BASE_URL;
 const NAMED_EVENTS = ["ORDER_STATUS_UPDATED", "ORDER_CONFIRMED", "NEW_ORDER", "ORDER_UPDATE"];
 
+// EventSource is not available in all mobile browsers (e.g. older WebViews).
+const SSE_SUPPORTED = typeof EventSource !== "undefined";
+
 function getToken() {
     return localStorage.getItem("chopspot_token") || localStorage.getItem("token") || null;
 }
@@ -33,7 +36,7 @@ export function useSse({ userId, isAuthenticated }) {
 
     // Assign on every render so the retry timeout always calls the latest version
     connectRef.current = function connect() {
-        if (!active.current) return;
+        if (!SSE_SUPPORTED || !active.current) return;
 
         const token = getToken();
         if (!token) return;
@@ -90,6 +93,8 @@ export function useSse({ userId, isAuthenticated }) {
     };
 
     useEffect(() => {
+        if (!SSE_SUPPORTED) return;
+
         active.current = !!(isAuthenticated && userId);
         retryDelay.current = 5000;
 
