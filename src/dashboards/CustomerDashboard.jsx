@@ -477,7 +477,7 @@ export default function CustomerDashboard() {
     const pollRef = useRef(null);
 
     // ── SSE real-time updates ─────────────────────────────────────────────────
-    const { subscribe, unsubscribe, isConnected: sseConnected } = useSse({
+    const { subscribe, unsubscribe, isConnected: sseConnected, status: sseStatus } = useSse({
         userId: auth.user?.id || auth.user?.userId,
         isAuthenticated: auth.isAuthenticated,
     });
@@ -656,9 +656,9 @@ export default function CustomerDashboard() {
                         <span style={{ fontFamily: "'Sora',sans-serif", fontWeight: 800, fontSize: 18, color: "#1a6a1a" }}>
                             Tasty<span style={{ color: "#f97316" }}>Cart</span>
                         </span>
-                        <span style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 10, fontWeight: 700, fontFamily: "'DM Sans',sans-serif", padding: "2px 8px", borderRadius: 20, background: sseConnected ? "#e8f5e0" : "#f0f0f0", color: sseConnected ? "#1a6a1a" : "#888", border: `1px solid ${sseConnected ? "#b0d5b0" : "#ddd"}` }}>
-                            <span style={{ width: 6, height: 6, borderRadius: "50%", background: sseConnected ? "#2d8a2d" : "#aaa", display: "inline-block", animation: sseConnected ? "ping 2s ease-in-out infinite" : "none" }}/>
-                            {sseConnected ? "Live" : "Reconnecting…"}
+                        <span style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 10, fontWeight: 700, fontFamily: "'DM Sans',sans-serif", padding: "2px 8px", borderRadius: 20, background: sseStatus === "connected" ? "#e8f5e0" : "#f0f0f0", color: sseStatus === "connected" ? "#1a6a1a" : "#888", border: `1px solid ${sseStatus === "connected" ? "#b0d5b0" : "#ddd"}` }}>
+                            <span style={{ width: 6, height: 6, borderRadius: "50%", background: sseStatus === "connected" ? "#2d8a2d" : "#aaa", display: "inline-block", animation: sseStatus === "connected" ? "ping 2s ease-in-out infinite" : "none" }}/>
+                            {sseStatus === "connected" ? "Live" : sseStatus === "reconnecting" ? "Reconnecting…" : "Connecting…"}
                         </span>
                     </div>
 
