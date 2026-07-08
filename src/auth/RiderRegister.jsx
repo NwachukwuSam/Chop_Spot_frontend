@@ -2,6 +2,25 @@
 import { useState } from "react";
 import * as API from "../utils/Api";
 
+const CLOUDINARY_CLOUD_NAME    = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME;
+const CLOUDINARY_UPLOAD_PRESET = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET;
+
+const uploadToCloudinary = async (file) => {
+    const uploadData = new FormData();
+    uploadData.append("file", file);
+    uploadData.append("upload_preset", CLOUDINARY_UPLOAD_PRESET);
+    uploadData.append("cloud_name", CLOUDINARY_CLOUD_NAME);
+    uploadData.append("folder", "user_profiles");
+
+    const response = await fetch(
+        `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/image/upload`,
+        { method: "POST", body: uploadData }
+    );
+    if (!response.ok) throw new Error("Image upload failed");
+    const result = await response.json();
+    return result.secure_url;
+};
+
 const BIKE_TYPES = ["Motorcycle", "Bicycle", "Tricycle (Keke)", "Scooter", "On Foot"];
 const AVAILABILITY = ["Morning (6am–12pm)", "Afternoon (12pm–6pm)", "Evening (6pm–11pm)", "All Day", "Weekends Only"];
 
@@ -66,129 +85,197 @@ const StepHeader = ({ emoji, title, sub }) => (
 );
 
 // ── Step 1: Personal Details ──────────────────────────────────────────────────
-const Step1 = ({ data, set }) => (
-    <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
-        <StepHeader emoji="👤" title="Your Personal Details" sub="We'll use this to set up your rider profile" />
+const Step1 = ({ data, set }) => {
+    const [uploading, setUploading] = useState(false);
+    const [uploadErr, setUploadErr] = useState(null);
 
-        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 8 }}>
-            <div
-                onClick={() => document.getElementById("rider-avatar").click()}
-                style={{
-                    width: 100, height: 100, borderRadius: "50%", overflow: "hidden",
-                    background: data.avatarPreview ? "transparent" : "#e8f5e0",
-                    border: "2.5px dashed #7aaa7a", cursor: "pointer",
-                    display: "flex", alignItems: "center", justifyContent: "center", transition: "all 0.2s",
-                }}
-                onMouseEnter={e => { e.currentTarget.style.borderColor = "#2d8a2d"; e.currentTarget.style.boxShadow = "0 0 0 4px rgba(45,138,45,0.1)"; }}
-                onMouseLeave={e => { e.currentTarget.style.borderColor = "#7aaa7a"; e.currentTarget.style.boxShadow = "none"; }}
-            >
-                {data.avatarPreview
-                    ? <img src={data.avatarPreview} style={{ width: "100%", height: "100%", objectFit: "cover" }} alt="avatar" />
-                    : <div style={{ textAlign: "center" }}>
-                        <div style={{ fontSize: 30 }}>📸</div>
-                        <p style={{ margin: "4px 0 0", fontSize: 13, color: "#8aaa8a" }}>Click to upload photo</p>
-                    </div>
-                }
+    const handleAvatarUpload = async (file) => {
+        setUploading(true);
+        setUploadErr(null);
+        set("avatarPreview", URL.createObjectURL(file));
+        try {
+            const url = await uploadToCloudinary(file);
+            set("profileImageUrl", url);
+        } catch {
+            setUploadErr("Upload failed. Your photo won't be saved, but you can still register.");
+            set("profileImageUrl", null);
+        } finally {
+            setUploading(false);
+        }
+    };
+
+    return (
+        <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
+            <StepHeader emoji="👤" title="Your Personal Details" sub="We'll use this to set up your rider profile" />
+
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 8 }}>
+                <div
+                    onClick={() => !uploading && document.getElementById("rider-avatar").click()}
+                    style={{
+                        width: 100, height: 100, borderRadius: "50%", overflow: "hidden",
+                        background: data.avatarPreview ? "transparent" : "#e8f5e0",
+                        border: "2.5px dashed #7aaa7a", cursor: uploading ? "wait" : "pointer",
+                        display: "flex", alignItems: "center", justifyContent: "center", transition: "all 0.2s",
+                    }}
+                    onMouseEnter={e => { if (!uploading) { e.currentTarget.style.borderColor = "#2d8a2d"; e.currentTarget.style.boxShadow = "0 0 0 4px rgba(45,138,45,0.1)"; } }}
+                    onMouseLeave={e => { e.currentTarget.style.borderColor = "#7aaa7a"; e.currentTarget.style.boxShadow = "none"; }}
+                >
+                    {uploading ? (
+                        <div style={{ textAlign: "center" }}>
+                            <svg width="24" height="24" viewBox="0 0 24 24" style={{ animation: "spin 1s linear infinite" }}>
+                                <circle cx="12" cy="12" r="10" stroke="#2d8a2d" strokeWidth="3" fill="none" strokeDasharray="30 30" />
+                            </svg>
+                            <p style={{ margin: "4px 0 0", fontSize: 10, color: "#7aaa7a", fontWeight: 600 }}>Uploading…</p>
+                        </div>
+                    ) : data.avatarPreview ? (
+                        <img src={data.avatarPreview} style={{ width: "100%", height: "100%", objectFit: "cover" }} alt="avatar" />
+                    ) : (
+                        <div style={{ textAlign: "center" }}>
+                            <div style={{ fontSize: 30 }}>📸</div>
+                            <p style={{ margin: "4px 0 0", fontSize: 13, color: "#8aaa8a" }}>Click to upload photo</p>
+                        </div>
+                    )}
+                </div>
+                <input id="rider-avatar" type="file" accept="image/*" style={{ display: "none" }}
+                       onChange={e => { const f = e.target.files[0]; if (f) handleAvatarUpload(f); }} />
+                {data.profileImageUrl && !uploading && (
+                    <span style={{ fontSize: 11, color: "#4caf50", fontWeight: 700 }}>✓ Photo saved to cloud</span>
+                )}
+                {uploadErr && (
+                    <span style={{ fontSize: 11, color: "#dc2626", fontWeight: 600 }}>{uploadErr}</span>
+                )}
+                <span style={{ fontSize: 11, color: "#9ab59a" }}>Profile photo (optional)</span>
             </div>
-            <input id="rider-avatar" type="file" accept="image/*" style={{ display: "none" }}
-                   onChange={e => { const f = e.target.files[0]; if (f) set("avatarPreview", URL.createObjectURL(f)); }} />
-            <span style={{ fontSize: 11, color: "#9ab59a" }}>Profile photo (optional)</span>
-        </div>
 
-        <div style={{ display: "flex", gap: 12 }}>
-            <Field label="First Name *" style={{ flex: 1 }}>
-                <input value={data.firstName || ""} onChange={e => set("firstName", e.target.value)}
-                       placeholder="e.g. Emeka" style={inp()} onFocus={foc} onBlur={blr} />
-            </Field>
-            <Field label="Last Name *" style={{ flex: 1 }}>
-                <input value={data.lastName || ""} onChange={e => set("lastName", e.target.value)}
-                       placeholder="e.g. Okafor" style={inp()} onFocus={foc} onBlur={blr} />
-            </Field>
-        </div>
-
-        <Field label="WhatsApp Number *">
-            <input value={data.phone || ""} onChange={e => set("phone", e.target.value)}
-                   placeholder="+234 800 000 0000" style={inp()} onFocus={foc} onBlur={blr} />
-        </Field>
-
-        <Field label="Email (optional)">
-            <input value={data.email || ""} onChange={e => set("email", e.target.value)}
-                   placeholder="you@example.com" style={inp()} onFocus={foc} onBlur={blr} />
-        </Field>
-
-        <Field label="Home Address / Base Location">
-            <input value={data.address || ""} onChange={e => set("address", e.target.value)}
-                   placeholder="e.g. Near Faculty Gate, OAU" style={inp()} onFocus={foc} onBlur={blr} />
-        </Field>
-
-        <Field label="Gender">
-            <div style={{ display: "flex", gap: 10 }}>
-                {["Male", "Female", "Other"].map(g => (
-                    <Chip key={g} label={g} active={data.gender === g} onClick={() => set("gender", g)} />
-                ))}
+            <div style={{ display: "flex", gap: 12 }}>
+                <Field label="First Name *" style={{ flex: 1 }}>
+                    <input value={data.firstName || ""} onChange={e => set("firstName", e.target.value)}
+                           placeholder="e.g. Emeka" style={inp()} onFocus={foc} onBlur={blr} />
+                </Field>
+                <Field label="Last Name *" style={{ flex: 1 }}>
+                    <input value={data.lastName || ""} onChange={e => set("lastName", e.target.value)}
+                           placeholder="e.g. Okafor" style={inp()} onFocus={foc} onBlur={blr} />
+                </Field>
             </div>
-        </Field>
-    </div>
-);
+
+            <Field label="WhatsApp Number *">
+                <input value={data.phone || ""} onChange={e => set("phone", e.target.value)}
+                       placeholder="+234 800 000 0000" style={inp()} onFocus={foc} onBlur={blr} />
+            </Field>
+
+            <Field label="Email (optional)">
+                <input value={data.email || ""} onChange={e => set("email", e.target.value)}
+                       placeholder="you@example.com" style={inp()} onFocus={foc} onBlur={blr} />
+            </Field>
+
+            <Field label="Home Address / Base Location">
+                <input value={data.address || ""} onChange={e => set("address", e.target.value)}
+                       placeholder="e.g. Near Faculty Gate, OAU" style={inp()} onFocus={foc} onBlur={blr} />
+            </Field>
+
+            <Field label="Gender">
+                <div style={{ display: "flex", gap: 10 }}>
+                    {["Male", "Female", "Other"].map(g => (
+                        <Chip key={g} label={g} active={data.gender === g} onClick={() => set("gender", g)} />
+                    ))}
+                </div>
+            </Field>
+        </div>
+    );
+};
 
 // ── Step 2: Vehicle ───────────────────────────────────────────────────────────
-const Step2 = ({ data, set }) => (
-    <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
-        <StepHeader emoji="🏍️" title="Your Vehicle" sub="Tell us how you'll make deliveries" />
+const Step2 = ({ data, set }) => {
+    const [uploading, setUploading] = useState(false);
+    const [uploadErr, setUploadErr] = useState(null);
 
-        <Field label="Vehicle Type *">
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-                {BIKE_TYPES.map(t => (
-                    <Chip key={t} label={t} active={data.vehicleType === t} onClick={() => set("vehicleType", t)} />
-                ))}
-            </div>
-        </Field>
+    const handleBikeUpload = async (file) => {
+        setUploading(true);
+        setUploadErr(null);
+        set("bikePreview", URL.createObjectURL(file));
+        try {
+            const url = await uploadToCloudinary(file);
+            set("vehicleImageUrl", url);
+        } catch {
+            setUploadErr("Upload failed. Your vehicle photo won't be saved, but you can still register.");
+            set("vehicleImageUrl", null);
+        } finally {
+            setUploading(false);
+        }
+    };
 
-        {data.vehicleType && data.vehicleType !== "On Foot" && (
-            <>
-                <Field label="Vehicle Make / Model">
-                    <input value={data.vehicleModel || ""} onChange={e => set("vehicleModel", e.target.value)}
-                           placeholder="e.g. Honda CB125, Bajaj Boxer" style={inp()} onFocus={foc} onBlur={blr} />
-                </Field>
-                <Field label="Plate Number (optional)">
-                    <input value={data.plateNumber || ""} onChange={e => set("plateNumber", e.target.value.toUpperCase())}
-                           placeholder="e.g. OY 234 ABC"
-                           style={{ ...inp(), letterSpacing: 2, textTransform: "uppercase" }}
-                           onFocus={foc} onBlur={blr} />
-                </Field>
-            </>
-        )}
+    return (
+        <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
+            <StepHeader emoji="🏍️" title="Your Vehicle" sub="Tell us how you'll make deliveries" />
 
-        <Field label="Vehicle Photo (optional)">
-            <div
-                onClick={() => document.getElementById("bike-photo").click()}
-                style={{
-                    height: 130, borderRadius: 16, overflow: "hidden",
-                    background: data.bikePreview ? "transparent" : "#f0f7f0",
-                    border: "1.5px dashed #b8d8b8", cursor: "pointer",
-                    display: "flex", alignItems: "center", justifyContent: "center", transition: "border-color 0.2s",
-                }}
-                onMouseEnter={e => e.currentTarget.style.borderColor = "#2d8a2d"}
-                onMouseLeave={e => e.currentTarget.style.borderColor = "#b8d8b8"}
-            >
-                {data.bikePreview
-                    ? <img src={data.bikePreview} style={{ width: "100%", height: "100%", objectFit: "cover" }} alt="bike" />
-                    : <div style={{ textAlign: "center" }}>
-                        <div style={{ fontSize: 36 }}>🏍️</div>
-                        <p style={{ margin: "8px 0 0", fontSize: 13, color: "#8aaa8a" }}>Click to upload photo</p>
-                    </div>
-                }
-            </div>
-            <input id="bike-photo" type="file" accept="image/*" style={{ display: "none" }}
-                   onChange={e => { const f = e.target.files[0]; if (f) set("bikePreview", URL.createObjectURL(f)); }} />
-        </Field>
+            <Field label="Vehicle Type *">
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                    {BIKE_TYPES.map(t => (
+                        <Chip key={t} label={t} active={data.vehicleType === t} onClick={() => set("vehicleType", t)} />
+                    ))}
+                </div>
+            </Field>
 
-        <Field label="Valid ID (NIN / Driver's License / School ID)">
-            <input value={data.idType || ""} onChange={e => set("idType", e.target.value)}
-                   placeholder="e.g. Driver's License — LD 12345678" style={inp()} onFocus={foc} onBlur={blr} />
-        </Field>
-    </div>
-);
+            {data.vehicleType && data.vehicleType !== "On Foot" && (
+                <>
+                    <Field label="Vehicle Make / Model">
+                        <input value={data.vehicleModel || ""} onChange={e => set("vehicleModel", e.target.value)}
+                               placeholder="e.g. Honda CB125, Bajaj Boxer" style={inp()} onFocus={foc} onBlur={blr} />
+                    </Field>
+                    <Field label="Plate Number (optional)">
+                        <input value={data.plateNumber || ""} onChange={e => set("plateNumber", e.target.value.toUpperCase())}
+                               placeholder="e.g. OY 234 ABC"
+                               style={{ ...inp(), letterSpacing: 2, textTransform: "uppercase" }}
+                               onFocus={foc} onBlur={blr} />
+                    </Field>
+                </>
+            )}
+
+            <Field label="Vehicle Photo (optional)">
+                <div
+                    onClick={() => !uploading && document.getElementById("bike-photo").click()}
+                    style={{
+                        height: 130, borderRadius: 16, overflow: "hidden",
+                        background: data.bikePreview ? "transparent" : "#f0f7f0",
+                        border: "1.5px dashed #b8d8b8", cursor: uploading ? "wait" : "pointer",
+                        display: "flex", alignItems: "center", justifyContent: "center", transition: "border-color 0.2s",
+                    }}
+                    onMouseEnter={e => !uploading && (e.currentTarget.style.borderColor = "#2d8a2d")}
+                    onMouseLeave={e => (e.currentTarget.style.borderColor = "#b8d8b8")}
+                >
+                    {uploading ? (
+                        <div style={{ textAlign: "center" }}>
+                            <svg width="28" height="28" viewBox="0 0 24 24" style={{ animation: "spin 1s linear infinite" }}>
+                                <circle cx="12" cy="12" r="10" stroke="#2d8a2d" strokeWidth="3" fill="none" strokeDasharray="30 30" />
+                            </svg>
+                            <p style={{ margin: "8px 0 0", fontSize: 13, color: "#8aaa8a", fontWeight: 600 }}>Uploading…</p>
+                        </div>
+                    ) : data.bikePreview ? (
+                        <img src={data.bikePreview} style={{ width: "100%", height: "100%", objectFit: "cover" }} alt="bike" />
+                    ) : (
+                        <div style={{ textAlign: "center" }}>
+                            <div style={{ fontSize: 36 }}>🏍️</div>
+                            <p style={{ margin: "8px 0 0", fontSize: 13, color: "#8aaa8a" }}>Click to upload photo</p>
+                        </div>
+                    )}
+                </div>
+                <input id="bike-photo" type="file" accept="image/*" style={{ display: "none" }}
+                       onChange={e => { const f = e.target.files[0]; if (f) handleBikeUpload(f); }} />
+                {data.vehicleImageUrl && !uploading && (
+                    <span style={{ fontSize: 11, color: "#4caf50", fontWeight: 700, marginTop: 6, display: "block" }}>✓ Photo saved to cloud</span>
+                )}
+                {uploadErr && (
+                    <span style={{ fontSize: 11, color: "#dc2626", fontWeight: 600, marginTop: 6, display: "block" }}>{uploadErr}</span>
+                )}
+            </Field>
+
+            <Field label="Valid ID (NIN / Driver's License / School ID)">
+                <input value={data.idType || ""} onChange={e => set("idType", e.target.value)}
+                       placeholder="e.g. Driver's License — LD 12345678" style={inp()} onFocus={foc} onBlur={blr} />
+            </Field>
+        </div>
+    );
+};
 
 // ── Step 3: Logistics & Payout ────────────────────────────────────────────────
 const Step3 = ({ data, set }) => (
@@ -375,8 +462,10 @@ export default function RiderRegister({ onSuccess }) {
                 bankName:      data.bankName      || null,
                 accountNumber: data.accountNumber || null,
                 accountName:   data.accountName   || null,
-                password: data.password           || null, 
+                password:        data.password        || null,
                 confirmPassword: data.confirmPassword || null,
+                profileImageUrl: data.profileImageUrl || null,
+                vehicleImageUrl: data.vehicleImageUrl || null,
             };
 
             const result = await API.riderApi.register(payload);

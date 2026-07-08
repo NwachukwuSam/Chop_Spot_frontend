@@ -531,9 +531,10 @@ import { useState, useEffect, useRef } from "react";
 import { DeliveryMap } from "./DeliveryMap.jsx";
 import { useGeocoder } from "../../hooks/useGeocoder.js";
 import { AddressAutocomplete } from "../../utils/AddressAutocomplete.jsx";
+import { userProfileApi } from "../../utils/Api.js";
 
 const SERVICE_CHARGE_RATE = 0.20; // 20%
-const FLAT_DELIVERY_FEE = 400;    // ₦400 flat delivery fee (adjust as needed)
+const FLAT_DELIVERY_FEE = 350;    // ₦350 flat delivery fee
 
 export const CheckoutModal = ({ totalAmount, profile, onClose, onPay, vendor, locationError }) => {
   const { geocode } = useGeocoder();
@@ -688,22 +689,17 @@ export const CheckoutModal = ({ totalAmount, profile, onClose, onPay, vendor, lo
     // 2. If user wants to save details, update their profile
     if (form.saveDetails) {
       try {
-        const response = await fetch("/api/users/profile", {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            defaultDeliveryLocation: deliveryLocation, // pre-fills next checkout
-            hostel: form.hostel,
-            room: form.room,
-            whatsapp: form.whatsapp,
-            fullName: form.fullName,
-          }),
+        const [firstName, ...rest] = (form.fullName || "").trim().split(" ");
+        const lastName = rest.join(" ");
+        await userProfileApi.updateProfile({
+          firstName,
+          lastName,
+          whatsapp: form.whatsapp,
+          hostel: form.hostel,
+          room: form.room,
         });
-        if (!response.ok) throw new Error("Profile update failed");
-        console.log("Profile updated with new delivery details");
       } catch (err) {
         console.error("Failed to save delivery details:", err);
-        // Optionally show a toast notification to the user
       }
     }
   };

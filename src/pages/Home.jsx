@@ -284,10 +284,10 @@ export default function Home() {
 
         try {
             // paystackRef is already on the order in the DB — just confirm payment
-            // await API.orderApi.confirmPayment(orderInfo?.orderId, {
-            //     paystackReference: orderInfo?.paystackRef,
-            //     paymentMethod,
-            // });
+            await API.orderApi.confirmPayment(orderInfo?.orderId, {
+                paystackReference: orderInfo?.paystackRef,
+                paymentMethod: paymentMethod || "CARD",
+            });
         } catch (err) {
             console.error("confirmPayment failed:", err);
             if (!err.message?.includes("already paid")) {

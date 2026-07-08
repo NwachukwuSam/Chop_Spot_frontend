@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { vendorApi, orderApi, publicApi } from "../utils/Api.js";
 import Logo from "../assets/tasty.jpg.jpeg";
+import { useSse } from "../hooks/useSse.js";
 
 // ─── Brand tokens ─────────────────────────────────────────────────────────────
 const T = {
@@ -54,7 +55,10 @@ const normaliseVendor = raw => ({
     isOpen:      raw.isOpen ?? raw.open ?? false,
     rating:      raw.rating || 0,
     totalOrders: raw.totalOrders || 0,
-    status:      (raw.status || "PENDING").toUpperCase(),
+    status:        (raw.status || "PENDING").toUpperCase(),
+    bankName:      raw.bankName      || "",
+    accountNumber: raw.accountNumber || "",
+    accountName:   raw.accountName   || "",
 });
 
 const normaliseOrder = raw => ({
@@ -862,6 +866,9 @@ const ProfileTab = ({ vendor, onUpdate, onToast }) => {
                 deliveryFromPrice:     Number(v.deliveryFrom)||0,
                 packages:              (v.packages||[]).map(p => ({ id:p.id||p._id, name:p.name, price:p.price })),
                 logoUrl:               v.logoUrl,
+                bankName:              v.bankName      || null,
+                accountNumber:         v.accountNumber || null,
+                accountName:           v.accountName   || null,
             });
             onUpdate(v);
             onToast("Profile saved!");
@@ -908,6 +915,21 @@ const ProfileTab = ({ vendor, onUpdate, onToast }) => {
                 <div className="profile-grid" style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12 }}>
                     <Field label="Phone *"><input className="input-field" value={v.phone||""} onChange={e => set("phone",e.target.value)} placeholder="+234…" /></Field>
                     <Field label="Email"><input className="input-field" value={v.email||""} onChange={e => set("email",e.target.value)} placeholder="you@example.com" /></Field>
+                </div>
+            </Section>
+
+            <Section title="🏦 Payout Details">
+                <p style={{ fontSize:12, color:T.muted, margin:"0 0 4px" }}>Required to receive weekly earnings payouts.</p>
+                <Field label="Bank Name">
+                    <input className="input-field" value={v.bankName||""} onChange={e => set("bankName",e.target.value)} placeholder="e.g. GTBank, First Bank, Opay" />
+                </Field>
+                <div className="profile-grid" style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12 }}>
+                    <Field label="Account Number">
+                        <input className="input-field" type="tel" value={v.accountNumber||""} onChange={e => set("accountNumber", e.target.value.replace(/\D/g,"").slice(0,10))} placeholder="0123456789" style={{ letterSpacing:2 }} />
+                    </Field>
+                    <Field label="Account Name">
+                        <input className="input-field" value={v.accountName||""} onChange={e => set("accountName",e.target.value)} placeholder="As on your bank account" />
+                    </Field>
                 </div>
             </Section>
 
@@ -1078,6 +1100,41 @@ export default function VendorDashboard({ onLogout }) {
         setToast({ msg, type });
         setTimeout(() => setToast(null), 3200);
     };
+
+    // ── SSE real-time updates ─────────────────────────────────────────────────
+    const { subscribe, unsubscribe } = useSse({
+        userId: vendor?.userId || vendor?.id,
+        isAuthenticated: !!vendor,
+    });
+
+    useEffect(() => {
+        const handleNewOrder = (data) => {
+            const order = data.order || data;
+            if (!order?.id) return;
+            const norm = normaliseOrder(order);
+            setOrders(prev => {
+                if (prev.some(o => o.id === norm.id)) return prev;
+                showToast("New order received! 🔔");
+                return [norm, ...prev];
+            });
+        };
+
+        const handleOrderUpdate = (data) => {
+            const orderId = data.orderId || data.id;
+            const newStatus = data.status;
+            if (!orderId || !newStatus) return;
+            setOrders(prev => prev.map(o =>
+                o.id === orderId ? { ...o, status: resolveStatus(newStatus) } : o
+            ));
+        };
+
+        subscribe("NEW_ORDER",    handleNewOrder);
+        subscribe("ORDER_UPDATE", handleOrderUpdate);
+        return () => {
+            unsubscribe("NEW_ORDER");
+            unsubscribe("ORDER_UPDATE");
+        };
+    }, [subscribe, unsubscribe]);
 
     useEffect(() => {
         (async () => {

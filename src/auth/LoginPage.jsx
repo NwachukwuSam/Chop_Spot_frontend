@@ -67,8 +67,8 @@ function Field({ label, type, value, onChange, placeholder, icon, error, autoCom
 const resolveRedirect = (roles = [], returnTo = null) => {
     const upperRoles = roles.map(r => String(r).toUpperCase().replace("ROLE_", ""));
 
-    if (upperRoles.some(r => ["ADMIN", "SUPER_ADMIN"].includes(r)))
-        return "/admin-dashboard";
+    if (upperRoles.includes("SUPER_ADMIN")) return "/super-admin-dashboard";
+    if (upperRoles.includes("ADMIN"))       return "/admin-dashboard";
 
     if (upperRoles.includes("VENDOR")) return "/vendor-dashboard";
     if (upperRoles.includes("RIDER"))  return "/rider-dashboard";
