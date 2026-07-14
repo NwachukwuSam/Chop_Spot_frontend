@@ -1,7 +1,5 @@
 import { useState, useEffect } from "react";
 
-// Detects iOS devices (iPhone/iPad/iPod), including iPadOS 13+ which
-// reports as "MacIntel" but has touch support.
 function isIosDevice() {
     const ua = window.navigator.userAgent;
     const iOS = /iPad|iPhone|iPod/.test(ua);
