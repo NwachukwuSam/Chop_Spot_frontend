@@ -16,9 +16,9 @@ import { CartModal }         from "../components/home/CartModal";
 import { CheckoutModal }     from "../components/home/CheckoutModal";
 import { PaymentModal }      from "../components/home/PaymentModal";
 import Navbar               from "../components/NavBar";
-import { InstallPWAButton } from "../components/InstallPWAButton";
+import { InstallPWAButton } from "../components/InstallPWAButton.jsx";
 
-const DELIVERY_FEE = 350;
+const DELIVERY_FEE = 700;
 
 const TICKER_ITEMS = [
   "🍛 Order in seconds",
