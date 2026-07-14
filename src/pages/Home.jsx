@@ -16,6 +16,7 @@ import { CartModal }         from "../components/home/CartModal";
 import { CheckoutModal }     from "../components/home/CheckoutModal";
 import { PaymentModal }      from "../components/home/PaymentModal";
 import Navbar               from "../components/NavBar";
+import { InstallPWAButton } from "../components/InstallPWAButton";
 
 const DELIVERY_FEE = 350;
 
@@ -379,13 +380,15 @@ export default function Home() {
                                 </span>{" "}
                                 Enjoy it
                             </h1>
+                            
                             <p style={{ fontSize: "clamp(13px,2.8vw,15px)", color: "#6b7a6b", maxWidth: 460, lineHeight: 1.5, fontFamily: "'DM Sans',sans-serif", marginBottom: 16 }}>
                                 Experience a smarter way to enjoy meals from the best vendors around you
                             </p>
                             <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
-                                <button onClick={() => document.getElementById("restaurant-grid")?.scrollIntoView({ behavior: "smooth" })} style={{ background: "linear-gradient(135deg,#2d8a2d,#4caf50)", color: "white", border: "none", borderRadius: 50, padding: "14px 30px", fontFamily: "'Sora',sans-serif", fontWeight: 800, fontSize: 14, cursor: "pointer", boxShadow: "0 4px 20px rgba(45,138,45,0.38)", transition: "transform 0.18s" }} onMouseEnter={e => e.currentTarget.style.transform = "scale(1.03)"} onMouseLeave={e => e.currentTarget.style.transform = "scale(1)"}>Order Now →</button>
+                                                            <InstallPWAButton />
                                 {!isLoggedIn && <button onClick={() => navigate("/login")} style={{ background: "rgba(255,255,255,0.08)", color: "#1a2e1a", border: "1.5px solid rgba(45,138,45,0.2)", borderRadius: 50, padding: "14px 28px", fontFamily: "'Sora',sans-serif", fontWeight: 700, fontSize: 14, cursor: "pointer", transition: "all 0.18s" }} onMouseEnter={e => e.currentTarget.style.background = "rgba(45,138,45,0.08)"} onMouseLeave={e => e.currentTarget.style.background = "rgba(255,255,255,0.08)"}>Sign In</button>}
                             </div>
+
                         </div>
 
                         <div style={{ flexShrink: 0, position: "relative", zIndex: 1, display: "flex", alignItems: "center", justifyContent: "center" }} className="hero-image-col">
