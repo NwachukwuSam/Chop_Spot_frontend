@@ -232,7 +232,6 @@ export default function Home() {
 
         // ── Generate the Paystack reference NOW, before anything else ────────────
         // We own the reference so the webhook can always find the order by it,
-        // even if the user closes the modal before confirmPayment runs.
         const paystackRef = `cs_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 
         paymentConfirmedRef.current = false;
