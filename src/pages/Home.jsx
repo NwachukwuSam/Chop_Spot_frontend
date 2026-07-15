@@ -16,7 +16,7 @@ import { CartModal }         from "../components/home/CartModal";
 import { CheckoutModal }     from "../components/home/CheckoutModal";
 import { PaymentModal }      from "../components/home/PaymentModal";
 import Navbar               from "../components/NavBar";
-import { InstallPWAButton } from "../components/InstallPWAButton.jsx";
+import { InstallPWAButton } from "../components/Installpwabutton";
 
 const DELIVERY_FEE = 700;
 
