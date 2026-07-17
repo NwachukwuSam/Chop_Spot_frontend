@@ -434,7 +434,7 @@
 //               ["Subtotal", `₦${subtotal.toLocaleString()}`],
 //               ["Delivery Fee", `₦${deliveryFee.toLocaleString()}`],
 //               [
-//                 `Service Charge (${(SERVICE_CHARGE_RATE * 100).toFixed(0)}%)`,
+//                 `Service Charge (${(fees.serviceChargeRate * 100).toFixed(0)}%)`,
 //                 `₦${serviceCharge.toLocaleString()}`,
 //               ],
 //             ].map(([label, val]) => (
@@ -531,21 +531,35 @@ import { useState, useEffect, useRef } from "react";
 import { DeliveryMap } from "./DeliveryMap.jsx";
 import { useGeocoder } from "../../hooks/useGeocoder.js";
 import { AddressAutocomplete } from "../../utils/AddressAutocomplete.jsx";
-import { userProfileApi } from "../../utils/Api.js";
+import { userProfileApi, publicApi } from "../../utils/Api.js";
 
-const SERVICE_CHARGE_RATE = 0.20; // 20%
-const FLAT_DELIVERY_FEE = 350;    // ₦350 flat delivery fee
+const FALLBACK_SERVICE_CHARGE_RATE = 0.20;
+const FALLBACK_DELIVERY_FEE = 350;
 
 export const CheckoutModal = ({ totalAmount, profile, onClose, onPay, vendor, locationError }) => {
   const { geocode } = useGeocoder();
   const [customPinCoords, setCustomPinCoords] = useState(null);
 
-  // totalAmount coming in is the cart subtotal (items + package, no delivery fee yet)
-  // We strip the old flat delivery fee that may have been added upstream and recompute cleanly.
-  const subtotal =
-    totalAmount - FLAT_DELIVERY_FEE > 0
-      ? totalAmount - FLAT_DELIVERY_FEE
-      : totalAmount;
+  // totalAmount is the pure cart subtotal (items + packages) — no fees baked in
+  const subtotal = totalAmount;
+
+  const [fees, setFees] = useState({
+    serviceChargeRate: FALLBACK_SERVICE_CHARGE_RATE,
+    deliveryFee: FALLBACK_DELIVERY_FEE,
+  });
+
+  // Fetch live fee config from server once on mount
+  useEffect(() => {
+    publicApi.getFees().then((data) => {
+      if (!Array.isArray(data)) return;
+      const sc = data.find(f => f.active && f.key === "SERVICE_CHARGE" && f.type === "PERCENTAGE");
+      const df = data.find(f => f.active && f.key === "DELIVERY_FEE"   && f.type === "FLAT");
+      setFees({
+        serviceChargeRate: sc ? sc.value / 100 : FALLBACK_SERVICE_CHARGE_RATE,
+        deliveryFee:       df ? df.value        : FALLBACK_DELIVERY_FEE,
+      });
+    }).catch(() => { /* silently keep fallback */ });
+  }, []);
 
   const [form, setForm] = useState({
     fullName:
@@ -568,9 +582,9 @@ export const CheckoutModal = ({ totalAmount, profile, onClose, onPay, vendor, lo
 
   const set = (k, v) => setForm((p) => ({ ...p, [k]: v }));
 
-  const deliveryFee = FLAT_DELIVERY_FEE;
-  const serviceCharge = Math.round(subtotal * SERVICE_CHARGE_RATE);
-  const orderTotal = subtotal + deliveryFee + serviceCharge;
+  const deliveryFee   = fees.deliveryFee;
+  const serviceCharge = Math.round(subtotal * fees.serviceChargeRate);
+  const orderTotal    = subtotal + deliveryFee + serviceCharge;
 
   const isValid = form.fullName.trim() && form.whatsapp.trim();
   const preFilled = Boolean(profile?.whatsapp || profile?.hostel);
@@ -677,10 +691,10 @@ export const CheckoutModal = ({ totalAmount, profile, onClose, onPay, vendor, lo
     // hostel = delivery address (autocomplete), room = landmark — both save reliably in DB
     await onPay({
       ...form,
-      deliveryLocation,   // also populate the deliveryLocation field for completeness
+      deliveryLocation,
       subtotal,
-      deliveryFee,
-      serviceCharge,
+      resolvedDeliveryFee:   deliveryFee,
+      resolvedServiceCharge: serviceCharge,
       orderTotal,
       pinLat: customerCoords?.lat ?? null,
       pinLng: customerCoords?.lng ?? null,
@@ -937,7 +951,7 @@ export const CheckoutModal = ({ totalAmount, profile, onClose, onPay, vendor, lo
               ["Subtotal", `₦${subtotal.toLocaleString()}`],
               ["Delivery Fee", `₦${deliveryFee.toLocaleString()}`],
               [
-                `Service Charge (${(SERVICE_CHARGE_RATE * 100).toFixed(0)}%)`,
+                `Service Charge (${(fees.serviceChargeRate * 100).toFixed(0)}%)`,
                 `₦${serviceCharge.toLocaleString()}`,
               ],
             ].map(([label, val]) => (
