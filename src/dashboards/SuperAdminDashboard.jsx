@@ -753,7 +753,7 @@ const ReportsTab = ({ toast }) => {
 // ════════════════════════════════════════════════════════════
 // FEES & CHARGES TAB
 // ════════════════════════════════════════════════════════════
-const BLANK_FEE = { name: "", key: "", type: "PERCENTAGE", value: "", description: "", active: true };
+const BLANK_FEE = { name: "", key: "", type: "PERCENTAGE", value: "", description: "", active: true, applyToOrders: false };
 
 const FeesTab = ({ toast }) => {
     const [fees,    setFees]    = useState([]);
@@ -772,7 +772,7 @@ const FeesTab = ({ toast }) => {
 
     const startEdit = (fee) => {
         setEditing(fee.id);
-        setForm({ name: fee.name, key: fee.key, type: fee.type, value: fee.value, description: fee.description || "", active: fee.active });
+        setForm({ name: fee.name, key: fee.key, type: fee.type, value: fee.value, description: fee.description || "", active: fee.active, applyToOrders: fee.applyToOrders || false });
     };
 
     const cancelEdit = () => { setEditing(null); setForm(BLANK_FEE); };
@@ -840,6 +840,10 @@ const FeesTab = ({ toast }) => {
                         <input type="checkbox" checked={form.active} onChange={e => setF("active", e.target.checked)} id="fee-active" style={{ width:16, height:16, cursor:"pointer" }} />
                         <label htmlFor="fee-active" style={{ fontSize:13, fontWeight:600, color:"#334155", cursor:"pointer" }}>Active</label>
                     </div>
+                    <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+                        <input type="checkbox" checked={form.applyToOrders} onChange={e => setF("applyToOrders", e.target.checked)} id="fee-apply" style={{ width:16, height:16, cursor:"pointer" }} />
+                        <label htmlFor="fee-apply" style={{ fontSize:13, fontWeight:600, color:"#334155", cursor:"pointer" }}>Apply to orders automatically</label>
+                    </div>
                 </div>
                 <div style={{ display:"flex", gap:10 }}>
                     <Btn label={editing ? "Save Changes" : "Add Fee"} color={C.accent} onClick={handleSave} />
@@ -848,10 +852,10 @@ const FeesTab = ({ toast }) => {
             </div>
 
             {/* ── Fee table ── */}
-            <DataTable cols={["Name", "Key", "Type", "Value", "Status", "Actions"]}
+            <DataTable cols={["Name", "Key", "Type", "Value", "Auto-apply", "Status", "Actions"]}
                 empty={<div style={{ padding:"40px 0", textAlign:"center", color:C.muted }}><p style={{ fontSize:28 }}>⚙️</p><p>No fees configured yet</p></div>}>
                 {loading ? (
-                    <tr><td colSpan={6} style={{ ...s, textAlign:"center", color:C.muted }}>Loading…</td></tr>
+                    <tr><td colSpan={7} style={{ ...s, textAlign:"center", color:C.muted }}>Loading…</td></tr>
                 ) : fees.map(fee => (
                     <tr key={fee.id} style={{ borderTop:"1px solid #f1f5f9" }}>
                         <td style={s}>
@@ -865,6 +869,12 @@ const FeesTab = ({ toast }) => {
                         <td style={s}><span style={{ fontSize:12, fontWeight:600, color: fee.type==="PERCENTAGE" ? "#0369a1" : "#b45309" }}>{fee.type}</span></td>
                         <td style={{ ...s, fontFamily:"'Sora',sans-serif", fontWeight:800, color:"#0f172a" }}>
                             {fee.type === "PERCENTAGE" ? `${fee.value}%` : `₦${Number(fee.value).toLocaleString()}`}
+                        </td>
+                        <td style={s}>
+                            <span style={{ display:"inline-flex", alignItems:"center", gap:5, padding:"4px 12px", borderRadius:20, fontSize:11, fontWeight:700,
+                                background: fee.applyToOrders ? "#dbeafe" : "#f8fafc", color: fee.applyToOrders ? "#1d4ed8" : "#94a3b8" }}>
+                                {fee.applyToOrders ? "Yes" : "No"}
+                            </span>
                         </td>
                         <td style={s}>
                             <span style={{ display:"inline-flex", alignItems:"center", gap:5, padding:"4px 12px", borderRadius:20, fontSize:11, fontWeight:700,
