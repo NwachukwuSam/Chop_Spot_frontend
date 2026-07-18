@@ -434,7 +434,7 @@
 //               ["Subtotal", `₦${subtotal.toLocaleString()}`],
 //               ["Delivery Fee", `₦${deliveryFee.toLocaleString()}`],
 //               [
-//                 `Service Charge (${(SERVICE_CHARGE_RATE * 100).toFixed(0)}%)`,
+//                 `Service Charge (${(fees.serviceChargeRate * 100).toFixed(0)}%)`,
 //                 `₦${serviceCharge.toLocaleString()}`,
 //               ],
 //             ].map(([label, val]) => (
@@ -531,21 +531,35 @@ import { useState, useEffect, useRef } from "react";
 import { DeliveryMap } from "./DeliveryMap.jsx";
 import { useGeocoder } from "../../hooks/useGeocoder.js";
 import { AddressAutocomplete } from "../../utils/AddressAutocomplete.jsx";
-import { userProfileApi } from "../../utils/Api.js";
+import { userProfileApi, publicApi } from "../../utils/Api.js";
 
-const SERVICE_CHARGE_RATE = 0.20; // 20%
-const FLAT_DELIVERY_FEE = 350;    // ₦350 flat delivery fee
+const FALLBACK_SERVICE_CHARGE_RATE = 0.20;
+const FALLBACK_DELIVERY_FEE = 350;
 
 export const CheckoutModal = ({ totalAmount, profile, onClose, onPay, vendor, locationError }) => {
   const { geocode } = useGeocoder();
   const [customPinCoords, setCustomPinCoords] = useState(null);
 
-  // totalAmount coming in is the cart subtotal (items + package, no delivery fee yet)
-  // We strip the old flat delivery fee that may have been added upstream and recompute cleanly.
-  const subtotal =
-    totalAmount - FLAT_DELIVERY_FEE > 0
-      ? totalAmount - FLAT_DELIVERY_FEE
-      : totalAmount;
+  // totalAmount is the pure cart subtotal (items + packages) — no fees baked in
+  const subtotal = totalAmount;
+
+  const [fees, setFees] = useState({
+    deliveryFee: FALLBACK_DELIVERY_FEE,
+    orderFees: [],  // populated from server; falls back to a synthetic SERVICE_CHARGE entry
+  });
+
+  // Fetch live fee config from server once on mount
+  useEffect(() => {
+    publicApi.getFees().then((data) => {
+      if (!Array.isArray(data)) return;
+      const df = data.find(f => f.active && f.key === "DELIVERY_FEE" && f.type === "FLAT");
+      setFees({
+        deliveryFee: df ? df.value : FALLBACK_DELIVERY_FEE,
+        // All active applyToOrders fees except DELIVERY_FEE (used for line-item display)
+        orderFees: data.filter(f => f.active && f.applyToOrders && f.key !== "DELIVERY_FEE"),
+      });
+    }).catch(() => { /* silently keep fallback */ });
+  }, []);
 
   const [form, setForm] = useState({
     fullName:
@@ -568,9 +582,20 @@ export const CheckoutModal = ({ totalAmount, profile, onClose, onPay, vendor, lo
 
   const set = (k, v) => setForm((p) => ({ ...p, [k]: v }));
 
-  const deliveryFee = FLAT_DELIVERY_FEE;
-  const serviceCharge = Math.round(subtotal * SERVICE_CHARGE_RATE);
-  const orderTotal = subtotal + deliveryFee + serviceCharge;
+  const deliveryFee = fees.deliveryFee;
+
+  // Compute each order fee as a line item; fall back to 20% if none configured
+  const computedOrderFees = (fees.orderFees || []).length > 0
+    ? (fees.orderFees || []).map(f => ({
+        label: f.name,
+        amount: f.type === "PERCENTAGE"
+          ? Math.round(subtotal * (f.value / 100))
+          : Math.round(f.value),
+      }))
+    : [{ label: `Service Charge (${(FALLBACK_SERVICE_CHARGE_RATE * 100).toFixed(0)}%)`, amount: Math.round(subtotal * FALLBACK_SERVICE_CHARGE_RATE) }];
+
+  const totalOrderFees = computedOrderFees.reduce((s, f) => s + f.amount, 0);
+  const orderTotal = subtotal + deliveryFee + totalOrderFees;
 
   const isValid = form.fullName.trim() && form.whatsapp.trim();
   const preFilled = Boolean(profile?.whatsapp || profile?.hostel);
@@ -677,10 +702,10 @@ export const CheckoutModal = ({ totalAmount, profile, onClose, onPay, vendor, lo
     // hostel = delivery address (autocomplete), room = landmark — both save reliably in DB
     await onPay({
       ...form,
-      deliveryLocation,   // also populate the deliveryLocation field for completeness
+      deliveryLocation,
       subtotal,
-      deliveryFee,
-      serviceCharge,
+      resolvedDeliveryFee:   deliveryFee,
+      resolvedServiceCharge: totalOrderFees,
       orderTotal,
       pinLat: customerCoords?.lat ?? null,
       pinLng: customerCoords?.lng ?? null,
@@ -934,12 +959,9 @@ export const CheckoutModal = ({ totalAmount, profile, onClose, onPay, vendor, lo
               Order Summary
             </p>
             {[
-              ["Subtotal", `₦${subtotal.toLocaleString()}`],
-              ["Delivery Fee", `₦${deliveryFee.toLocaleString()}`],
-              [
-                `Service Charge (${(SERVICE_CHARGE_RATE * 100).toFixed(0)}%)`,
-                `₦${serviceCharge.toLocaleString()}`,
-              ],
+              ["Subtotal", subtotal],
+              ["Delivery Fee", deliveryFee],
+              ...computedOrderFees.map(f => [f.label, f.amount]),
             ].map(([label, val]) => (
               <div
                 key={label}
@@ -953,7 +975,7 @@ export const CheckoutModal = ({ totalAmount, profile, onClose, onPay, vendor, lo
               >
                 <span>{label}</span>
                 <span style={{ fontWeight: 600, color: "#1a2e1a" }}>
-                  {val}
+                  ₦{Number(val).toLocaleString()}
                 </span>
               </div>
             ))}

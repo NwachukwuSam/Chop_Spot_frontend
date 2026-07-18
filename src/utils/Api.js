@@ -229,7 +229,16 @@ export const publicApi = {
     searchRestaurants: (q) =>
         publicRequest(`/api/public/restaurants/search?q=${encodeURIComponent(q)}`),
 
-    getDeliveryZones: () => publicRequest("/api/public/delivery-zones"),
+    getFees: () => publicRequest("/api/public/fees"),
+};
+
+// ─── FEE CONFIG ───────────────────────────────────────────────────────────────
+export const feeApi = {
+    getAll:   ()        => request("/api/admin/fees"),
+    create:   (body)    => request("/api/admin/fees",        { method: "POST",   body: JSON.stringify(body) }),
+    update:   (id, body)=> request(`/api/admin/fees/${id}`,  { method: "PUT",    body: JSON.stringify(body) }),
+    toggle:   (id)      => request(`/api/admin/fees/${id}/toggle`, { method: "PATCH" }),
+    remove:   (id)      => request(`/api/admin/fees/${id}`,  { method: "DELETE" }),
 };
 
 // ─── CART ─────────────────────────────────────────────────────────────────────
@@ -556,4 +565,5 @@ export default {
     financeApi,
     reportApi,
     reviewApi,
+    feeApi,
 };

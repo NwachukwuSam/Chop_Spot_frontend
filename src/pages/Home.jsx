@@ -151,11 +151,13 @@ export default function Home() {
         );
     });
 
+    // Pure cart subtotal (items + packages). Delivery fee and service charge
+    // are added inside CheckoutModal after fetching the live fee config from the server.
     const cartTotal =
         cartGroups.reduce(
             (s, g) => s + (g.pack?.price || 0) + g.items.reduce((a, i) => a + i.price * i.qty, 0),
             0
-        ) + DELIVERY_FEE;
+        );
 
     // ── Handlers ──────────────────────────────────────────────────────────────
     const handleGoToCart = (group) => {
@@ -224,10 +226,9 @@ export default function Home() {
             (s, g) => s + g.items.reduce((a, i) => a + i.price * i.qty, 0), 0
         );
         const subtotal    = itemsSubtotal + packagePrice;
-        const deliveryFee = info.location?.fee || DELIVERY_FEE;
-        // Use the serviceCharge already calculated by CheckoutModal (passed via info),
-        // falling back to 20% of subtotal so the Paystack amount always matches checkout.
-        const serviceCharge = info.serviceCharge ?? Math.round(subtotal * 0.20);
+        // Prefer fees resolved by CheckoutModal (fetched from server); fall back to safe defaults.
+        const deliveryFee   = info.resolvedDeliveryFee   ?? info.location?.fee ?? DELIVERY_FEE;
+        const serviceCharge = info.resolvedServiceCharge ?? Math.round(subtotal * 0.20);
         const totalAmount   = subtotal + deliveryFee + serviceCharge;
 
         // ── Generate the Paystack reference NOW, before anything else ────────────
