@@ -346,7 +346,11 @@ const OrderDetailModal = ({ order, onClose, onRefresh, isReviewed, onRateClick }
                     {/* Price breakdown */}
                     {(order.subtotal > 0 || order.deliveryFee > 0) && (
                         <div style={{ background: "#f4f8f4", borderRadius: 14, padding: "14px 16px", marginBottom: 16 }}>
-                            {[["Subtotal", fmt(order.subtotal)], ["Delivery Fee", fmt(order.deliveryFee)]].map(([l, v]) => (
+                            {[
+                                ["Subtotal", fmt(order.subtotal)],
+                                ["Delivery Fee", fmt(order.deliveryFee)],
+                                ...(order.serviceCharge > 0 ? [["Service Charge", fmt(order.serviceCharge)]] : []),
+                            ].map(([l, v]) => (
                                 <div key={l} style={{ display: "flex", justifyContent: "space-between", padding: "4px 0", fontSize: 13, color: "#5a7a5a" }}>
                                     <span>{l}</span><span style={{ fontWeight: 600, color: "#1a2e1a" }}>{v}</span>
                                 </div>

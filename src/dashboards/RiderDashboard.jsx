@@ -76,7 +76,7 @@
 //     return {
 //         id:            o.id,
 //         customer:      getCustomerName(o.customer),
-//         customerPhone: o.customer?.phone||o.customerPhone||o.phone||"",
+//         customerPhone: o.customer?.phone||o.customerPhone||o.whatsappNumber||o.phone||"",
 //         date:          o.createdAt||o.date||new Date().toISOString(),
 //         deliveryFee:   o.deliveryFee||0,
 //         pickupFrom:    o.pickupFrom||o.pickupAddress||o.restaurant?.address||o.restaurantAddress||"Restaurant",
@@ -1098,7 +1098,7 @@ const normaliseOrder = (o) => {
     return {
         id:            o.id,
         customer:      getCustomerName(o.customer||o.customerName),
-        customerPhone: o.customer?.phone||o.customerPhone||o.phone||"",
+        customerPhone: o.customer?.phone||o.customerPhone||o.whatsappNumber||o.phone||"",
         date:          o.createdAt||o.date||new Date().toISOString(),
         deliveryFee:   o.deliveryFee||0,
         pickupFrom:    o.pickupFrom||o.pickupAddress||o.restaurant?.address||o.restaurantAddress||o.vendorName||"Restaurant",
@@ -1333,12 +1333,27 @@ const ActiveDeliveryCard = ({ order, onPickedUp, onDelivered, queuePosition=0 })
                 <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:13 }}>
                     <div>
                         <p style={{ margin:0, fontFamily:"'Fraunces',serif", fontWeight:800, fontSize:18, color:T.ink }}>{o.customer}</p>
-                        <p style={{ margin:"2px 0 0", fontSize:12, color:T.muted }}>
-                            #{o.id?.slice(-6)}{o.customerPhone?` · ${o.customerPhone}`:""}
-                        </p>
+                        <p style={{ margin:"2px 0 0", fontSize:12, color:T.muted }}>#{o.id?.slice(-6)}</p>
                     </div>
                     <StatusBadge status={status}/>
                 </div>
+
+                <a
+                    href={o.customerPhone ? `tel:${o.customerPhone}` : undefined}
+                    style={{
+                        display:"flex", alignItems:"center", justifyContent:"center", gap:8,
+                        width:"100%", padding:"11px 0", marginBottom:14,
+                        borderRadius:50, border:`2px solid ${o.customerPhone ? T.greenMid : "#ccc"}`,
+                        background: o.customerPhone ? T.greenLight : "#f5f5f5",
+                        color: o.customerPhone ? T.green : "#aaa",
+                        fontFamily:"'DM Sans',sans-serif", fontWeight:800, fontSize:14,
+                        textDecoration:"none", cursor: o.customerPhone ? "pointer" : "default",
+                        pointerEvents: o.customerPhone ? "auto" : "none",
+                    }}
+                >
+                    <span style={{ fontSize:16 }}>📞</span>
+                    {o.customerPhone || "No number on file"}
+                </a>
 
                 {/* FIX: pass landmark so rider sees full address + landmark */}
                 <RouteViz from={o.pickupFrom} to={o.deliverTo} landmark={o.landmark} compact/>

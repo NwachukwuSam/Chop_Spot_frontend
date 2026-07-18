@@ -1,20 +1,21 @@
 // SuperAdminDashboard.jsx
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import { adminApi, reportApi } from "../utils/Api";
+import { adminApi, reportApi, feeApi } from "../utils/Api";
 import SettlementsTab from "./SettlementsTab.jsx";
 
 const fmt = (n) => `₦${Number(n || 0).toLocaleString()}`;
 
 const NAV_ITEMS = [
-    { id: "overview",    icon: "◉",  label: "Overview"     },
-    { id: "admins",      icon: "🛡️", label: "Admin Users"  },
-    { id: "vendors",     icon: "🏪", label: "Vendors"      },
-    { id: "riders",      icon: "🏍️", label: "Riders"       },
-    { id: "orders",      icon: "📦", label: "Orders"       },
-    { id: "users",       icon: "👥", label: "All Users"    },
-    { id: "settlements", icon: "💳", label: "Settlements"  },
-    { id: "reports",     icon: "📊", label: "Reports"      },
+    { id: "overview",    icon: "◉",  label: "Overview"        },
+    { id: "admins",      icon: "🛡️", label: "Admin Users"     },
+    { id: "vendors",     icon: "🏪", label: "Vendors"         },
+    { id: "riders",      icon: "🏍️", label: "Riders"          },
+    { id: "orders",      icon: "📦", label: "Orders"          },
+    { id: "users",       icon: "👥", label: "All Users"       },
+    { id: "settlements", icon: "💳", label: "Settlements"     },
+    { id: "reports",     icon: "📊", label: "Reports"         },
+    { id: "fees",        icon: "⚙️", label: "Fees & Charges"  },
 ];
 
 // ── Design tokens ─────────────────────────────────────────────────────────────
@@ -750,6 +751,150 @@ const ReportsTab = ({ toast }) => {
 };
 
 // ════════════════════════════════════════════════════════════
+// FEES & CHARGES TAB
+// ════════════════════════════════════════════════════════════
+const BLANK_FEE = { name: "", key: "", type: "PERCENTAGE", value: "", description: "", active: true, applyToOrders: false };
+
+const FeesTab = ({ toast }) => {
+    const [fees,    setFees]    = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [form,    setForm]    = useState(BLANK_FEE);
+    const [editing, setEditing] = useState(null); // fee id being edited, or null for create
+
+    const load = () => {
+        setLoading(true);
+        feeApi.getAll().then(setFees).catch(() => toast("Failed to load fees", "error")).finally(() => setLoading(false));
+    };
+
+    useEffect(() => { load(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+    const setF = (k, v) => setForm(p => ({ ...p, [k]: v }));
+
+    const startEdit = (fee) => {
+        setEditing(fee.id);
+        setForm({ name: fee.name, key: fee.key, type: fee.type, value: fee.value, description: fee.description || "", active: fee.active, applyToOrders: fee.applyToOrders || false });
+    };
+
+    const cancelEdit = () => { setEditing(null); setForm(BLANK_FEE); };
+
+    const handleSave = async () => {
+        if (!form.name.trim() || !form.value) return toast("Name and value are required", "error");
+        const payload = { ...form, value: parseFloat(form.value) };
+        try {
+            if (editing) {
+                await feeApi.update(editing, payload);
+                toast("Fee updated");
+            } else {
+                if (!form.key.trim()) return toast("Key is required for new fees", "error");
+                await feeApi.create({ ...payload, key: form.key.toUpperCase().replace(/\s+/g,"_") });
+                toast("Fee created");
+            }
+            cancelEdit();
+            load();
+        } catch (e) {
+            toast(e.message || "Save failed", "error");
+        }
+    };
+
+    const handleToggle = async (fee) => {
+        try { await feeApi.toggle(fee.id); load(); }
+        catch (e) { toast(e.message || "Toggle failed", "error"); }
+    };
+
+    const handleDelete = async (fee) => {
+        if (!window.confirm(`Delete "${fee.name}"? This cannot be undone.`)) return;
+        try { await feeApi.remove(fee.id); toast("Fee deleted"); load(); }
+        catch (e) { toast(e.message || "Delete failed", "error"); }
+    };
+
+    const SYSTEM_KEYS = ["SERVICE_CHARGE", "DELIVERY_FEE", "VENDOR_PLATFORM_FEE", "RIDER_PLATFORM_CUT"];
+
+    return (
+        <div style={{ display:"flex", flexDirection:"column", gap:24 }}>
+            <div>
+                <h2 style={{ fontFamily:"'Sora',sans-serif", fontWeight:800, fontSize:22, color:"#0f172a", margin:0 }}>Fees &amp; Charges</h2>
+                <p style={{ color:C.muted, fontSize:13, margin:"4px 0 0" }}>Configure the fees and charges applied to orders and payouts. Changes take effect on the next order.</p>
+            </div>
+
+            {/* ── Fee form ── */}
+            <div style={{ background:"white", borderRadius:18, border:"1.5px solid #e2e8f0", padding:"20px 24px", boxShadow:"0 2px 16px rgba(0,0,0,0.04)" }}>
+                <p style={{ fontWeight:800, fontSize:14, color:"#0f172a", margin:"0 0 16px" }}>{editing ? "Edit Fee" : "Add New Fee"}</p>
+                <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:14, marginBottom:14 }}>
+                    <Input label="Fee Name" value={form.name} onChange={v => setF("name", v)} placeholder="e.g. Service Charge" required />
+                    {!editing && (
+                        <Input label="Key (unique identifier)" value={form.key} onChange={v => setF("key", v)} placeholder="e.g. SERVICE_CHARGE" required />
+                    )}
+                    <div>
+                        <label style={{ fontSize:11, fontWeight:700, color:C.textSub, textTransform:"uppercase", letterSpacing:0.8, display:"block", marginBottom:6 }}>Type <span style={{ color:C.red }}>*</span></label>
+                        <select value={form.type} onChange={e => setF("type", e.target.value)}
+                            style={{ width:"100%", padding:"10px 14px", borderRadius:10, border:"1.5px solid #e2e8f0", fontSize:13, color:"#334155", fontFamily:"'DM Sans',sans-serif", outline:"none", background:"white" }}>
+                            <option value="PERCENTAGE">Percentage (%)</option>
+                            <option value="FLAT">Flat Amount (₦)</option>
+                        </select>
+                    </div>
+                    <Input label={form.type === "PERCENTAGE" ? "Value (%)" : "Value (₦)"} type="number" value={form.value} onChange={v => setF("value", v)} placeholder={form.type === "PERCENTAGE" ? "e.g. 20" : "e.g. 350"} required />
+                    <div style={{ gridColumn:"1 / -1" }}>
+                        <Input label="Description (optional)" value={form.description} onChange={v => setF("description", v)} placeholder="Brief explanation of this fee" />
+                    </div>
+                    <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+                        <input type="checkbox" checked={form.active} onChange={e => setF("active", e.target.checked)} id="fee-active" style={{ width:16, height:16, cursor:"pointer" }} />
+                        <label htmlFor="fee-active" style={{ fontSize:13, fontWeight:600, color:"#334155", cursor:"pointer" }}>Active</label>
+                    </div>
+                    <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+                        <input type="checkbox" checked={form.applyToOrders} onChange={e => setF("applyToOrders", e.target.checked)} id="fee-apply" style={{ width:16, height:16, cursor:"pointer" }} />
+                        <label htmlFor="fee-apply" style={{ fontSize:13, fontWeight:600, color:"#334155", cursor:"pointer" }}>Apply to orders automatically</label>
+                    </div>
+                </div>
+                <div style={{ display:"flex", gap:10 }}>
+                    <Btn label={editing ? "Save Changes" : "Add Fee"} color={C.accent} onClick={handleSave} />
+                    {editing && <Btn label="Cancel" color={C.muted} onClick={cancelEdit} />}
+                </div>
+            </div>
+
+            {/* ── Fee table ── */}
+            <DataTable cols={["Name", "Key", "Type", "Value", "Auto-apply", "Status", "Actions"]}
+                empty={<div style={{ padding:"40px 0", textAlign:"center", color:C.muted }}><p style={{ fontSize:28 }}>⚙️</p><p>No fees configured yet</p></div>}>
+                {loading ? (
+                    <tr><td colSpan={7} style={{ ...s, textAlign:"center", color:C.muted }}>Loading…</td></tr>
+                ) : fees.map(fee => (
+                    <tr key={fee.id} style={{ borderTop:"1px solid #f1f5f9" }}>
+                        <td style={s}>
+                            <p style={{ margin:0, fontWeight:700, color:"#0f172a", fontSize:13 }}>{fee.name}</p>
+                            {fee.description && <p style={{ margin:"2px 0 0", fontSize:11, color:C.muted }}>{fee.description}</p>}
+                        </td>
+                        <td style={s}>
+                            <span style={{ fontFamily:"monospace", fontSize:11, background:"#f1f5f9", padding:"3px 8px", borderRadius:6, color:"#475569" }}>{fee.key}</span>
+                            {SYSTEM_KEYS.includes(fee.key) && <span style={{ marginLeft:6, fontSize:10, background:"#ede9fe", color:"#7c3aed", padding:"2px 7px", borderRadius:20, fontWeight:700 }}>system</span>}
+                        </td>
+                        <td style={s}><span style={{ fontSize:12, fontWeight:600, color: fee.type==="PERCENTAGE" ? "#0369a1" : "#b45309" }}>{fee.type}</span></td>
+                        <td style={{ ...s, fontFamily:"'Sora',sans-serif", fontWeight:800, color:"#0f172a" }}>
+                            {fee.type === "PERCENTAGE" ? `${fee.value}%` : `₦${Number(fee.value).toLocaleString()}`}
+                        </td>
+                        <td style={s}>
+                            <span style={{ display:"inline-flex", alignItems:"center", gap:5, padding:"4px 12px", borderRadius:20, fontSize:11, fontWeight:700,
+                                background: fee.applyToOrders ? "#dbeafe" : "#f8fafc", color: fee.applyToOrders ? "#1d4ed8" : "#94a3b8" }}>
+                                {fee.applyToOrders ? "Yes" : "No"}
+                            </span>
+                        </td>
+                        <td style={s}>
+                            <span style={{ display:"inline-flex", alignItems:"center", gap:5, padding:"4px 12px", borderRadius:20, fontSize:11, fontWeight:700,
+                                background: fee.active ? "#d1fae5" : "#fee2e2", color: fee.active ? "#059669" : "#b91c1c" }}>
+                                {fee.active ? "Active" : "Inactive"}
+                            </span>
+                        </td>
+                        <td style={{ ...s, display:"flex", gap:6, alignItems:"center" }}>
+                            <Btn label="Edit"   color={C.accent}           onClick={() => startEdit(fee)} />
+                            <Btn label={fee.active ? "Disable" : "Enable"} color={fee.active ? C.muted : C.green} onClick={() => handleToggle(fee)} />
+                            {!SYSTEM_KEYS.includes(fee.key) && <Btn label="Delete" color={C.red} onClick={() => handleDelete(fee)} />}
+                        </td>
+                    </tr>
+                ))}
+            </DataTable>
+        </div>
+    );
+};
+
+// ════════════════════════════════════════════════════════════
 // MAIN SUPER ADMIN DASHBOARD
 // ════════════════════════════════════════════════════════════
 export default function SuperAdminDashboard({ onExit }) {
@@ -893,6 +1038,7 @@ export default function SuperAdminDashboard({ onExit }) {
                                 {tab==="users"       && <UsersTab {...tabProps} />}
                                 {tab==="settlements" && <SettlementsTab {...tabProps} />}
                                 {tab==="reports"     && <ReportsTab {...tabProps} />}
+                                {tab==="fees"        && <FeesTab {...tabProps} />}
                             </>
                         )}
                     </main>
